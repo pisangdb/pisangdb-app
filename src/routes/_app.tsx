@@ -1,0 +1,95 @@
+import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
+import { AppSidebar } from "#/components/app-sidebar";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "#/components/ui/breadcrumb";
+import { Separator } from "#/components/ui/separator";
+import {
+	SidebarInset,
+	SidebarProvider,
+	SidebarTrigger,
+} from "#/components/ui/sidebar";
+import { TooltipProvider } from "#/components/ui/tooltip";
+
+export const Route = createFileRoute("/_app")({
+	component: AppLayout,
+});
+
+const ROUTE_LABELS: Record<string, string> = {
+	"/dashboard": "Dashboard",
+	"/dashboard/sandboxes": "Sandboxes",
+	"/dashboard/sandboxes/new": "New Sandbox",
+	"/dashboard/console": "SQL Console",
+	"/dashboard/ai-seeder": "AI Seeder",
+	"/dashboard/settings": "Settings",
+	"/dashboard/account": "Account",
+	"/dashboard/help": "Get Help",
+};
+
+function AppLayout() {
+	const matches = useMatches();
+
+	const crumbs = matches
+		.filter((m) => m.pathname !== "/" && ROUTE_LABELS[m.pathname])
+		.map((m) => ({
+			label: ROUTE_LABELS[m.pathname],
+			pathname: m.pathname,
+		}));
+
+	return (
+		<TooltipProvider>
+			<SidebarProvider>
+				<AppSidebar />
+				<SidebarInset>
+					<header className="sticky top-0 z-10 mb-4 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur-sm transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+						<div className="flex items-center gap-2 px-4">
+							<SidebarTrigger className="-ml-1" />
+							<Separator
+								orientation="vertical"
+								className="mr-2 data-[orientation=vertical]:h-4"
+							/>
+							<Breadcrumb>
+								<BreadcrumbList>
+									{crumbs.map((crumb, index) => {
+										const isLast = index === crumbs.length - 1;
+										return (
+											<span
+												key={crumb.pathname}
+												className="flex items-center gap-2"
+											>
+												{index > 0 && (
+													<BreadcrumbSeparator className="hidden md:block" />
+												)}
+												<BreadcrumbItem
+													className={
+														index < crumbs.length - 1
+															? "hidden md:block"
+															: undefined
+													}
+												>
+													{isLast ? (
+														<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+													) : (
+														<BreadcrumbLink href={crumb.pathname}>
+															{crumb.label}
+														</BreadcrumbLink>
+													)}
+												</BreadcrumbItem>
+											</span>
+										);
+									})}
+								</BreadcrumbList>
+							</Breadcrumb>
+						</div>
+					</header>
+					<Outlet />
+				</SidebarInset>
+			</SidebarProvider>
+		</TooltipProvider>
+	);
+}
