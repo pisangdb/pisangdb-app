@@ -92,6 +92,8 @@ function PrivacyPage() {
 			title="Privacy Policy"
 			effectiveDate="March 14, 2026"
 			sections={privacySections}
+			contactLabel="privacy@pisangdb.com"
+			contactHref="mailto:privacy@pisangdb.com"
 		/>
 	);
 }

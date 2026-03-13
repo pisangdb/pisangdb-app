@@ -98,6 +98,8 @@ function TermsPage() {
 			title="Terms of Service"
 			effectiveDate="March 14, 2026"
 			sections={termsSections}
+			contactLabel="legal@pisangdb.com"
+			contactHref="mailto:legal@pisangdb.com"
 		/>
 	);
 }

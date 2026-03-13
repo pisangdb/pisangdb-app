@@ -14,12 +14,16 @@ interface LegalPageLayoutProps {
 	title: string;
 	effectiveDate: string;
 	sections: LegalSection[];
+	contactLabel: string;
+	contactHref: string;
 }
 
 export function LegalPageLayout({
 	title,
 	effectiveDate,
 	sections,
+	contactLabel,
+	contactHref,
 }: LegalPageLayoutProps) {
 	return (
 		<div className="relative min-h-svh bg-background">
@@ -97,6 +101,24 @@ export function LegalPageLayout({
 						</CardContent>
 					</Card>
 				</div>
+
+				<Card>
+					<CardContent className="flex flex-col gap-2 pt-6 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
+						<p>
+							Last updated:{" "}
+							<span className="text-foreground">{effectiveDate}</span>
+						</p>
+						<p>
+							Contact:{" "}
+							<a
+								href={contactHref}
+								className="text-foreground underline underline-offset-4"
+							>
+								{contactLabel}
+							</a>
+						</p>
+					</CardContent>
+				</Card>
 			</main>
 		</div>
 	);
