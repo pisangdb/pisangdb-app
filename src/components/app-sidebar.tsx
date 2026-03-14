@@ -2,6 +2,7 @@ import {
 	BotIcon,
 	DatabaseIcon,
 	LayoutDashboardIcon,
+	Settings2Icon,
 	TerminalIcon,
 } from "lucide-react";
 import type * as React from "react";
@@ -55,6 +56,11 @@ const data = {
 			title: "AI Seeder",
 			url: "/dashboard/ai-seeder",
 			icon: <BotIcon />,
+		},
+		{
+			title: "Settings",
+			url: "/dashboard/settings",
+			icon: <Settings2Icon />,
 		},
 	],
 };

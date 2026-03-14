@@ -1,9 +1,9 @@
+import { Link } from "@tanstack/react-router";
 import {
 	BadgeCheckIcon,
 	ChevronsUpDownIcon,
 	CircleHelpIcon,
 	LogOutIcon,
-	Settings2Icon,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "#/components/ui/avatar";
 import {
@@ -88,22 +88,16 @@ export function NavUser({
 						<DropdownMenuSeparator />
 						<DropdownMenuGroup>
 							<DropdownMenuItem asChild>
-								<a href="/dashboard/account">
+								<Link to="/dashboard/account">
 									<BadgeCheckIcon />
 									Account
-								</a>
+								</Link>
 							</DropdownMenuItem>
 							<DropdownMenuItem asChild>
-								<a href="/dashboard/settings">
-									<Settings2Icon />
-									Settings
-								</a>
-							</DropdownMenuItem>
-							<DropdownMenuItem asChild>
-								<a href="/dashboard/help">
+								<Link to="/dashboard/help">
 									<CircleHelpIcon />
 									Get Help
-								</a>
+								</Link>
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />

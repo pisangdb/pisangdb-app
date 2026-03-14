@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { DatabaseIcon, PlusIcon } from "lucide-react";
 import { Button } from "#/components/ui/button";
 import { Progress } from "#/components/ui/progress";
@@ -41,10 +42,10 @@ export function NavUsage({ active = 0 }: { active?: number }) {
 						variant="outline"
 						className="h-7 w-full gap-1.5 text-xs border-sidebar-border bg-sidebar-background hover:bg-sidebar-accent"
 					>
-						<a href="/dashboard/sandboxes/new">
+						<Link to="/dashboard/sandboxes/new">
 							<PlusIcon className="size-3" />
 							New Sandbox
-						</a>
+						</Link>
 					</Button>
 				</div>
 			</SidebarGroupContent>
