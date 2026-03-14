@@ -1,4 +1,9 @@
-import { Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/_app/dashboard/")({
+	component: DashboardHome,
+});
+
 import {
 	ActivityIcon,
 	BotIcon,
@@ -28,7 +33,7 @@ const MAX_ACTIVE_SANDBOXES = 5;
 type DashboardState = "loading" | "error" | "success";
 const dashboardState: DashboardState = "success";
 
-type SandboxStatus = "active" | "expiring" | "expired";
+type SandboxStatus = "active" | "expiring" | "expired" | "destroying";
 
 const recentSandboxes: {
 	id: string;
@@ -98,6 +103,10 @@ const statusConfig: Record<
 		label: "Expired",
 		variant: "destructive",
 	},
+	destroying: {
+		label: "Destroying",
+		variant: "secondary",
+	},
 };
 
 const quickActions = [
@@ -134,8 +143,11 @@ const quickActions = [
 const activeCount = recentSandboxes.filter(
 	(sb) => sb.status === "active",
 ).length;
-const totalCreated = 14;
-const autoCleaned = 12;
+const expiringCount = recentSandboxes.filter(
+	(sb) => sb.status === "expiring",
+).length;
+const totalCreated = recentSandboxes.length + 11; // dummy: 11 historical
+const autoCleaned = totalCreated - activeCount - expiringCount;
 const aiQueries = 8;
 
 const stats = [
@@ -399,9 +411,13 @@ export function DashboardHome() {
 												</div>
 
 												<div className="min-w-0 flex-1">
-													<p className="truncate font-mono text-sm font-medium">
+													<Link
+														to="/dashboard/sandboxes/$id"
+														params={{ id: sb.id }}
+														className="truncate font-mono text-sm font-medium hover:underline"
+													>
 														{sb.name}
-													</p>
+													</Link>
 													<div className="flex items-center gap-2 text-xs text-muted-foreground">
 														<span>{sb.engine}</span>
 														<span>·</span>

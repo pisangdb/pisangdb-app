@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BotIcon, SparklesIcon, WandSparklesIcon } from "lucide-react";
+import { BotIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -51,12 +51,26 @@ VALUES
   ('Andi Pratama', 'andi@example.com'),
   ('Citra Dewi', 'citra@example.com');`;
 
+const sandboxOptions = [
+	{ id: "sb_a1b2x8", label: "migration-check (PostgreSQL 16)" },
+	{ id: "sb_c3d4y9", label: "bootcamp-prisma (MySQL 8)" },
+];
+
 function AiSeederPage() {
+	const [selectedSandbox, setSelectedSandbox] = useState(
+		sandboxOptions[0]?.id ?? "",
+	);
 	const [mode, setMode] = useState<Mode>("schema");
 	const [prompt, setPrompt] = useState(
 		"Create users, products, and orders tables for a simple e-commerce app.",
 	);
 	const [generated, setGenerated] = useState(false);
+	const [savedPrompt, setSavedPrompt] = useState(false);
+
+	const handleSavePrompt = () => {
+		setSavedPrompt(true);
+		setTimeout(() => setSavedPrompt(false), 2000);
+	};
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -72,10 +86,27 @@ function AiSeederPage() {
 					<CardHeader>
 						<CardTitle className="text-base">Prompt</CardTitle>
 						<CardDescription>
-							Dummy response mode. Integrate Gemini endpoint later.
+							Generate SQL and run it against your selected sandbox.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
+						<div className="space-y-1.5">
+							<label htmlFor="ai-sandbox" className="text-sm font-medium">
+								Target Sandbox
+							</label>
+							<select
+								id="ai-sandbox"
+								value={selectedSandbox}
+								onChange={(e) => setSelectedSandbox(e.target.value)}
+								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
+							>
+								{sandboxOptions.map((opt) => (
+									<option key={opt.id} value={opt.id}>
+										{opt.label}
+									</option>
+								))}
+							</select>
+						</div>
 						<div className="grid gap-2 sm:grid-cols-3">
 							{modeConfig.map((item) => (
 								<button
@@ -111,8 +142,8 @@ function AiSeederPage() {
 								<SparklesIcon className="size-4" />
 								Generate SQL
 							</Button>
-							<Button variant="outline" size="sm">
-								Save Prompt
+							<Button variant="outline" size="sm" onClick={handleSavePrompt}>
+								{savedPrompt ? "Saved ✓" : "Save Prompt"}
 							</Button>
 							<Badge variant="outline">30 requests/day (free)</Badge>
 						</div>
@@ -162,10 +193,9 @@ function AiSeederPage() {
 								better SQL output.
 							</p>
 						</div>
-						<Button variant="outline" size="sm" className="w-full gap-1.5">
-							<WandSparklesIcon className="size-4" />
-							Open AI Logs
-						</Button>
+						<p className="text-xs text-muted-foreground">
+							AI interaction logs will be available in a future update.
+						</p>
 					</CardContent>
 				</Card>
 			</div>

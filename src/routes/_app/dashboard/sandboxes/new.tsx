@@ -58,6 +58,15 @@ function NewSandboxPage() {
 	const [retention, setRetention] = useState("6 hours");
 	const [template, setTemplate] = useState("Blank");
 	const [copied, setCopied] = useState(false);
+	const [creating, setCreating] = useState<"idle" | "loading" | "done">("idle");
+
+	const handleCreate = () => {
+		setCreating("loading");
+		setTimeout(() => {
+			setCreating("done");
+			setTimeout(() => setCreating("idle"), 3000);
+		}, 1200);
+	};
 
 	const selectedEngine =
 		engineOptions.find((item) => item.value === engine) ?? engineOptions[0];
@@ -114,7 +123,7 @@ function NewSandboxPage() {
 					<CardHeader>
 						<CardTitle className="text-base">Sandbox Configuration</CardTitle>
 						<CardDescription>
-							This form is dummy UI and does not provision a real database yet.
+							Configure your database engine, region, and retention time.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-5">
@@ -207,7 +216,17 @@ function NewSandboxPage() {
 							</select>
 						</div>
 
-						<Button className="w-full sm:w-auto">Create Sandbox 🍌</Button>
+						<Button
+							className="w-full sm:w-auto"
+							disabled={creating === "loading"}
+							onClick={handleCreate}
+						>
+							{creating === "loading"
+								? "Creating..."
+								: creating === "done"
+									? "Sandbox Created! 🎉"
+									: "Create Sandbox 🍌"}
+						</Button>
 					</CardContent>
 				</Card>
 

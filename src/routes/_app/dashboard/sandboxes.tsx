@@ -8,7 +8,7 @@ import {
 	Clock3Icon,
 	CopyIcon,
 	PlusIcon,
-	RefreshCcwIcon,
+	TimerIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
@@ -112,6 +112,9 @@ function SandboxesLayout() {
 
 function SandboxesPage() {
 	const [copiedId, setCopiedId] = useState<string | null>(null);
+	const [extendMenuId, setExtendMenuId] = useState<string | null>(null);
+	const [extendedId, setExtendedId] = useState<string | null>(null);
+	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	const activeCount = sandboxes.filter(
 		(item) => item.status === "active",
@@ -124,6 +127,13 @@ function SandboxesPage() {
 		setTimeout(() => {
 			setCopiedId((current) => (current === id ? null : current));
 		}, 1200);
+	};
+
+	const handleExtend = (id: string, duration: string) => {
+		setExtendMenuId(null);
+		setExtendedId(id);
+		setTimeout(() => setExtendedId((cur) => (cur === id ? null : cur)), 2000);
+		console.log(`Extend sandbox ${id} by ${duration}`);
 	};
 
 	return (
@@ -192,9 +202,13 @@ function SandboxesPage() {
 										</div>
 										<div className="min-w-0">
 											<div className="flex items-center gap-2">
-												<p className="text-sm font-medium">
+												<Link
+													to="/dashboard/sandboxes/$id"
+													params={{ id: sandbox.id }}
+													className="text-sm font-medium hover:underline"
+												>
 													{sandbox.displayName}
-												</p>
+												</Link>
 												<Badge variant={status.variant} className="text-[10px]">
 													{status.label}
 												</Badge>
@@ -224,24 +238,76 @@ function SandboxesPage() {
 										>
 											<CopyIcon className="size-3.5" />
 										</Button>
-										<Button
-											variant="outline"
-											size="icon"
-											className="size-7"
-											disabled={sandbox.status !== "active"}
-											title="Extend sandbox"
-										>
-											<RefreshCcwIcon className="size-3.5" />
-										</Button>
-										<Button
-											variant="outline"
-											size="icon"
-											className="size-7"
-											disabled={sandbox.status === "destroying"}
-											title="Delete sandbox"
-										>
-											<Trash2Icon className="size-3.5" />
-										</Button>
+										<div className="relative">
+											<Button
+												variant="outline"
+												size="icon"
+												className="size-7"
+												disabled={sandbox.status !== "active"}
+												title="Extend sandbox"
+												onClick={() =>
+													setExtendMenuId((cur) =>
+														cur === sandbox.id ? null : sandbox.id,
+													)
+												}
+											>
+												<TimerIcon className="size-3.5" />
+											</Button>
+											{extendMenuId === sandbox.id && (
+												<div className="absolute right-0 top-8 z-10 flex flex-col gap-0.5 rounded-md border bg-background p-1 shadow-md">
+													{["+1h", "+6h", "+12h", "+24h"].map((d) => (
+														<button
+															key={d}
+															type="button"
+															className="rounded px-3 py-1.5 text-left text-xs hover:bg-muted"
+															onClick={() => handleExtend(sandbox.id, d)}
+														>
+															Extend {d}
+														</button>
+													))}
+												</div>
+											)}
+											{extendedId === sandbox.id && (
+												<p className="mt-1 text-[10px] text-muted-foreground">
+													Extended ✓
+												</p>
+											)}
+										</div>
+										{deleteConfirmId === sandbox.id ? (
+											<div className="flex items-center gap-1.5">
+												<span className="text-xs text-destructive">
+													Delete?
+												</span>
+												<Button
+													size="icon"
+													variant="destructive"
+													className="size-6"
+													onClick={() => setDeleteConfirmId(null)}
+													title="Confirm delete"
+												>
+													<Trash2Icon className="size-3" />
+												</Button>
+												<Button
+													size="icon"
+													variant="outline"
+													className="size-6"
+													onClick={() => setDeleteConfirmId(null)}
+												>
+													✕
+												</Button>
+											</div>
+										) : (
+											<Button
+												variant="outline"
+												size="icon"
+												className="size-7"
+												disabled={sandbox.status === "destroying"}
+												title="Delete sandbox"
+												onClick={() => setDeleteConfirmId(sandbox.id)}
+											>
+												<Trash2Icon className="size-3.5" />
+											</Button>
+										)}
 									</div>
 								</div>
 

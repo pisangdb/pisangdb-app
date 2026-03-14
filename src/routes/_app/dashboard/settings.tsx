@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BellIcon, KeyRoundIcon, ShieldCheckIcon, UserIcon } from "lucide-react";
+import {
+	BellIcon,
+	KeyRoundIcon,
+	ShieldCheckIcon,
+	UserIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
@@ -38,7 +43,9 @@ function SettingsPage() {
 							<UserIcon className="size-4" />
 							Profile
 						</CardTitle>
-						<CardDescription>Dummy values for UI preview.</CardDescription>
+						<CardDescription>
+							Update your display name and email address.
+						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3">
 						<div className="space-y-2">
@@ -79,7 +86,11 @@ function SettingsPage() {
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="confirm-password">Confirm password</Label>
-							<Input id="confirm-password" type="password" placeholder="••••••••" />
+							<Input
+								id="confirm-password"
+								type="password"
+								placeholder="••••••••"
+							/>
 						</div>
 						<div className="flex gap-2">
 							<Button size="sm">Update password</Button>

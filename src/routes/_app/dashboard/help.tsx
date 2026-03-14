@@ -37,10 +37,11 @@ function HelpPage() {
 						<CardDescription>Read setup and usage guides.</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<Button variant="outline" size="sm" className="gap-1.5">
+						<Button variant="outline" size="sm" className="gap-1.5" disabled>
 							Open docs
 							<ExternalLinkIcon className="size-3.5" />
 						</Button>
+						<p className="mt-2 text-xs text-muted-foreground">Coming soon</p>
 					</CardContent>
 				</Card>
 
@@ -55,7 +56,10 @@ function HelpPage() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<Button size="sm">Create support ticket</Button>
+						<Button size="sm" disabled>
+							Create support ticket
+						</Button>
+						<p className="mt-2 text-xs text-muted-foreground">Coming soon</p>
 					</CardContent>
 				</Card>
 

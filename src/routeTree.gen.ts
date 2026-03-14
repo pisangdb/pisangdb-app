@@ -17,6 +17,7 @@ import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
 import { Route as AppDashboardSettingsRouteImport } from './routes/_app/dashboard/settings'
 import { Route as AppDashboardSandboxesRouteImport } from './routes/_app/dashboard/sandboxes'
 import { Route as AppDashboardHelpRouteImport } from './routes/_app/dashboard/help'
@@ -24,6 +25,7 @@ import { Route as AppDashboardConsoleRouteImport } from './routes/_app/dashboard
 import { Route as AppDashboardAiSeederRouteImport } from './routes/_app/dashboard/ai-seeder'
 import { Route as AppDashboardAccountRouteImport } from './routes/_app/dashboard/account'
 import { Route as AppDashboardSandboxesNewRouteImport } from './routes/_app/dashboard/sandboxes/new'
+import { Route as AppDashboardSandboxesIdRouteImport } from './routes/_app/dashboard/sandboxes/$id'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -64,6 +66,11 @@ const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
 const AppDashboardSettingsRoute = AppDashboardSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -100,6 +107,11 @@ const AppDashboardSandboxesNewRoute =
     path: '/new',
     getParentRoute: () => AppDashboardSandboxesRoute,
   } as any)
+const AppDashboardSandboxesIdRoute = AppDashboardSandboxesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppDashboardSandboxesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -115,6 +127,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/help': typeof AppDashboardHelpRoute
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/dashboard/': typeof AppDashboardIndexRoute
+  '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
 }
 export interface FileRoutesByTo {
@@ -124,13 +138,14 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
-  '/dashboard': typeof AppDashboardRouteWithChildren
   '/dashboard/account': typeof AppDashboardAccountRoute
   '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/dashboard/console': typeof AppDashboardConsoleRoute
   '/dashboard/help': typeof AppDashboardHelpRoute
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/dashboard': typeof AppDashboardIndexRoute
+  '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
 }
 export interface FileRoutesById {
@@ -149,6 +164,8 @@ export interface FileRoutesById {
   '/_app/dashboard/help': typeof AppDashboardHelpRoute
   '/_app/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/_app/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/_app/dashboard/': typeof AppDashboardIndexRoute
+  '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
 }
 export interface FileRouteTypes {
@@ -167,6 +184,8 @@ export interface FileRouteTypes {
     | '/dashboard/help'
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
+    | '/dashboard/'
+    | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,13 +195,14 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/register'
-    | '/dashboard'
     | '/dashboard/account'
     | '/dashboard/ai-seeder'
     | '/dashboard/console'
     | '/dashboard/help'
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
+    | '/dashboard'
+    | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
   id:
     | '__root__'
@@ -200,6 +220,8 @@ export interface FileRouteTypes {
     | '/_app/dashboard/help'
     | '/_app/dashboard/sandboxes'
     | '/_app/dashboard/settings'
+    | '/_app/dashboard/'
+    | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
   fileRoutesById: FileRoutesById
 }
@@ -271,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/dashboard/': {
+      id: '/_app/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof AppDashboardIndexRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
     '/_app/dashboard/settings': {
       id: '/_app/dashboard/settings'
       path: '/settings'
@@ -320,14 +349,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardSandboxesNewRouteImport
       parentRoute: typeof AppDashboardSandboxesRoute
     }
+    '/_app/dashboard/sandboxes/$id': {
+      id: '/_app/dashboard/sandboxes/$id'
+      path: '/$id'
+      fullPath: '/dashboard/sandboxes/$id'
+      preLoaderRoute: typeof AppDashboardSandboxesIdRouteImport
+      parentRoute: typeof AppDashboardSandboxesRoute
+    }
   }
 }
 
 interface AppDashboardSandboxesRouteChildren {
+  AppDashboardSandboxesIdRoute: typeof AppDashboardSandboxesIdRoute
   AppDashboardSandboxesNewRoute: typeof AppDashboardSandboxesNewRoute
 }
 
 const AppDashboardSandboxesRouteChildren: AppDashboardSandboxesRouteChildren = {
+  AppDashboardSandboxesIdRoute: AppDashboardSandboxesIdRoute,
   AppDashboardSandboxesNewRoute: AppDashboardSandboxesNewRoute,
 }
 
@@ -343,6 +381,7 @@ interface AppDashboardRouteChildren {
   AppDashboardHelpRoute: typeof AppDashboardHelpRoute
   AppDashboardSandboxesRoute: typeof AppDashboardSandboxesRouteWithChildren
   AppDashboardSettingsRoute: typeof AppDashboardSettingsRoute
+  AppDashboardIndexRoute: typeof AppDashboardIndexRoute
 }
 
 const AppDashboardRouteChildren: AppDashboardRouteChildren = {
@@ -352,6 +391,7 @@ const AppDashboardRouteChildren: AppDashboardRouteChildren = {
   AppDashboardHelpRoute: AppDashboardHelpRoute,
   AppDashboardSandboxesRoute: AppDashboardSandboxesRouteWithChildren,
   AppDashboardSettingsRoute: AppDashboardSettingsRoute,
+  AppDashboardIndexRoute: AppDashboardIndexRoute,
 }
 
 const AppDashboardRouteWithChildren = AppDashboardRoute._addFileChildren(

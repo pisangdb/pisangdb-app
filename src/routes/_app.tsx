@@ -31,13 +31,21 @@ const ROUTE_LABELS: Record<string, string> = {
 	"/dashboard/help": "Get Help",
 };
 
+function getRouteLabel(pathname: string): string | undefined {
+	if (ROUTE_LABELS[pathname]) return ROUTE_LABELS[pathname];
+	// Handle /dashboard/sandboxes/:id
+	const sandboxDetailMatch = /^\/dashboard\/sandboxes\/([^/]+)$/.exec(pathname);
+	if (sandboxDetailMatch) return sandboxDetailMatch[1];
+	return undefined;
+}
+
 function AppLayout() {
 	const matches = useMatches();
 
 	const crumbs = matches
-		.filter((m) => m.pathname !== "/" && ROUTE_LABELS[m.pathname])
+		.filter((m) => m.pathname !== "/" && getRouteLabel(m.pathname))
 		.map((m) => ({
-			label: ROUTE_LABELS[m.pathname],
+			label: getRouteLabel(m.pathname) as string,
 			pathname: m.pathname,
 		}));
 
