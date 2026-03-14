@@ -6,6 +6,7 @@ import {
 	TerminalIcon,
 } from "lucide-react";
 import type * as React from "react";
+import { Link } from "@tanstack/react-router";
 import { Logo } from "#/components/logo";
 import { NavMain } from "#/components/nav-main";
 import { NavUsage } from "#/components/nav-usage";
@@ -22,9 +23,9 @@ import {
 
 const data = {
 	user: {
-		name: "shadcn",
-		email: "m@example.com",
-		avatar: "/avatars/shadcn.jpg",
+		name: "Rio Pratama",
+		email: "rio@example.com",
+		avatar: "",
 	},
 	navMain: [
 		{
@@ -75,7 +76,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 							asChild
 							className="data-[slot=sidebar-menu-button]:p-1.5!"
 						>
-							<a href="/dashboard">
+							<Link to="/dashboard">
 								<Logo
 									size="sm"
 									showText={false}
@@ -86,7 +87,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 									showText={true}
 									className="group-data-[collapsible=icon]:hidden"
 								/>
-							</a>
+							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>

@@ -1,11 +1,12 @@
+import { Link } from "@tanstack/react-router";
 import { Logo } from "#/components/logo";
 
 const features = [
-	"🐘 PostgreSQL",
-	"🐬 MySQL",
-	"🦭 MariaDB",
-	"🧹 Auto-cleanup",
-	"⚡ Ready < 2 detik",
+	"🐘 PostgreSQL 16",
+	"🐬 MySQL 8",
+	"🦭 MariaDB 11",
+	"🧹 Auto-cleanup TTL",
+	"⚡ Ready in < 2 seconds",
 ];
 
 export function AuthBrandingPanel() {
@@ -14,12 +15,14 @@ export function AuthBrandingPanel() {
 			<div className="absolute inset-0 bg-linear-to-br from-primary/20 via-background to-primary/10" />
 			<div className="absolute inset-0 bg-linear-to-t from-background/70 via-transparent to-background/40" />
 			<div className="absolute -bottom-24 -right-24 size-80 rounded-full bg-primary/20 blur-3xl" />
-			<div className="absolute -top-20 -left-20 size-72 rounded-full bg-primary/10 blur-3xl" />
+			<div className="absolute -left-20 -top-20 size-72 rounded-full bg-primary/10 blur-3xl" />
 
-			<Logo
-				size="md"
-				className="relative z-10 [&_span]:text-foreground [&_.text-primary]:text-primary"
-			/>
+			<Link to="/" className="relative z-10">
+				<Logo
+					size="md"
+					className="[&_.text-primary]:text-primary [&_span]:text-foreground"
+				/>
+			</Link>
 
 			<div className="relative z-10 space-y-4">
 				<blockquote className="space-y-2">

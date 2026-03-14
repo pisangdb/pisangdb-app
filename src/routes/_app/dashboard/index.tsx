@@ -404,7 +404,13 @@ export function DashboardHome() {
 										return (
 											<div
 												key={sb.id}
-												className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+												className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40 ${
+													sb.status === "expired" || sb.status === "destroying"
+														? "opacity-50 grayscale"
+														: sb.status === "expiring"
+															? "opacity-70"
+															: ""
+												}`}
 											>
 												<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">
 													{sb.engineEmoji}

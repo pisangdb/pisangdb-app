@@ -1,4 +1,9 @@
-import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	Outlet,
+	useMatches,
+} from "@tanstack/react-router";
 import { AppSidebar } from "#/components/app-sidebar";
 import {
 	Breadcrumb,
@@ -83,8 +88,10 @@ function AppLayout() {
 													{isLast ? (
 														<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
 													) : (
-														<BreadcrumbLink href={crumb.pathname}>
-															{crumb.label}
+														<BreadcrumbLink asChild>
+															<Link to={crumb.pathname as never}>
+																{crumb.label}
+															</Link>
 														</BreadcrumbLink>
 													)}
 												</BreadcrumbItem>

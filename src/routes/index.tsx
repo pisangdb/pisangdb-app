@@ -1,247 +1,553 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Clock3, Database, Sparkles, TimerReset } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+	BotIcon,
+	CheckIcon,
+	ClockIcon,
+	CodeXmlIcon,
+	CopyIcon,
+	DatabaseIcon,
+	GraduationCapIcon,
+	ShieldCheckIcon,
+	SparklesIcon,
+	TimerResetIcon,
+	ZapIcon,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { Logo } from "#/components/logo";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 
 export const Route = createFileRoute("/")({
-	component: RouteComponent,
+	component: LandingPage,
 });
 
-const highlights = [
+/* ─── Data ───────────────────────────────────────────────── */
+
+const features = [
 	{
-		title: "Sandbox Multi-Engine",
-		desc: "Use PostgreSQL, MySQL, and MariaDB in one consistent workflow.",
-		icon: Database,
+		icon: DatabaseIcon,
+		title: "Multi-Engine Support",
+		desc: "PostgreSQL 16, MySQL 8, and MariaDB 11 — pick the engine that matches your stack.",
+		color: "text-blue-500",
+		bg: "bg-blue-500/10",
 	},
 	{
-		title: "Instant Credentials",
-		desc: "Host, port, username, password, and connection URL ready to copy in one click.",
-		icon: Sparkles,
+		icon: ZapIcon,
+		title: "Ready in 2 Seconds",
+		desc: "Credentials are provisioned instantly. No docker, no local install, no waiting.",
+		color: "text-yellow-500",
+		bg: "bg-yellow-500/10",
 	},
 	{
-		title: "Auto-Cleanup TTL",
-		desc: "Databases are cleaned up automatically from 1 hour up to 7 days, no manual cleanup needed.",
-		icon: TimerReset,
+		icon: TimerResetIcon,
+		title: "Auto TTL Cleanup",
+		desc: "Set retention from 1 hour to 7 days. Expired sandboxes are destroyed automatically.",
+		color: "text-green-500",
+		bg: "bg-green-500/10",
 	},
 	{
-		title: "SQL Console + AI Seeder",
-		desc: "Run queries in the browser and generate schema or seed data from prompts.",
-		icon: Clock3,
+		icon: CodeXmlIcon,
+		title: "SQL Console",
+		desc: "Run queries directly in the browser — no external client needed.",
+		color: "text-purple-500",
+		bg: "bg-purple-500/10",
+	},
+	{
+		icon: BotIcon,
+		title: "AI Seeder",
+		desc: "Generate schema and seed data using natural language. Powered by Gemini.",
+		color: "text-pink-500",
+		bg: "bg-pink-500/10",
+	},
+	{
+		icon: ShieldCheckIcon,
+		title: "Isolated Sandboxes",
+		desc: "Each sandbox gets its own credentials and DB user — fully isolated from others.",
+		color: "text-orange-500",
+		bg: "bg-orange-500/10",
 	},
 ];
 
-const engineOptions = ["🐘 PostgreSQL 16", "🐬 MySQL 8", "🦭 MariaDB 11"];
+const engines = [
+	{ emoji: "🐘", name: "PostgreSQL 16", port: "5432" },
+	{ emoji: "🐬", name: "MySQL 8", port: "3306" },
+	{ emoji: "🦭", name: "MariaDB 11", port: "3307" },
+];
 
 const regions = [
-	{ name: "🇮🇩 Indonesia", status: "Active" as const },
-	{ name: "🇸🇬 Singapore", status: "Coming soon" as const },
-	{ name: "🇺🇸 US", status: "Coming soon" as const },
+	{ flag: "🇮🇩", name: "Indonesia", active: true },
+	{ flag: "🇸🇬", name: "Singapore", active: false },
+	{ flag: "🇺🇸", name: "United States", active: false },
 ];
 
-const useCases = ["Migration testing", "Learning SQL", "Faster project setup"];
+const stats = [
+	{ label: "Database engines", value: "3" },
+	{ label: "Max sandboxes (free)", value: "5" },
+	{ label: "Max size per sandbox", value: "100 MB" },
+	{ label: "Max retention", value: "7 days" },
+];
 
-function RouteComponent() {
+const freePlanFeatures = [
+	"5 active sandboxes",
+	"100 MB per sandbox",
+	"Retention 1h – 7 days",
+	"3 database engines",
+	"SQL Console (browser-based)",
+	"AI Seeder — 30 requests/day",
+	"Auto-cleanup on expiry",
+	"Instant credentials copy",
+];
+
+const useCases = [
+	{
+		icon: GraduationCapIcon,
+		title: "Bootcamp & learning",
+		desc: "Get a live database in seconds — focus on learning, not setup.",
+	},
+	{
+		icon: ZapIcon,
+		title: "Fast prototyping",
+		desc: "Skip local engine setup and ship a working prototype faster.",
+	},
+	{
+		icon: ClockIcon,
+		title: "Migration testing",
+		desc: "Validate schema migrations safely before touching production.",
+	},
+];
+
+/* ─── Component ──────────────────────────────────────────── */
+
+const SCENARIOS = [
+	{
+		command: "pisangdb create --engine postgresql",
+		name: "migration-check",
+		url: "DATABASE_URL=postgresql://sb_a1b2x8:s3cr3t@id.pisangdb.com:5432/pisang_a1b2_migration_x8k2m9",
+		ttl: "6h",
+	},
+	{
+		command: "pisangdb create --engine mysql --ttl 24h",
+		name: "bootcamp-prisma",
+		url: "DATABASE_URL=mysql://sb_c3d4y9:s3cr3t@id.pisangdb.com:3306/pisang_c3d4_bootcamp_prisma_z7j1",
+		ttl: "24h",
+	},
+	{
+		command: "pisangdb create --engine mariadb --ttl 1h",
+		name: "quick-test",
+		url: "DATABASE_URL=mysql://sb_e5f6z1:s3cr3t@id.pisangdb.com:3307/pisang_e5f6_quick_test_q2w3",
+		ttl: "1h",
+	},
+];
+
+function TerminalHero() {
+	const [scenarioIdx, setScenarioIdx] = useState(0);
+	const [typed, setTyped] = useState("");
+	const [showOutput, setShowOutput] = useState(false);
+	const [showUrl, setShowUrl] = useState(false);
+
+	useEffect(() => {
+		const scenario = SCENARIOS[scenarioIdx];
+		if (!scenario) return;
+
+		let i = 0;
+		setTyped("");
+		setShowOutput(false);
+		setShowUrl(false);
+
+		const typing = setInterval(() => {
+			setTyped(scenario.command.slice(0, i + 1));
+			i++;
+			if (i >= scenario.command.length) {
+				clearInterval(typing);
+				const t1 = setTimeout(() => setShowOutput(true), 400);
+				const t2 = setTimeout(() => setShowUrl(true), 900);
+				// After showing for 2.5s, cycle to next scenario
+				const t3 = setTimeout(() => {
+					setScenarioIdx((cur) => (cur + 1) % SCENARIOS.length);
+				}, 3500);
+				return () => {
+					clearTimeout(t1);
+					clearTimeout(t2);
+					clearTimeout(t3);
+				};
+			}
+		}, 40);
+
+		return () => clearInterval(typing);
+	}, [scenarioIdx]);
+
+	const scenario = SCENARIOS[scenarioIdx];
+	if (!scenario) return null;
+
 	return (
-		<div className="relative min-h-svh bg-background">
-			<div className="pointer-events-none absolute inset-x-0 top-0 h-115 bg-linear-to-b from-primary/10 via-background/60 to-transparent" />
-			<div className="pointer-events-none absolute left-10 top-28 size-32 rounded-full bg-primary/15 blur-2xl motion-safe:animate-pulse" />
-			<div className="pointer-events-none absolute right-8 top-40 size-24 rounded-full bg-primary/10 blur-2xl motion-safe:animate-pulse [animation-delay:500ms]" />
+		<div className="w-full max-w-2xl overflow-hidden rounded-xl border bg-[#0d1117] text-left shadow-xl">
+			<div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5">
+				<span className="size-3 rounded-full bg-red-500/70" />
+				<span className="size-3 rounded-full bg-yellow-500/70" />
+				<span className="size-3 rounded-full bg-green-500/70" />
+				<span className="ml-2 text-xs text-white/30">pisangdb — terminal</span>
+				<span className="ml-auto flex gap-1">
+					{SCENARIOS.map((s, idx) => (
+						<span
+							key={s.name}
+							className={`size-1.5 rounded-full transition-colors duration-300 ${idx === scenarioIdx ? "bg-primary" : "bg-white/20"}`}
+						/>
+					))}
+				</span>
+			</div>
+			<div className="space-y-1 p-4 font-mono text-sm">
+				<p className="text-white/40">
+					# Your sandbox credentials appear instantly
+				</p>
+				<p>
+					<span className="text-green-400">$</span>{" "}
+					<span className="text-white/90">
+						{typed}
+						{typed.length < scenario.command.length && (
+							<span className="animate-pulse text-primary">▊</span>
+						)}
+					</span>
+				</p>
+				{showOutput && (
+					<p className="text-primary/80 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
+						✓ Sandbox created:{" "}
+						<span className="text-white/70">{scenario.name}</span>
+					</p>
+				)}
+				{showUrl && (
+					<>
+						<p className="mt-2 break-all rounded-md bg-white/5 p-2 text-xs text-green-300 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500">
+							{scenario.url}
+						</p>
+						<div className="mt-1 flex items-center gap-1.5 text-xs text-white/40 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-700">
+							<CopyIcon className="size-3" />
+							<span>Copy to clipboard</span>
+							<span className="ml-auto">
+								TTL: {scenario.ttl} · Size: 0 / 100 MB
+							</span>
+						</div>
+					</>
+				)}
+			</div>
+		</div>
+	);
+}
 
+function LandingPage() {
+	return (
+		<div className="relative min-h-svh bg-background text-foreground">
+			{/* Background glows */}
+			<div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-linear-to-b from-primary/8 via-background/50 to-transparent" />
+			<div className="pointer-events-none absolute left-1/4 top-32 size-48 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl motion-safe:animate-pulse" />
+			<div className="pointer-events-none absolute right-1/4 top-48 size-36 translate-x-1/2 rounded-full bg-blue-500/8 blur-3xl motion-safe:animate-pulse [animation-delay:700ms]" />
+
+			{/* ── Header ── */}
 			<header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 md:px-8 md:py-5">
-				<div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 motion-safe:duration-700">
-					<Logo size="md" />
-				</div>
-				<div className="flex items-center gap-2">
-					<Button variant="ghost" asChild>
-						<a href="/login">Sign in</a>
+				<Logo size="md" />
+				<nav className="flex items-center gap-2">
+					<Button variant="ghost" size="sm" asChild>
+						<Link to="/login">Sign in</Link>
 					</Button>
-					<Button asChild>
-						<a href="/register">Create account</a>
+					<Button size="sm" asChild>
+						<Link to="/register">Get started free</Link>
 					</Button>
-				</div>
+				</nav>
 			</header>
 
-			<main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pb-10 pt-6 md:gap-14 md:px-8 md:pb-14 md:pt-12">
-				<section className="grid gap-8 md:gap-10 lg:grid-cols-2 lg:items-center">
-					<div className="space-y-4 md:space-y-5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-4 motion-safe:duration-700">
-						<Badge variant="secondary" className="w-fit">
-							PisangDB 🍌 • Fresh Databases, Peels Away When Done
-						</Badge>
-						<h1 className="text-3xl font-semibold tracking-tight sm:text-4xl md:text-5xl">
-							Production-like databases ready in under 2 seconds, with zero
-							local install.
-						</h1>
-						<p className="max-w-xl text-sm text-muted-foreground sm:text-base md:text-lg">
-							Create isolated PostgreSQL, MySQL, or MariaDB sandboxes, copy the
-							connection string, use it instantly in your local project, and let
-							auto-cleanup handle the rest.
-						</p>
+			<main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-20 px-4 pb-20 pt-8 md:px-8 md:pt-14">
+				{/* ── Hero ── */}
+				<section className="flex flex-col items-center gap-6 text-center">
+					<Badge variant="secondary" className="px-3 py-1">
+						🍌 Free while in beta — no credit card required
+					</Badge>
 
-						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-							<Badge variant="outline">No local engine installation</Badge>
-							<Badge variant="outline">Isolated sandbox per project</Badge>
-							<Badge variant="outline">
-								Auto-cleanup from 1 hour to 7 days
-							</Badge>
-						</div>
+					<h1 className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+						Ephemeral databases,{" "}
+						<span className="text-primary">ready in seconds</span>
+					</h1>
 
-						<div className="flex flex-wrap gap-2 sm:gap-3">
-							<Button size="lg" asChild>
-								<a href="/register">Create free sandbox</a>
-							</Button>
-							<Button size="lg" variant="outline" asChild>
-								<a href="/login">I already have an account</a>
-							</Button>
-						</div>
+					<p className="max-w-xl text-base text-muted-foreground sm:text-lg">
+						Spin up isolated PostgreSQL, MySQL, or MariaDB sandboxes instantly.
+						Copy the connection string, build and test, then let auto-cleanup do
+						the rest.
+					</p>
+
+					<div className="flex flex-wrap justify-center gap-3">
+						<Button size="lg" asChild>
+							<Link to="/register">Create free sandbox</Link>
+						</Button>
+						<Button size="lg" variant="outline" asChild>
+							<Link to="/login">Sign in</Link>
+						</Button>
 					</div>
 
-					<Card className="border-primary/20 bg-background/90 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-4 motion-safe:duration-700 motion-safe:[animation-delay:120ms]">
+					{/* Mock connection string terminal */}
+					<TerminalHero />
+				</section>
+
+				{/* ── Stats bar ── */}
+				<section className="grid grid-cols-2 gap-3 rounded-xl border bg-card p-4 md:grid-cols-4 md:gap-4">
+					{stats.map((stat) => (
+						<div
+							key={stat.label}
+							className="flex flex-col items-center gap-1 p-2"
+						>
+							<span className="text-2xl font-bold tracking-tight text-primary">
+								{stat.value}
+							</span>
+							<span className="text-center text-xs text-muted-foreground">
+								{stat.label}
+							</span>
+						</div>
+					))}
+				</section>
+
+				{/* ── How it works ── */}
+				<section className="flex flex-col gap-8">
+					<div className="text-center">
+						<h2 className="text-2xl font-bold tracking-tight md:text-3xl">
+							From zero to connected in 3 steps
+						</h2>
+						<p className="mt-2 text-sm text-muted-foreground md:text-base">
+							No local setup. No waiting. Just copy and build.
+						</p>
+					</div>
+					<div className="grid gap-4 md:grid-cols-3">
+						{[
+							{
+								step: "01",
+								title: "Choose your engine",
+								desc: "Select PostgreSQL, MySQL, or MariaDB. Pick a region and retention time from 1 hour up to 7 days.",
+								icon: DatabaseIcon,
+							},
+							{
+								step: "02",
+								title: "Copy credentials",
+								desc: "Host, port, username, password, and full connection URL are ready instantly. Paste into your .env file.",
+								icon: CopyIcon,
+							},
+							{
+								step: "03",
+								title: "Build. Test. Done.",
+								desc: "Run migrations, seed data with AI, query via browser console. TTL handles cleanup automatically.",
+								icon: SparklesIcon,
+							},
+						].map((item) => (
+							<div
+								key={item.step}
+								className="relative flex flex-col gap-4 rounded-xl border bg-card p-5"
+							>
+								<span className="text-4xl font-black tracking-tighter text-primary/20">
+									{item.step}
+								</span>
+								<div className="flex size-10 items-center justify-center rounded-lg border bg-muted/30 text-muted-foreground">
+									<item.icon className="size-5" />
+								</div>
+								<div>
+									<p className="font-semibold">{item.title}</p>
+									<p className="mt-1 text-sm text-muted-foreground">
+										{item.desc}
+									</p>
+								</div>
+							</div>
+						))}
+					</div>
+				</section>
+
+				{/* ── Features ── */}
+				<section className="flex flex-col gap-8">
+					<div className="text-center">
+						<h2 className="text-2xl font-bold tracking-tight md:text-3xl">
+							Everything you need, nothing you don't
+						</h2>
+						<p className="mt-2 text-sm text-muted-foreground md:text-base">
+							Built for developers who move fast.
+						</p>
+					</div>
+					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						{features.map((f) => (
+							<div
+								key={f.title}
+								className="flex flex-col gap-3 rounded-xl border bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
+							>
+								<div
+									className={`flex size-10 items-center justify-center rounded-lg ${f.bg} ${f.color}`}
+								>
+									<f.icon className="size-5" />
+								</div>
+								<div>
+									<p className="font-semibold">{f.title}</p>
+									<p className="mt-1 text-sm text-muted-foreground">{f.desc}</p>
+								</div>
+							</div>
+						))}
+					</div>
+				</section>
+
+				{/* ── Engines & Regions ── */}
+				<section className="grid gap-4 md:grid-cols-2">
+					<Card>
 						<CardHeader>
-							<CardTitle>How it works (3 steps)</CardTitle>
+							<CardTitle className="text-base">Supported engines</CardTitle>
 						</CardHeader>
-						<CardContent className="space-y-3 text-sm md:space-y-4">
-							<div className="rounded-lg border bg-muted/30 p-3">
-								<p className="font-medium">1. Create sandbox</p>
-								<p className="text-muted-foreground">
-									Choose engine, region, and retention time (1 hour to 7 days).
-								</p>
-							</div>
-							<div className="rounded-lg border bg-muted/30 p-3">
-								<p className="font-medium">2. Copy credentials</p>
-								<p className="text-muted-foreground">
-									Paste the connection string into your project environment
-									file.
-								</p>
-							</div>
-							<div className="rounded-lg border bg-muted/30 p-3">
-								<p className="font-medium">3. Build and test</p>
-								<p className="text-muted-foreground">
-									Test migrations safely, query via SQL Console, and let TTL
-									expire automatically.
-								</p>
-							</div>
+						<CardContent className="space-y-3">
+							{engines.map((e) => (
+								<div
+									key={e.name}
+									className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5"
+								>
+									<span className="font-medium">
+										{e.emoji} {e.name}
+									</span>
+									<div className="flex items-center gap-2 text-xs text-muted-foreground">
+										<span>:{e.port}</span>
+										<Badge variant="secondary">Active</Badge>
+									</div>
+								</div>
+							))}
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader>
+							<CardTitle className="text-base">Available regions</CardTitle>
+						</CardHeader>
+						<CardContent className="space-y-3">
+							{regions.map((r) => (
+								<div
+									key={r.name}
+									className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2.5"
+								>
+									<span className="font-medium">
+										{r.flag} {r.name}
+									</span>
+									<Badge variant={r.active ? "secondary" : "outline"}>
+										{r.active ? "Active" : "Coming soon"}
+									</Badge>
+								</div>
+							))}
+							<p className="text-xs text-muted-foreground">
+								Singapore and US East regions are in development.
+							</p>
 						</CardContent>
 					</Card>
 				</section>
 
-				<section className="grid gap-3 rounded-xl border bg-card p-3 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-3 motion-safe:duration-700 motion-safe:[animation-delay:180ms] md:grid-cols-3 md:gap-4 md:p-4">
-					<div className="h-full rounded-lg border bg-muted/20 p-3 md:p-4">
-						<p className="text-xs uppercase tracking-wide text-muted-foreground">
-							Engine options
-						</p>
-						<div className="mt-2 space-y-2 text-sm md:mt-3">
-							{engineOptions.map((engine) => (
-								<div
-									key={engine}
-									className="flex items-center justify-between gap-2 rounded-md border bg-background px-2.5 py-2 md:px-3"
-								>
-									<span className="font-medium">{engine}</span>
-									<Badge variant="secondary" className="whitespace-nowrap">
-										Active
-									</Badge>
-								</div>
-							))}
-						</div>
+				{/* ── Use cases ── */}
+				<section className="flex flex-col gap-8">
+					<div className="text-center">
+						<h2 className="text-2xl font-bold tracking-tight md:text-3xl">
+							Who uses PisangDB?
+						</h2>
 					</div>
-					<div className="h-full rounded-lg border bg-muted/20 p-3 md:p-4">
-						<p className="text-xs uppercase tracking-wide text-muted-foreground">
-							Region
-						</p>
-						<div className="mt-2 space-y-2 text-sm md:mt-3">
-							{regions.map((region) => (
-								<div
-									key={region.name}
-									className="flex items-center justify-between gap-2 rounded-md border bg-background px-2.5 py-2 md:px-3"
-								>
-									<span className="font-medium">{region.name}</span>
-									<Badge
-										variant={
-											region.status === "Active" ? "secondary" : "outline"
-										}
-										className="whitespace-nowrap"
-									>
-										{region.status === "Active" ? "Active" : "Coming soon"}
-									</Badge>
+					<div className="grid gap-4 md:grid-cols-3">
+						{useCases.map((u) => (
+							<div
+								key={u.title}
+								className="flex items-start gap-4 rounded-xl border bg-card p-5"
+							>
+								<div className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted/30 text-muted-foreground">
+									<u.icon className="size-5" />
 								</div>
-							))}
-						</div>
+								<div>
+									<p className="font-semibold">{u.title}</p>
+									<p className="mt-1 text-sm text-muted-foreground">{u.desc}</p>
+								</div>
+							</div>
+						))}
 					</div>
-					<div className="h-full rounded-lg border bg-muted/20 p-3 md:p-4">
-						<p className="text-xs uppercase tracking-wide text-muted-foreground">
-							Built for
+				</section>
+
+				{/* ── Pricing ── */}
+				<section className="flex flex-col items-center gap-6">
+					<div className="text-center">
+						<Badge variant="secondary" className="mb-3">
+							Pricing
+						</Badge>
+						<h2 className="text-2xl font-bold tracking-tight md:text-3xl">
+							Free during beta
+						</h2>
+						<p className="mt-2 text-sm text-muted-foreground md:text-base">
+							Full access, no payment required. Limits may change post-beta.
 						</p>
-						<ul className="mt-2 space-y-2 text-sm md:mt-3">
-							{useCases.map((useCase) => (
-								<li
-									key={useCase}
-									className="rounded-md border bg-background px-2.5 py-2 font-medium md:px-3"
-								>
-									{useCase}
+					</div>
+
+					<div className="w-full max-w-md rounded-2xl border-2 border-primary/40 bg-card p-6 shadow-lg">
+						<div className="mb-5 flex items-start justify-between">
+							<div>
+								<p className="text-xl font-bold">Free Plan</p>
+								<p className="text-sm text-muted-foreground">
+									For developers & learners
+								</p>
+							</div>
+							<div className="text-right">
+								<p className="text-4xl font-black">$0</p>
+								<p className="text-xs text-muted-foreground">/month</p>
+							</div>
+						</div>
+
+						<ul className="mb-6 space-y-2.5 text-sm">
+							{freePlanFeatures.map((f) => (
+								<li key={f} className="flex items-center gap-2.5">
+									<CheckIcon className="size-4 shrink-0 text-primary" />
+									<span>{f}</span>
 								</li>
 							))}
 						</ul>
+
+						<Button className="w-full" size="lg" asChild>
+							<Link to="/register">Create free account →</Link>
+						</Button>
 					</div>
-				</section>
-
-				<section className="grid gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-4">
-					{highlights.map((item) => (
-						<Card
-							key={item.title}
-							className="transition-transform duration-300 hover:-translate-y-1"
-						>
-							<CardHeader className="gap-3 pb-2">
-								<div className="flex size-8 items-center justify-center rounded-md border bg-muted/30 text-muted-foreground">
-									<item.icon className="size-4" />
-								</div>
-								<CardTitle className="text-base">{item.title}</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<p className="text-sm text-muted-foreground">{item.desc}</p>
-							</CardContent>
-						</Card>
-					))}
-				</section>
-
-				<section className="rounded-xl border bg-card p-4 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-700 motion-safe:[animation-delay:260ms] md:p-6">
-					<h2 className="text-2xl font-semibold tracking-tight">
-						Ready to stop manual database setup?
-					</h2>
-					<p className="mx-auto mt-2 max-w-2xl text-sm text-muted-foreground md:text-base">
-						Create your first sandbox now, copy the connection string, and keep
-						building. PisangDB handles cleanup automatically.
+					<p className="text-xs text-muted-foreground">
+						*Limits may change when PisangDB exits beta.
 					</p>
-					<div className="mt-4 flex flex-wrap justify-center gap-2 md:mt-5 md:gap-3">
+				</section>
+
+				{/* ── Final CTA ── */}
+				<section className="flex flex-col items-center gap-5 rounded-2xl border bg-card p-8 text-center md:p-12">
+					<h2 className="text-2xl font-bold tracking-tight md:text-4xl">
+						Stop setting up databases. Start building.
+					</h2>
+					<p className="max-w-xl text-sm text-muted-foreground md:text-base">
+						PisangDB gives you a production-like database in 2 seconds. When
+						you're done, it disappears automatically.
+					</p>
+					<div className="flex flex-wrap justify-center gap-3">
 						<Button size="lg" asChild>
-							<a href="/register">Create account</a>
+							<Link to="/register">Create free sandbox</Link>
 						</Button>
 						<Button size="lg" variant="outline" asChild>
-							<a href="/login">Sign in</a>
+							<Link to="/login">Sign in</Link>
 						</Button>
 					</div>
 				</section>
 			</main>
 
+			{/* ── Footer ── */}
 			<footer className="relative z-10 border-t bg-background/80">
 				<div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-6 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between md:px-8">
 					<p>
-						© {new Date().getFullYear()} PisangDB. Fresh databases for
+						© {new Date().getFullYear()} PisangDB 🍌 Fresh databases for
 						developers.
 					</p>
 					<div className="flex flex-wrap items-center gap-4">
-						<a href="/login" className="hover:text-foreground">
+						<Link to="/login" className="hover:text-foreground">
 							Sign in
-						</a>
-						<a href="/register" className="hover:text-foreground">
+						</Link>
+						<Link to="/register" className="hover:text-foreground">
 							Create account
-						</a>
-						<a href="/terms" className="hover:text-foreground">
+						</Link>
+						<Link to="/dashboard/help" className="hover:text-foreground">
+							Help
+						</Link>
+						<Link to="/terms" className="hover:text-foreground">
 							Terms
-						</a>
-						<a href="/privacy" className="hover:text-foreground">
+						</Link>
+						<Link to="/privacy" className="hover:text-foreground">
 							Privacy
-						</a>
+						</Link>
 					</div>
 				</div>
 			</footer>

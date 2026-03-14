@@ -61,6 +61,15 @@ function SqlConsolePage() {
 	);
 	const [query, setQuery] = useState(defaultQuery);
 	const [hasRun, setHasRun] = useState(false);
+	const [isRunning, setIsRunning] = useState(false);
+
+	const handleRun = () => {
+		setIsRunning(true);
+		setTimeout(() => {
+			setIsRunning(false);
+			setHasRun(true);
+		}, 800);
+	};
 
 	const rows = useMemo(
 		() => [
@@ -85,8 +94,7 @@ function SqlConsolePage() {
 					<CardHeader>
 						<CardTitle className="text-base">Query Editor</CardTitle>
 						<CardDescription>
-							Dummy execution only. Commands are not sent to a real database
-							yet.
+							Write and run SQL queries against your selected sandbox.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3">
@@ -118,10 +126,11 @@ function SqlConsolePage() {
 							<Button
 								size="sm"
 								className="gap-1.5"
-								onClick={() => setHasRun(true)}
+								onClick={handleRun}
+								disabled={isRunning}
 							>
 								<PlayIcon className="size-4" />
-								Run Query
+								{isRunning ? "Running…" : "Run Query"}
 							</Button>
 							<Button
 								variant="outline"

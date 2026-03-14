@@ -191,141 +191,165 @@ function SandboxesPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-3">
-					{sandboxes.map((sandbox) => {
-						const status = statusMap[sandbox.status];
-						return (
-							<div key={sandbox.id} className="rounded-lg border p-3 sm:p-4">
-								<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-									<div className="flex min-w-0 flex-1 items-start gap-3">
-										<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-lg">
-											{sandbox.engineEmoji}
-										</div>
-										<div className="min-w-0">
-											<div className="flex items-center gap-2">
-												<Link
-													to="/dashboard/sandboxes/$id"
-													params={{ id: sandbox.id }}
-													className="text-sm font-medium hover:underline"
-												>
-													{sandbox.displayName}
-												</Link>
-												<Badge variant={status.variant} className="text-[10px]">
-													{status.label}
-												</Badge>
-											</div>
-											<p className="text-xs text-muted-foreground">
-												{sandbox.engine} · {sandbox.region} · Created{" "}
-												{sandbox.createdAt}
-											</p>
-											<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-												<Clock3Icon className="size-3.5" />
-												<span>{sandbox.ttl}</span>
-												<span>•</span>
-												<span>{sandbox.size}</span>
-											</div>
-										</div>
-									</div>
-
-									<div className="flex items-center gap-1 self-end lg:self-center">
-										<Button
-											variant="outline"
-											size="icon"
-											className="size-7"
-											onClick={() => {
-												void handleCopy(sandbox.id, sandbox.connectionUrl);
-											}}
-											title="Copy connection string"
-										>
-											<CopyIcon className="size-3.5" />
-										</Button>
-										<div className="relative">
-											<Button
-												variant="outline"
-												size="icon"
-												className="size-7"
-												disabled={sandbox.status !== "active"}
-												title="Extend sandbox"
-												onClick={() =>
-													setExtendMenuId((cur) =>
-														cur === sandbox.id ? null : sandbox.id,
-													)
-												}
-											>
-												<TimerIcon className="size-3.5" />
-											</Button>
-											{extendMenuId === sandbox.id && (
-												<div className="absolute right-0 top-8 z-10 flex flex-col gap-0.5 rounded-md border bg-background p-1 shadow-md">
-													{["+1h", "+6h", "+12h", "+24h"].map((d) => (
-														<button
-															key={d}
-															type="button"
-															className="rounded px-3 py-1.5 text-left text-xs hover:bg-muted"
-															onClick={() => handleExtend(sandbox.id, d)}
-														>
-															Extend {d}
-														</button>
-													))}
-												</div>
-											)}
-											{extendedId === sandbox.id && (
-												<p className="mt-1 text-[10px] text-muted-foreground">
-													Extended ✓
-												</p>
-											)}
-										</div>
-										{deleteConfirmId === sandbox.id ? (
-											<div className="flex items-center gap-1.5">
-												<span className="text-xs text-destructive">
-													Delete?
-												</span>
-												<Button
-													size="icon"
-													variant="destructive"
-													className="size-6"
-													onClick={() => setDeleteConfirmId(null)}
-													title="Confirm delete"
-												>
-													<Trash2Icon className="size-3" />
-												</Button>
-												<Button
-													size="icon"
-													variant="outline"
-													className="size-6"
-													onClick={() => setDeleteConfirmId(null)}
-												>
-													✕
-												</Button>
-											</div>
-										) : (
-											<Button
-												variant="outline"
-												size="icon"
-												className="size-7"
-												disabled={sandbox.status === "destroying"}
-												title="Delete sandbox"
-												onClick={() => setDeleteConfirmId(sandbox.id)}
-											>
-												<Trash2Icon className="size-3.5" />
-											</Button>
-										)}
-									</div>
-								</div>
-
-								<div className="mt-3 rounded-md bg-muted p-2 text-xs font-mono text-muted-foreground">
-									<p className="truncate">{sandbox.connectionUrl}</p>
-									<p className="mt-1 truncate">
-										Host {sandbox.host}:{sandbox.port}
-									</p>
-								</div>
-
-								{copiedId === sandbox.id ? (
-									<p className="mt-2 text-[11px] text-muted-foreground">
-										Connection string copied.
-									</p>
-								) : null}
+					{sandboxes.length === 0 ? (
+						<div className="flex flex-col items-center gap-3 py-10 text-center">
+							<div className="flex size-14 items-center justify-center rounded-xl border bg-muted/30 text-3xl">
+								🍌
 							</div>
-						);
-					})}
+							<div>
+								<p className="font-medium">No sandboxes yet</p>
+								<p className="mt-0.5 text-sm text-muted-foreground">
+									Create your first sandbox to get a connection string in
+									seconds.
+								</p>
+							</div>
+							<Button asChild size="sm" className="mt-1 gap-1.5">
+								<Link to="/dashboard/sandboxes/new">
+									<PlusIcon className="size-4" />
+									Create sandbox
+								</Link>
+							</Button>
+						</div>
+					) : (
+						sandboxes.map((sandbox) => {
+							const status = statusMap[sandbox.status];
+							return (
+								<div key={sandbox.id} className="rounded-lg border p-3 sm:p-4">
+									<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+										<div className="flex min-w-0 flex-1 items-start gap-3">
+											<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-lg">
+												{sandbox.engineEmoji}
+											</div>
+											<div className="min-w-0">
+												<div className="flex items-center gap-2">
+													<Link
+														to="/dashboard/sandboxes/$id"
+														params={{ id: sandbox.id }}
+														className="text-sm font-medium hover:underline"
+													>
+														{sandbox.displayName}
+													</Link>
+													<Badge
+														variant={status.variant}
+														className="text-[10px]"
+													>
+														{status.label}
+													</Badge>
+												</div>
+												<p className="text-xs text-muted-foreground">
+													{sandbox.engine} · {sandbox.region} · Created{" "}
+													{sandbox.createdAt}
+												</p>
+												<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+													<Clock3Icon className="size-3.5" />
+													<span>{sandbox.ttl}</span>
+													<span>•</span>
+													<span>{sandbox.size}</span>
+												</div>
+											</div>
+										</div>
+
+										<div className="flex items-center gap-1 self-end lg:self-center">
+											<Button
+												variant="outline"
+												size="icon"
+												className="size-7"
+												onClick={() => {
+													void handleCopy(sandbox.id, sandbox.connectionUrl);
+												}}
+												title="Copy connection string"
+											>
+												<CopyIcon className="size-3.5" />
+											</Button>
+											<div className="relative">
+												<Button
+													variant="outline"
+													size="icon"
+													className="size-7"
+													disabled={sandbox.status !== "active"}
+													title="Extend sandbox"
+													onClick={() =>
+														setExtendMenuId((cur) =>
+															cur === sandbox.id ? null : sandbox.id,
+														)
+													}
+												>
+													<TimerIcon className="size-3.5" />
+												</Button>
+												{extendMenuId === sandbox.id && (
+													<div className="absolute right-0 top-8 z-10 flex flex-col gap-0.5 rounded-md border bg-background p-1 shadow-md">
+														{["+1h", "+6h", "+12h", "+24h"].map((d) => (
+															<button
+																key={d}
+																type="button"
+																className="rounded px-3 py-1.5 text-left text-xs hover:bg-muted"
+																onClick={() => handleExtend(sandbox.id, d)}
+															>
+																Extend {d}
+															</button>
+														))}
+													</div>
+												)}
+												{extendedId === sandbox.id && (
+													<p className="mt-1 text-[10px] text-muted-foreground">
+														Extended ✓
+													</p>
+												)}
+											</div>
+											{deleteConfirmId === sandbox.id ? (
+												<div className="flex items-center gap-1.5">
+													<span className="text-xs text-destructive">
+														Delete?
+													</span>
+													<Button
+														size="icon"
+														variant="destructive"
+														className="size-6"
+														onClick={() => setDeleteConfirmId(null)}
+														title="Confirm delete"
+													>
+														<Trash2Icon className="size-3" />
+													</Button>
+													<Button
+														size="icon"
+														variant="outline"
+														className="size-6"
+														onClick={() => setDeleteConfirmId(null)}
+													>
+														✕
+													</Button>
+												</div>
+											) : (
+												<Button
+													variant="outline"
+													size="icon"
+													className="size-7"
+													disabled={sandbox.status === "destroying"}
+													title="Delete sandbox"
+													onClick={() => setDeleteConfirmId(sandbox.id)}
+												>
+													<Trash2Icon className="size-3.5" />
+												</Button>
+											)}
+										</div>
+									</div>
+
+									<div className="mt-3 rounded-md bg-muted p-2 text-xs font-mono text-muted-foreground">
+										<p className="truncate">{sandbox.connectionUrl}</p>
+										<p className="mt-1 truncate">
+											Host {sandbox.host}:{sandbox.port}
+										</p>
+									</div>
+
+									{copiedId === sandbox.id ? (
+										<p className="mt-2 text-[11px] text-muted-foreground">
+											Connection string copied.
+										</p>
+									) : null}
+								</div>
+							);
+						})
+					)}
 				</CardContent>
 			</Card>
 		</div>

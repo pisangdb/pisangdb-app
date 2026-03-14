@@ -1,3 +1,5 @@
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
 	Field,
@@ -13,9 +15,17 @@ export function LoginForm({
 	className,
 	...props
 }: React.ComponentProps<"div">) {
+	const [isLoading, setIsLoading] = useState(false);
+
+	const handleSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		setIsLoading(true);
+		setTimeout(() => setIsLoading(false), 1200);
+	};
+
 	return (
 		<div className={cn("flex flex-col gap-4", className)} {...props}>
-			<form>
+			<form onSubmit={handleSubmit}>
 				<FieldGroup>
 					<Field>
 						<Button variant="outline" type="button" className="w-full">
@@ -47,31 +57,38 @@ export function LoginForm({
 					<Field>
 						<div className="flex items-center justify-between">
 							<FieldLabel htmlFor="password">Password</FieldLabel>
-							<a
-								href="/forgot-password"
+							<Link
+								to="/forgot-password"
 								className="text-xs text-muted-foreground underline-offset-4 hover:underline"
 							>
 								Forgot your password?
-							</a>
+							</Link>
 						</div>
 						<Input id="password" type="password" required />
 					</Field>
 					<Field>
-						<Button type="submit" className="w-full">
-							Sign in
+						<Button type="submit" className="w-full" disabled={isLoading}>
+							{isLoading ? "Signing in…" : "Sign in"}
 						</Button>
 						<FieldDescription className="text-center">
 							Don&apos;t have an account?{" "}
-							<a href="/register" className="font-medium hover:underline">
+							<Link to="/register" className="font-medium hover:underline">
 								Sign up
-							</a>
+							</Link>
 						</FieldDescription>
 					</Field>
 				</FieldGroup>
 			</form>
 			<FieldDescription className="px-2 text-center text-xs">
-				By signing in, you agree to our <a href="/terms">Terms of Service</a>{" "}
-				and <a href="/privacy">Privacy Policy</a>.
+				By signing in, you agree to our{" "}
+				<Link to="/terms" className="hover:underline">
+					Terms of Service
+				</Link>{" "}
+				and{" "}
+				<Link to="/privacy" className="hover:underline">
+					Privacy Policy
+				</Link>
+				.
 			</FieldDescription>
 		</div>
 	);

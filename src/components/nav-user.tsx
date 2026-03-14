@@ -102,10 +102,10 @@ export function NavUser({
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
 						<DropdownMenuItem asChild>
-							<a href="/logout">
+							<Link to="/" className="text-destructive focus:text-destructive">
 								<LogOutIcon />
 								Log out
-							</a>
+							</Link>
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>

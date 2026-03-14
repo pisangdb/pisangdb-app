@@ -6,6 +6,7 @@ import {
 	UserIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "#/components/ui/button";
 import {
 	Card,
@@ -26,6 +27,30 @@ function SettingsPage() {
 	const [email, setEmail] = useState("rio@example.com");
 	const [expireWarning, setExpireWarning] = useState(true);
 	const [newsletter, setNewsletter] = useState(false);
+
+	const handleSaveProfile = () => {
+		toast.success("Profile saved", {
+			description: `Display name updated to "${displayName}".`,
+		});
+	};
+
+	const handleUpdatePassword = () => {
+		toast.success("Password updated", {
+			description: "Your password has been changed successfully.",
+		});
+	};
+
+	const handleSignOutAll = () => {
+		toast("Signed out from all sessions", {
+			description: "All other sessions have been terminated.",
+		});
+	};
+
+	const handleSavePreferences = () => {
+		toast.success("Preferences saved", {
+			description: "Notification settings updated.",
+		});
+	};
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -65,7 +90,9 @@ function SettingsPage() {
 								onChange={(event) => setEmail(event.target.value)}
 							/>
 						</div>
-						<Button size="sm">Save profile</Button>
+						<Button size="sm" onClick={handleSaveProfile}>
+							Save profile
+						</Button>
 					</CardContent>
 				</Card>
 
@@ -76,7 +103,7 @@ function SettingsPage() {
 							Security
 						</CardTitle>
 						<CardDescription>
-							Password and session controls (dummy UI only).
+							Manage your password and active sessions.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3">
@@ -93,8 +120,10 @@ function SettingsPage() {
 							/>
 						</div>
 						<div className="flex gap-2">
-							<Button size="sm">Update password</Button>
-							<Button size="sm" variant="outline">
+							<Button size="sm" onClick={handleUpdatePassword}>
+								Update password
+							</Button>
+							<Button size="sm" variant="outline" onClick={handleSignOutAll}>
 								Sign out all sessions
 							</Button>
 						</div>
@@ -138,7 +167,7 @@ function SettingsPage() {
 								</span>
 							</span>
 						</label>
-						<Button size="sm" variant="outline">
+						<Button size="sm" variant="outline" onClick={handleSavePreferences}>
 							Save preferences
 						</Button>
 					</CardContent>
