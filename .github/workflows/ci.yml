@@ -30,7 +30,7 @@ jobs:
         run: pnpm check
 
       - name: Run tests
-        run: pnpm test -- --passWithNoTests
+        run: pnpm vitest run --passWithNoTests
 
       - name: Build
         run: pnpm build
