@@ -1,28 +1,28 @@
 ---
 name: Task / Chore
-about: Internal development task, refactor, or chore
+about: Task internal, refactor, atau pekerjaan teknis lainnya
 title: "chore: "
 labels: ["task"]
 assignees: ""
 ---
 
-## What needs to be done
+## Yang Perlu Dikerjakan
 
-A clear description of the task.
+Deskripsi jelas tentang task ini.
 
-## Why
+## Mengapa
 
-Context or motivation — why is this task necessary?
+Konteks atau motivasi — kenapa task ini perlu dikerjakan?
 
-## Acceptance Criteria
+## Kriteria Penerimaan
 
 - [ ] ...
 - [ ] ...
 
-## Implementation Notes
+## Catatan Implementasi
 
-Technical notes, constraints, or references to help whoever picks this up.
+Catatan teknis, batasan, atau referensi yang membantu siapapun yang mengerjakan ini.
 
-## Related
+## Terkait
 
-Links to related issues, PRs, or external references.
+Link ke issue, PR, atau referensi eksternal yang relevan.

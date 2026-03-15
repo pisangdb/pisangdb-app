@@ -1,32 +1,32 @@
 ---
 name: Feature Request
-about: Suggest a new feature or improvement
+about: Usulkan fitur baru atau peningkatan
 title: "feat: "
 labels: ["enhancement"]
 assignees: ""
 ---
 
-## Summary
+## Ringkasan
 
-A clear and concise description of the feature you'd like to see.
+Deskripsi singkat dan jelas tentang fitur yang diinginkan.
 
-## Problem / Motivation
+## Masalah / Motivasi
 
-What problem does this solve? What user need or pain point does it address?
+Masalah apa yang ingin diselesaikan? Kebutuhan atau pain point apa yang dihadapi?
 
-## Proposed Solution
+## Solusi yang Diusulkan
 
-Describe how you imagine this feature working. Include UI behavior, API shape, or flow if relevant.
+Jelaskan bagaimana fitur ini seharusnya bekerja. Sertakan perilaku UI, bentuk API, atau alur jika relevan.
 
-## Alternatives Considered
+## Alternatif yang Dipertimbangkan
 
-Any alternative approaches you considered and why you ruled them out.
+Pendekatan lain yang sudah dipertimbangkan dan alasan tidak dipilih.
 
-## Acceptance Criteria
+## Kriteria Penerimaan
 
 - [ ] ...
 - [ ] ...
 
-## Additional Context
+## Konteks Tambahan
 
-Mockups, references, related issues, or any other context.
+Mockup, referensi, issue terkait, atau informasi lain yang relevan.

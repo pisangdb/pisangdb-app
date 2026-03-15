@@ -1,27 +1,27 @@
-## Summary
+## Ringkasan
 
-<!-- What does this PR do? 1-2 sentences. -->
+<!-- PR ini ngapain? 1-2 kalimat. -->
 
-## Related Issue
+## Issue Terkait
 
 Closes #
 
-## Changes
+## Perubahan
 
-<!-- List the key changes made. -->
+<!-- List perubahan utama yang dibuat. -->
 
 - 
 
-## How to Test
+## Cara Test
 
-<!-- Steps to verify this works correctly. -->
+<!-- Langkah-langkah untuk verifikasi bahwa ini bekerja dengan benar. -->
 
 1. 
 
 ## Checklist
 
-- [ ] `pnpm check` passes (no Biome errors)
-- [ ] `pnpm test` passes
-- [ ] No `!` non-null assertions added
-- [ ] No `as any` / `@ts-ignore` added
-- [ ] Self-reviewed the diff
+- [ ] `pnpm check` lulus (tidak ada error Biome)
+- [ ] `pnpm test` lulus
+- [ ] Tidak ada non-null assertion (`!`)
+- [ ] Tidak ada `as any` / `@ts-ignore`
+- [ ] Sudah review diff sendiri
