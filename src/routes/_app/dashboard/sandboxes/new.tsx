@@ -12,6 +12,7 @@ import {
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useCreateSandbox } from "#/hooks/use-create-sandbox";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/new")({
 	head: () => ({ meta: [{ title: "New Sandbox — PisangDB" }] }),
@@ -53,21 +54,37 @@ const retentionOptions = [
 const templateOptions = ["Blank", "E-commerce", "Blog", "Inventory"];
 
 function NewSandboxPage() {
+	const createSandbox = useCreateSandbox();
 	const [engine, setEngine] = useState<Engine>("postgresql");
 	const [region, setRegion] = useState<Region>("id");
 	const [name, setName] = useState("my-project-db");
 	const [retention, setRetention] = useState("6 hours");
 	const [template, setTemplate] = useState("Blank");
 	const [copied, setCopied] = useState(false);
-	const [creating, setCreating] = useState<"idle" | "loading" | "done">("idle");
+
+
+	// Parse retention string to hours
+	const parseRetentionToHours = (retentionStr: string): number => {
+		const match = retentionStr.match(/^(\d+)\s*(hour|hours|day|days)$/i);
+		if (!match) return 6; // default
+		const value = Number.parseInt(match[1], 10);
+		const unit = match[2].toLowerCase();
+		if (unit.startsWith("day")) return value * 24;
+		return value;
+	};
 
 	const handleCreate = () => {
-		setCreating("loading");
-		setTimeout(() => {
-			setCreating("done");
-			setTimeout(() => setCreating("idle"), 3000);
-		}, 1200);
+		const retentionHours = parseRetentionToHours(retention);
+		createSandbox.mutate({
+			engine,
+			region,
+			name,
+			retentionHours,
+		});
 	};
+
+	const isCreating = createSandbox.isPending;
+	const isCreated = createSandbox.isSuccess;
 
 	const selectedEngine =
 		engineOptions.find((item) => item.value === engine) ?? engineOptions[0];
@@ -219,12 +236,12 @@ function NewSandboxPage() {
 
 						<Button
 							className="w-full sm:w-auto"
-							disabled={creating === "loading"}
+							disabled={isCreating}
 							onClick={handleCreate}
 						>
-							{creating === "loading"
+							{isCreating
 								? "Creating..."
-								: creating === "done"
+								: isCreated
 									? "Sandbox Created! 🎉"
 									: "Create Sandbox 🍌"}
 						</Button>

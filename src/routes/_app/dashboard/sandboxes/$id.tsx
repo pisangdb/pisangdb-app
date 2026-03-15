@@ -131,12 +131,10 @@ function SandboxDetailPage() {
 		setExtendOpen(false);
 		setExtended(true);
 		setTimeout(() => setExtended(false), 2000);
-		console.log(`Extend by ${duration}`);
 	};
 
 	const handleDelete = () => {
 		setConfirmDelete(false);
-		console.log("Delete sandbox");
 	};
 
 	return (

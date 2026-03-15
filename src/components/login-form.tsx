@@ -1,6 +1,7 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "#/components/ui/button";
 import {
 	Field,
@@ -10,19 +11,34 @@ import {
 	FieldSeparator,
 } from "#/components/ui/field";
 import { Input } from "#/components/ui/input";
+import { useAuth } from "#/contexts/auth-context";
+import { login } from "#/lib/api-client";
 import { cn } from "#/lib/utils";
 
 export function LoginForm({
 	className,
 	...props
 }: React.ComponentProps<"div">) {
+	const router = useRouter();
+	const { refreshUser } = useAuth();
 	const [isLoading, setIsLoading] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setIsLoading(true);
-		setTimeout(() => setIsLoading(false), 1200);
+		try {
+			await login(email, password);
+			await refreshUser();
+			toast.success("Welcome back!");
+			router.navigate({ to: "/dashboard" });
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Login failed");
+		} finally {
+			setIsLoading(false);
+		}
 	};
 
 	return (
@@ -53,6 +69,8 @@ export function LoginForm({
 							id="email"
 							type="email"
 							placeholder="you@example.com"
+							value={email}
+							onChange={(e) => setEmail(e.target.value)}
 							required
 						/>
 					</Field>
@@ -70,6 +88,8 @@ export function LoginForm({
 							<Input
 								id="password"
 								type={showPassword ? "text" : "password"}
+								value={password}
+								onChange={(e) => setPassword(e.target.value)}
 								required
 								className="pr-10"
 							/>

@@ -28,12 +28,48 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Skeleton } from "#/components/ui/skeleton";
+import { useDeleteSandbox } from "#/hooks/use-delete-sandbox";
+import { useExtendSandbox } from "#/hooks/use-extend-sandbox";
+import { useSandboxes } from "#/hooks/use-sandboxes";
+import { useTtlCountdown } from "#/hooks/use-ttl-countdown";
+import { formatTtl } from "#/lib/format-ttl";
 
 const MAX_ACTIVE_SANDBOXES = 5;
 type DashboardState = "loading" | "error" | "success";
-const dashboardState: DashboardState = "success";
 
 type SandboxStatus = "active" | "expiring" | "expired" | "destroying";
+
+// Engine emoji mapping for API data
+const engineEmojiMap: Record<string, string> = {
+	postgresql: "🐘",
+	mysql: "🐬",
+	mariadb: "🦭",
+};
+
+// Region display mapping
+const regionDisplayMap: Record<string, string> = {
+	id: "🇮🇩 Indonesia",
+	sg: "🇸🇬 Singapore",
+	us: "🇺🇸 United States",
+};
+
+// Format engine for display
+const formatEngine = (engine: string) => {
+	const map: Record<string, string> = {
+		postgresql: "PostgreSQL 16",
+		mysql: "MySQL 8",
+		mariadb: "MariaDB 11",
+	};
+	return map[engine] ?? engine;
+};
+
+// Helper to determine status category
+const getStatusCategory = (status: string): SandboxStatus => {
+	if (status === "destroying") return "destroying";
+	if (status === "expired") return "expired";
+	if (status === "expiring") return "expiring";
+	return "active";
+};
 
 const recentSandboxes: {
 	id: string;
@@ -140,15 +176,11 @@ const quickActions = [
 	},
 ];
 
-const activeCount = recentSandboxes.filter(
-	(sb) => sb.status === "active",
-).length;
-const expiringCount = recentSandboxes.filter(
-	(sb) => sb.status === "expiring",
-).length;
-const totalCreated = recentSandboxes.length + 11; // dummy: 11 historical
-const autoCleaned = totalCreated - activeCount - expiringCount;
-const aiQueries = 8;
+const activeCount = 0;
+const expiringCount = 0;
+const totalCreated = 0;
+const autoCleaned = 0;
+const aiQueries = 0;
 
 const stats = [
 	{
@@ -236,6 +268,19 @@ export function DashboardHome() {
 		id: string;
 		message: string;
 	} | null>(null);
+
+	const { data, isLoading, error } = useSandboxes();
+	const sandboxList = data?.sandboxes ?? [];
+	const activeCount = sandboxList.filter((s) => s.status === "active").length;
+	const expiringCount = sandboxList.filter(
+		(s) => s.status === "expiring",
+	).length;
+
+	const dashboardState: DashboardState = isLoading
+		? "loading"
+		: error
+			? "error"
+			: "success";
 
 	const onCopyConnection = async (id: string, connectionUrl: string) => {
 		if (typeof navigator === "undefined" || !navigator.clipboard) {
@@ -388,7 +433,7 @@ export function DashboardHome() {
 								</Button>
 							</CardHeader>
 							<CardContent className="flex flex-col gap-2">
-								{recentSandboxes.length === 0 ? (
+								{sandboxList.length === 0 ? (
 									<div className="rounded-lg border border-dashed p-6 text-center">
 										<p className="text-sm font-medium">No sandbox yet</p>
 										<p className="mt-1 text-xs text-muted-foreground">
@@ -399,8 +444,14 @@ export function DashboardHome() {
 										</Button>
 									</div>
 								) : (
-									recentSandboxes.map((sb) => {
-										const status = statusConfig[sb.status];
+									sandboxList.map((sb) => {
+										const statusKey = getStatusCategory(sb.status);
+										const status = statusConfig[statusKey];
+										const engineEmoji = engineEmojiMap[sb.engine] ?? "🗄️";
+										const regionDisplay =
+											regionDisplayMap[sb.region] ?? sb.region;
+										const engineDisplay = formatEngine(sb.engine);
+										const ttlDisplay = formatTtl(sb.expiredAt);
 										return (
 											<div
 												key={sb.id}
@@ -413,7 +464,7 @@ export function DashboardHome() {
 												}`}
 											>
 												<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">
-													{sb.engineEmoji}
+													{engineEmoji}
 												</div>
 
 												<div className="min-w-0 flex-1">
@@ -422,14 +473,17 @@ export function DashboardHome() {
 														params={{ id: sb.id }}
 														className="truncate font-mono text-sm font-medium hover:underline"
 													>
-														{sb.name}
+														{sb.displayName}
 													</Link>
 													<div className="flex items-center gap-2 text-xs text-muted-foreground">
-														<span>{sb.engine}</span>
+														<span>{engineDisplay}</span>
 														<span>·</span>
-														<span>{sb.region}</span>
+														<span>{regionDisplay}</span>
 														<span>·</span>
-														<span>Created {sb.createdAt}</span>
+														<span>
+															Created{" "}
+															{new Date(sb.createdAt).toLocaleDateString()}
+														</span>
 													</div>
 												</div>
 
@@ -442,7 +496,7 @@ export function DashboardHome() {
 													</Badge>
 													<div className="flex items-center gap-1 text-[10px] text-muted-foreground">
 														<ClockIcon className="size-3" />
-														{sb.ttl}
+														{ttlDisplay}
 													</div>
 													<div className="mt-1 flex items-center gap-1">
 														<Button

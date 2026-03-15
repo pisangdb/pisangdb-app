@@ -21,12 +21,53 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { useDeleteSandbox } from "#/hooks/use-delete-sandbox";
+import { useExtendSandbox } from "#/hooks/use-extend-sandbox";
+import { useSandboxes } from "#/hooks/use-sandboxes";
+import { useTtlCountdown } from "#/hooks/use-ttl-countdown";
+import { formatTtl } from "#/lib/format-ttl";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes")({
 	component: SandboxesLayout,
 });
 
 type SandboxStatus = "active" | "expiring" | "destroying";
+
+// Engine emoji mapping for API data
+const engineEmojiMap: Record<string, string> = {
+	postgresql: "🐘",
+	mysql: "🐬",
+	mariadb: "🦭",
+};
+
+// Region display mapping
+const regionDisplayMap: Record<string, string> = {
+	id: "Indonesia (id)",
+	sg: "Singapore (sg)",
+	us: "United States (us)",
+};
+
+// Format engine for display
+const formatEngine = (engine: string) => {
+	const map: Record<string, string> = {
+		postgresql: "PostgreSQL 16",
+		mysql: "MySQL 8",
+		mariadb: "MariaDB 11",
+	};
+	return map[engine] ?? engine;
+};
+
+// Format date for display
+const formatDate = (dateString: string) => {
+	const date = new Date(dateString);
+	return date.toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+};
+
 
 const sandboxes: {
 	id: string;
@@ -111,12 +152,14 @@ function SandboxesLayout() {
 }
 
 function SandboxesPage() {
+	const { data, isLoading, error } = useSandboxes();
+	const sandboxList = data?.sandboxes ?? [];
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 	const [extendMenuId, setExtendMenuId] = useState<string | null>(null);
 	const [extendedId, setExtendedId] = useState<string | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-	const activeCount = sandboxes.filter(
+	const activeCount = sandboxList.filter(
 		(item) => item.status === "active",
 	).length;
 
@@ -133,7 +176,6 @@ function SandboxesPage() {
 		setExtendMenuId(null);
 		setExtendedId(id);
 		setTimeout(() => setExtendedId((cur) => (cur === id ? null : cur)), 2000);
-		console.log(`Extend sandbox ${id} by ${duration}`);
 	};
 
 	return (
@@ -191,7 +233,7 @@ function SandboxesPage() {
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-col gap-3">
-					{sandboxes.length === 0 ? (
+					{sandboxList.length === 0 ? (
 						<div className="flex flex-col items-center gap-3 py-10 text-center">
 							<div className="flex size-14 items-center justify-center rounded-xl border bg-muted/30 text-3xl">
 								🍌
@@ -211,14 +253,14 @@ function SandboxesPage() {
 							</Button>
 						</div>
 					) : (
-						sandboxes.map((sandbox) => {
+						sandboxList.map((sandbox) => {
 							const status = statusMap[sandbox.status];
 							return (
 								<div key={sandbox.id} className="rounded-lg border p-3 sm:p-4">
 									<div className="flex flex-col gap-3 lg:flex-row lg:items-center">
 										<div className="flex min-w-0 flex-1 items-start gap-3">
 											<div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-lg">
-												{sandbox.engineEmoji}
+												{engineEmojiMap[sandbox.engine] ?? "🗄️"}
 											</div>
 											<div className="min-w-0">
 												<div className="flex items-center gap-2">
@@ -237,12 +279,12 @@ function SandboxesPage() {
 													</Badge>
 												</div>
 												<p className="text-xs text-muted-foreground">
-													{sandbox.engine} · {sandbox.region} · Created{" "}
-													{sandbox.createdAt}
+													{formatEngine(sandbox.engine)} · {regionDisplayMap[sandbox.region] ?? sandbox.region} · Created{" "}
+													{formatDate(sandbox.createdAt)}
 												</p>
 												<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 													<Clock3Icon className="size-3.5" />
-													<span>{sandbox.ttl}</span>
+													<span>{formatTtl(sandbox.expiredAt)}</span>
 													<span>•</span>
 													<span>{sandbox.size}</span>
 												</div>

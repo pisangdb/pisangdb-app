@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PlayIcon, ShieldIcon, Trash2Icon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Loader2Icon, PlayIcon, ShieldIcon, Trash2Icon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -10,76 +11,85 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { useExecuteQuery, useQueryHistory } from "#/hooks/use-execute-query";
+import { useSandboxes } from "#/hooks/use-sandboxes";
 
 export const Route = createFileRoute("/_app/dashboard/console")({
 	head: () => ({ meta: [{ title: "SQL Console — PisangDB" }] }),
 	component: SqlConsolePage,
 });
 
-const sandboxOptions = [
-	{
-		id: "sb_a1b2x8",
-		label: "migration-check (PostgreSQL 16)",
-	},
-	{
-		id: "sb_c3d4y9",
-		label: "bootcamp-prisma (MySQL 8)",
-	},
-];
-
 const defaultQuery = `SELECT id, name, email
 FROM users
 ORDER BY created_at DESC
 LIMIT 5;`;
 
-const historyItems = [
-	{
-		id: "h1",
-		query: "SELECT COUNT(*) FROM users;",
-		status: "success",
-		execution: "18 ms",
-		time: "10:24",
-	},
-	{
-		id: "h2",
-		query: "SELECT * FROM orders LIMIT 10;",
-		status: "success",
-		execution: "42 ms",
-		time: "10:22",
-	},
-	{
-		id: "h3",
-		query: "SELECT * FORM users;",
-		status: "error",
-		execution: "3 ms",
-		time: "10:20",
-	},
-];
-
 function SqlConsolePage() {
-	const [selectedSandbox, setSelectedSandbox] = useState(
-		sandboxOptions[0]?.id ?? "",
-	);
+	const [selectedSandboxId, setSelectedSandboxId] = useState<string>("");
 	const [query, setQuery] = useState(defaultQuery);
-	const [hasRun, setHasRun] = useState(false);
-	const [isRunning, setIsRunning] = useState(false);
+	const [result, setResult] = useState<{
+		rows: Array<Record<string, unknown>>;
+		rowCount: number;
+		executionTimeMs: number;
+	} | null>(null);
 
-	const handleRun = () => {
-		setIsRunning(true);
-		setTimeout(() => {
-			setIsRunning(false);
-			setHasRun(true);
-		}, 800);
-	};
+	const { data: sandboxesData, isLoading: sandboxesLoading } = useSandboxes();
 
-	const rows = useMemo(
-		() => [
-			{ id: "u_001", name: "Andi Pratama", email: "andi@example.com" },
-			{ id: "u_002", name: "Citra Dewi", email: "citra@example.com" },
-			{ id: "u_003", name: "Budi Rahman", email: "budi@example.com" },
-		],
-		[],
-	);
+	const sandboxOptions = useMemo(() => {
+		const sandboxes = sandboxesData?.sandboxes ?? [];
+		return sandboxes
+			.filter((s) => s.status === "active")
+			.map((s) => ({
+				id: s.id,
+				label: `${s.displayName} (${s.engine})`,
+			}));
+	}, [sandboxesData]);
+
+	const executeQueryMutation = useExecuteQuery(selectedSandboxId);
+
+	const { data: historyData, isLoading: historyLoading } =
+		useQueryHistory(selectedSandboxId);
+
+	const handleRun = useCallback(async () => {
+		if (!selectedSandboxId) {
+			toast.error("Please select a sandbox first");
+			return;
+		}
+		if (!query.trim()) {
+			toast.error("Please enter a query");
+			return;
+		}
+
+		try {
+			const result = await executeQueryMutation.mutateAsync(query);
+			setResult(result);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : "Query failed");
+		}
+	}, [selectedSandboxId, query, executeQueryMutation]);
+
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+				e.preventDefault();
+				handleRun();
+			}
+		};
+
+		window.addEventListener("keydown", handleKeyDown);
+		return () => window.removeEventListener("keydown", handleKeyDown);
+	}, [handleRun]);
+
+	const historyItems = useMemo(() => {
+		const history = historyData ?? [];
+		return history.slice(0, 10).map((item) => ({
+			id: item.id,
+			query: item.query,
+			status: item.status,
+			execution: `${item.executionTimeMs} ms`,
+			time: new Date(item.createdAt).toLocaleTimeString(),
+		}));
+	}, [historyData]);
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -105,10 +115,14 @@ function SqlConsolePage() {
 							</label>
 							<select
 								id="sandbox"
-								value={selectedSandbox}
-								onChange={(event) => setSelectedSandbox(event.target.value)}
+								value={selectedSandboxId}
+								onChange={(event) => setSelectedSandboxId(event.target.value)}
+								disabled={sandboxesLoading}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
 							>
+								<option value="" disabled>
+									{sandboxesLoading ? "Loading..." : "Select a sandbox"}
+								</option>
 								{sandboxOptions.map((option) => (
 									<option key={option.id} value={option.id}>
 										{option.label}
@@ -120,6 +134,7 @@ function SqlConsolePage() {
 						<textarea
 							value={query}
 							onChange={(event) => setQuery(event.target.value)}
+							placeholder="Enter your SQL query here..."
 							className="min-h-48 w-full rounded-md border bg-muted/30 p-3 font-mono text-sm"
 						/>
 
@@ -128,16 +143,28 @@ function SqlConsolePage() {
 								size="sm"
 								className="gap-1.5"
 								onClick={handleRun}
-								disabled={isRunning}
+								disabled={executeQueryMutation.isPending || !selectedSandboxId}
 							>
-								<PlayIcon className="size-4" />
-								{isRunning ? "Running…" : "Run Query"}
+								{executeQueryMutation.isPending ? (
+									<>
+										<Loader2Icon className="size-4 animate-spin" />
+										Running…
+									</>
+								) : (
+									<>
+										<PlayIcon className="size-4" />
+										Run Query
+									</>
+								)}
 							</Button>
 							<Button
 								variant="outline"
 								size="sm"
 								className="gap-1.5"
-								onClick={() => setQuery("")}
+								onClick={() => {
+									setQuery("");
+									setResult(null);
+								}}
 							>
 								<Trash2Icon className="size-4" />
 								Clear
@@ -145,28 +172,46 @@ function SqlConsolePage() {
 							<Badge variant="outline">Ctrl + Enter</Badge>
 						</div>
 
-						{hasRun ? (
-							<div className="overflow-x-auto rounded-md border">
-								<table className="w-full min-w-96 text-sm">
-									<thead className="bg-muted/50 text-left">
-										<tr>
-											<th className="px-3 py-2 font-medium">id</th>
-											<th className="px-3 py-2 font-medium">name</th>
-											<th className="px-3 py-2 font-medium">email</th>
-										</tr>
-									</thead>
-									<tbody>
-										{rows.map((row) => (
-											<tr key={row.id} className="border-t">
-												<td className="px-3 py-2 font-mono text-xs">
-													{row.id}
-												</td>
-												<td className="px-3 py-2">{row.name}</td>
-												<td className="px-3 py-2">{row.email}</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
+						{result ? (
+							<div className="space-y-2">
+								<div className="flex items-center gap-2 text-xs text-muted-foreground">
+									<span>{result.rowCount} rows</span>
+									<span>·</span>
+									<span>{result.executionTimeMs}ms</span>
+								</div>
+								{result.rows && result.rows.length > 0 ? (
+									<div className="overflow-x-auto rounded-md border">
+										<table className="w-full min-w-96 text-sm">
+											<thead className="bg-muted/50 text-left">
+												<tr>
+													{Object.keys(result.rows[0] ?? {}).map((key) => (
+														<th key={key} className="px-3 py-2 font-medium">
+															{key}
+														</th>
+													))}
+												</tr>
+											</thead>
+											<tbody>
+												{result.rows.map((row) => (
+													<tr key={JSON.stringify(row)} className="border-t">
+														{Object.entries(row).map(([key, value]) => (
+															<td
+																key={key}
+																className="px-3 py-2 font-mono text-xs"
+															>
+																{String(value ?? "NULL")}
+															</td>
+														))}
+													</tr>
+												))}
+											</tbody>
+										</table>
+									</div>
+								) : (
+									<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+										Query returned no results.
+									</div>
+								)}
 							</div>
 						) : (
 							<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
@@ -198,14 +243,35 @@ function SqlConsolePage() {
 
 						<div className="space-y-2">
 							<p className="text-sm font-medium">Recent Queries</p>
-							{historyItems.map((item) => (
-								<div key={item.id} className="rounded-md border p-2">
-									<p className="line-clamp-1 text-xs font-mono">{item.query}</p>
-									<p className="mt-1 text-[11px] text-muted-foreground">
-										{item.status.toUpperCase()} · {item.execution} · {item.time}
-									</p>
+							{historyLoading ? (
+								<div className="text-xs text-muted-foreground">Loading...</div>
+							) : historyItems.length > 0 ? (
+								historyItems.map((item) => (
+									<div key={item.id} className="rounded-md border p-2">
+										<p className="line-clamp-1 text-xs font-mono">
+											{item.query}
+										</p>
+										<p className="mt-1 text-[11px] text-muted-foreground">
+											<span
+												className={
+													item.status === "success"
+														? "text-green-600"
+														: "text-red-600"
+												}
+											>
+												{item.status.toUpperCase()}
+											</span>{" "}
+											· {item.execution} · {item.time}
+										</p>
+									</div>
+								))
+							) : (
+								<div className="text-xs text-muted-foreground">
+									{selectedSandboxId
+										? "No queries yet"
+										: "Select a sandbox to view history"}
 								</div>
-							))}
+							)}
 						</div>
 					</CardContent>
 				</Card>

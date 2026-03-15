@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import {
 	BotIcon,
 	DatabaseIcon,
@@ -6,7 +7,6 @@ import {
 	TerminalIcon,
 } from "lucide-react";
 import type * as React from "react";
-import { Link } from "@tanstack/react-router";
 import { Logo } from "#/components/logo";
 import { NavMain } from "#/components/nav-main";
 import { NavUsage } from "#/components/nav-usage";

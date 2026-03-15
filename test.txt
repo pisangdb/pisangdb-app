@@ -1,0 +1,1 @@
+import { QueryClientProvider } from '@tanstack/react-query';

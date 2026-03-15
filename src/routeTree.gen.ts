@@ -13,19 +13,32 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as ApiSandboxesIndexRouteImport } from './routes/api/sandboxes/index'
 import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
+import { Route as ApiSandboxesIdRouteImport } from './routes/api/sandboxes/$id'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthGithubRouteImport } from './routes/api/auth/github'
 import { Route as AppDashboardSettingsRouteImport } from './routes/_app/dashboard/settings'
 import { Route as AppDashboardSandboxesRouteImport } from './routes/_app/dashboard/sandboxes'
 import { Route as AppDashboardHelpRouteImport } from './routes/_app/dashboard/help'
 import { Route as AppDashboardConsoleRouteImport } from './routes/_app/dashboard/console'
 import { Route as AppDashboardAiSeederRouteImport } from './routes/_app/dashboard/ai-seeder'
 import { Route as AppDashboardAccountRouteImport } from './routes/_app/dashboard/account'
+import { Route as ApiSandboxesIdTablesRouteImport } from './routes/api/sandboxes/$id/tables'
+import { Route as ApiSandboxesIdQueryRouteImport } from './routes/api/sandboxes/$id/query'
+import { Route as ApiAuthGithubCallbackRouteImport } from './routes/api/auth/github/callback'
 import { Route as AppDashboardSandboxesNewRouteImport } from './routes/_app/dashboard/sandboxes/new'
 import { Route as AppDashboardSandboxesIdRouteImport } from './routes/_app/dashboard/sandboxes/$id'
+import { Route as ApiSandboxesIdAiLogsRouteImport } from './routes/api/sandboxes/$id/ai/logs'
+import { Route as ApiSandboxesIdAiExecuteRouteImport } from './routes/api/sandboxes/$id/ai/execute'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -44,6 +57,11 @@ const AppRoute = AppRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -66,10 +84,45 @@ const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxesIndexRoute = ApiSandboxesIndexRouteImport.update({
+  id: '/api/sandboxes/',
+  path: '/api/sandboxes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppDashboardRoute,
+} as any)
+const ApiSandboxesIdRoute = ApiSandboxesIdRouteImport.update({
+  id: '/api/sandboxes/$id',
+  path: '/api/sandboxes/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthGithubRoute = ApiAuthGithubRouteImport.update({
+  id: '/api/auth/github',
+  path: '/api/auth/github',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppDashboardSettingsRoute = AppDashboardSettingsRouteImport.update({
   id: '/settings',
@@ -101,6 +154,21 @@ const AppDashboardAccountRoute = AppDashboardAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AppDashboardRoute,
 } as any)
+const ApiSandboxesIdTablesRoute = ApiSandboxesIdTablesRouteImport.update({
+  id: '/tables',
+  path: '/tables',
+  getParentRoute: () => ApiSandboxesIdRoute,
+} as any)
+const ApiSandboxesIdQueryRoute = ApiSandboxesIdQueryRouteImport.update({
+  id: '/query',
+  path: '/query',
+  getParentRoute: () => ApiSandboxesIdRoute,
+} as any)
+const ApiAuthGithubCallbackRoute = ApiAuthGithubCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => ApiAuthGithubRoute,
+} as any)
 const AppDashboardSandboxesNewRoute =
   AppDashboardSandboxesNewRouteImport.update({
     id: '/new',
@@ -112,6 +180,16 @@ const AppDashboardSandboxesIdRoute = AppDashboardSandboxesIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AppDashboardSandboxesRoute,
 } as any)
+const ApiSandboxesIdAiLogsRoute = ApiSandboxesIdAiLogsRouteImport.update({
+  id: '/ai/logs',
+  path: '/ai/logs',
+  getParentRoute: () => ApiSandboxesIdRoute,
+} as any)
+const ApiSandboxesIdAiExecuteRoute = ApiSandboxesIdAiExecuteRouteImport.update({
+  id: '/ai/execute',
+  path: '/ai/execute',
+  getParentRoute: () => ApiSandboxesIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -121,15 +199,28 @@ export interface FileRoutesByFullPath {
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
   '/dashboard': typeof AppDashboardRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/dashboard/account': typeof AppDashboardAccountRoute
   '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/dashboard/console': typeof AppDashboardConsoleRoute
   '/dashboard/help': typeof AppDashboardHelpRoute
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/github': typeof ApiAuthGithubRouteWithChildren
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/dashboard/': typeof AppDashboardIndexRoute
+  '/api/sandboxes/': typeof ApiSandboxesIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
+  '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
+  '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
+  '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
+  '/api/sandboxes/$id/ai/logs': typeof ApiSandboxesIdAiLogsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -138,15 +229,28 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
+  '/api/health': typeof ApiHealthRoute
   '/dashboard/account': typeof AppDashboardAccountRoute
   '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/dashboard/console': typeof AppDashboardConsoleRoute
   '/dashboard/help': typeof AppDashboardHelpRoute
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/github': typeof ApiAuthGithubRouteWithChildren
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/dashboard': typeof AppDashboardIndexRoute
+  '/api/sandboxes': typeof ApiSandboxesIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
+  '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
+  '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
+  '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
+  '/api/sandboxes/$id/ai/logs': typeof ApiSandboxesIdAiLogsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -158,15 +262,28 @@ export interface FileRoutesById {
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/register': typeof authRegisterRoute
   '/_app/dashboard': typeof AppDashboardRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/_app/dashboard/account': typeof AppDashboardAccountRoute
   '/_app/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/_app/dashboard/console': typeof AppDashboardConsoleRoute
   '/_app/dashboard/help': typeof AppDashboardHelpRoute
   '/_app/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/_app/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/github': typeof ApiAuthGithubRouteWithChildren
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/_app/dashboard/': typeof AppDashboardIndexRoute
+  '/api/sandboxes/': typeof ApiSandboxesIndexRoute
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
+  '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
+  '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
+  '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
+  '/api/sandboxes/$id/ai/logs': typeof ApiSandboxesIdAiLogsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -178,15 +295,28 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/dashboard'
+    | '/api/health'
     | '/dashboard/account'
     | '/dashboard/ai-seeder'
     | '/dashboard/console'
     | '/dashboard/help'
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
+    | '/api/auth/github'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
+    | '/api/sandboxes/$id'
     | '/dashboard/'
+    | '/api/sandboxes/'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
+    | '/api/auth/github/callback'
+    | '/api/sandboxes/$id/query'
+    | '/api/sandboxes/$id/tables'
+    | '/api/sandboxes/$id/ai/execute'
+    | '/api/sandboxes/$id/ai/logs'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -195,15 +325,28 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/register'
+    | '/api/health'
     | '/dashboard/account'
     | '/dashboard/ai-seeder'
     | '/dashboard/console'
     | '/dashboard/help'
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
+    | '/api/auth/github'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
+    | '/api/sandboxes/$id'
     | '/dashboard'
+    | '/api/sandboxes'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
+    | '/api/auth/github/callback'
+    | '/api/sandboxes/$id/query'
+    | '/api/sandboxes/$id/tables'
+    | '/api/sandboxes/$id/ai/execute'
+    | '/api/sandboxes/$id/ai/logs'
   id:
     | '__root__'
     | '/'
@@ -214,15 +357,28 @@ export interface FileRouteTypes {
     | '/(auth)/login'
     | '/(auth)/register'
     | '/_app/dashboard'
+    | '/api/health'
     | '/_app/dashboard/account'
     | '/_app/dashboard/ai-seeder'
     | '/_app/dashboard/console'
     | '/_app/dashboard/help'
     | '/_app/dashboard/sandboxes'
     | '/_app/dashboard/settings'
+    | '/api/auth/github'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/register'
+    | '/api/sandboxes/$id'
     | '/_app/dashboard/'
+    | '/api/sandboxes/'
     | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
+    | '/api/auth/github/callback'
+    | '/api/sandboxes/$id/query'
+    | '/api/sandboxes/$id/tables'
+    | '/api/sandboxes/$id/ai/execute'
+    | '/api/sandboxes/$id/ai/logs'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -233,6 +389,14 @@ export interface RootRouteChildren {
   authForgotPasswordRoute: typeof authForgotPasswordRoute
   authLoginRoute: typeof authLoginRoute
   authRegisterRoute: typeof authRegisterRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiAuthGithubRoute: typeof ApiAuthGithubRouteWithChildren
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiSandboxesIdRoute: typeof ApiSandboxesIdRouteWithChildren
+  ApiSandboxesIndexRoute: typeof ApiSandboxesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -265,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
@@ -293,12 +464,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sandboxes/': {
+      id: '/api/sandboxes/'
+      path: '/api/sandboxes'
+      fullPath: '/api/sandboxes/'
+      preLoaderRoute: typeof ApiSandboxesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/dashboard/': {
       id: '/_app/dashboard/'
       path: '/'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof AppDashboardIndexRouteImport
       parentRoute: typeof AppDashboardRoute
+    }
+    '/api/sandboxes/$id': {
+      id: '/api/sandboxes/$id'
+      path: '/api/sandboxes/$id'
+      fullPath: '/api/sandboxes/$id'
+      preLoaderRoute: typeof ApiSandboxesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/github': {
+      id: '/api/auth/github'
+      path: '/api/auth/github'
+      fullPath: '/api/auth/github'
+      preLoaderRoute: typeof ApiAuthGithubRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/dashboard/settings': {
       id: '/_app/dashboard/settings'
@@ -342,6 +562,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardAccountRouteImport
       parentRoute: typeof AppDashboardRoute
     }
+    '/api/sandboxes/$id/tables': {
+      id: '/api/sandboxes/$id/tables'
+      path: '/tables'
+      fullPath: '/api/sandboxes/$id/tables'
+      preLoaderRoute: typeof ApiSandboxesIdTablesRouteImport
+      parentRoute: typeof ApiSandboxesIdRoute
+    }
+    '/api/sandboxes/$id/query': {
+      id: '/api/sandboxes/$id/query'
+      path: '/query'
+      fullPath: '/api/sandboxes/$id/query'
+      preLoaderRoute: typeof ApiSandboxesIdQueryRouteImport
+      parentRoute: typeof ApiSandboxesIdRoute
+    }
+    '/api/auth/github/callback': {
+      id: '/api/auth/github/callback'
+      path: '/callback'
+      fullPath: '/api/auth/github/callback'
+      preLoaderRoute: typeof ApiAuthGithubCallbackRouteImport
+      parentRoute: typeof ApiAuthGithubRoute
+    }
     '/_app/dashboard/sandboxes/new': {
       id: '/_app/dashboard/sandboxes/new'
       path: '/new'
@@ -355,6 +596,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/sandboxes/$id'
       preLoaderRoute: typeof AppDashboardSandboxesIdRouteImport
       parentRoute: typeof AppDashboardSandboxesRoute
+    }
+    '/api/sandboxes/$id/ai/logs': {
+      id: '/api/sandboxes/$id/ai/logs'
+      path: '/ai/logs'
+      fullPath: '/api/sandboxes/$id/ai/logs'
+      preLoaderRoute: typeof ApiSandboxesIdAiLogsRouteImport
+      parentRoute: typeof ApiSandboxesIdRoute
+    }
+    '/api/sandboxes/$id/ai/execute': {
+      id: '/api/sandboxes/$id/ai/execute'
+      path: '/ai/execute'
+      fullPath: '/api/sandboxes/$id/ai/execute'
+      preLoaderRoute: typeof ApiSandboxesIdAiExecuteRouteImport
+      parentRoute: typeof ApiSandboxesIdRoute
     }
   }
 }
@@ -408,6 +663,36 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiAuthGithubRouteChildren {
+  ApiAuthGithubCallbackRoute: typeof ApiAuthGithubCallbackRoute
+}
+
+const ApiAuthGithubRouteChildren: ApiAuthGithubRouteChildren = {
+  ApiAuthGithubCallbackRoute: ApiAuthGithubCallbackRoute,
+}
+
+const ApiAuthGithubRouteWithChildren = ApiAuthGithubRoute._addFileChildren(
+  ApiAuthGithubRouteChildren,
+)
+
+interface ApiSandboxesIdRouteChildren {
+  ApiSandboxesIdQueryRoute: typeof ApiSandboxesIdQueryRoute
+  ApiSandboxesIdTablesRoute: typeof ApiSandboxesIdTablesRoute
+  ApiSandboxesIdAiExecuteRoute: typeof ApiSandboxesIdAiExecuteRoute
+  ApiSandboxesIdAiLogsRoute: typeof ApiSandboxesIdAiLogsRoute
+}
+
+const ApiSandboxesIdRouteChildren: ApiSandboxesIdRouteChildren = {
+  ApiSandboxesIdQueryRoute: ApiSandboxesIdQueryRoute,
+  ApiSandboxesIdTablesRoute: ApiSandboxesIdTablesRoute,
+  ApiSandboxesIdAiExecuteRoute: ApiSandboxesIdAiExecuteRoute,
+  ApiSandboxesIdAiLogsRoute: ApiSandboxesIdAiLogsRoute,
+}
+
+const ApiSandboxesIdRouteWithChildren = ApiSandboxesIdRoute._addFileChildren(
+  ApiSandboxesIdRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
@@ -416,6 +701,14 @@ const rootRouteChildren: RootRouteChildren = {
   authForgotPasswordRoute: authForgotPasswordRoute,
   authLoginRoute: authLoginRoute,
   authRegisterRoute: authRegisterRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiAuthGithubRoute: ApiAuthGithubRouteWithChildren,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiSandboxesIdRoute: ApiSandboxesIdRouteWithChildren,
+  ApiSandboxesIndexRoute: ApiSandboxesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

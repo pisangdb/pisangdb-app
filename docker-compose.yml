@@ -1,0 +1,124 @@
+# PisangDB Docker Compose Configuration
+# MVP: PostgreSQL only (MySQL/MariaDB deferred to v1.1)
+# See PRD §8.4 and §15.4 for architecture details
+
+services:
+  # ===========================================
+  # Application Database (metadata, users, etc.)
+  # ===========================================
+  postgres-app:
+    image: postgres:16-alpine
+    container_name: pisangdb-postgres-app
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pisangdb
+      POSTGRES_USER: pisang
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-pisangdev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pisang -d pisangdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 768M
+        reservations:
+          memory: 256M
+    networks:
+      - pisangdb-network
+
+  # ===========================================
+  # Sandbox Database (ephemeral user databases)
+  # This container provisions isolated databases
+  # ===========================================
+  postgres-sandbox:
+    image: postgres:16-alpine
+    container_name: pisangdb-postgres-sandbox
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${PG_SANDBOX_PASSWORD:-pisangdev}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgsandbox:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 768M
+        reservations:
+          memory: 256M
+    networks:
+      - pisangdb-network
+
+  # ===========================================
+  # PisangDB Application (TanStack Start)
+  # ===========================================
+  app:
+    build:
+      context: .
+      target: dev
+    container_name: pisangdb-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # App database connection (metadata)
+      DATABASE_URL: postgresql://pisang:${PG_PASSWORD:-pisangdev}@postgres-app:5432/pisangdb
+      # Sandbox database connection (for provisioning)
+      POSTGRES_SANDBOX_URL: postgresql://postgres:${PG_SANDBOX_PASSWORD:-pisangdev}@postgres-sandbox:5432/postgres
+      # Gemini AI API key (optional for MVP)
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # JWT secret for auth
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      # Node environment
+      NODE_ENV: ${NODE_ENV:-development}
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.vinxi
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      postgres-sandbox:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 256M
+    networks:
+      - pisangdb-network
+    command: pnpm dev
+
+# ===========================================
+# Named Volumes (persistent data)
+# ===========================================
+volumes:
+  pgdata:
+    name: pisangdb-pgdata
+  pgsandbox:
+    name: pisangdb-pgsandbox
+
+# ===========================================
+# Network (inter-service communication)
+# ===========================================
+networks:
+  pisangdb-network:
+    name: pisangdb-network
+    driver: bridge
