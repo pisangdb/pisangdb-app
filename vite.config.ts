@@ -19,6 +19,29 @@ const config = defineConfig({
 		tanstackStart(),
 		viteReact(),
 	],
+	ssr: {
+		noExternal: ["@tanstack/react-start", "@tanstack/react-router-ssr-query"],
+		external: ["pg", "mysql2", "bcrypt", "jsonwebtoken", "drizzle-orm"],
+	},
+	optimizeDeps: {
+		exclude: ["pg", "mysql2", "bcrypt", "jsonwebtoken", "drizzle-orm"],
+	},
+	build: {
+		rollupOptions: {
+			external: (id: string) => {
+				const serverOnlyPackages = [
+					"pg",
+					"mysql2",
+					"bcrypt",
+					"jsonwebtoken",
+					"drizzle-orm",
+				];
+				return serverOnlyPackages.some(
+					(pkg) => id === pkg || id.startsWith(`${pkg}/`),
+				);
+			},
+		},
+	},
 });
 
 export default config;

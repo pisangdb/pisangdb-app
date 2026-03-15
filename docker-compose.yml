@@ -7,7 +7,7 @@ services:
   # Application Database (metadata, users, etc.)
   # ===========================================
   postgres-app:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: pisangdb-postgres-app
     restart: unless-stopped
     environment:
@@ -15,7 +15,7 @@ services:
       POSTGRES_USER: pisang
       POSTGRES_PASSWORD: ${PG_PASSWORD:-pisangdev}
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -39,7 +39,7 @@ services:
   # This container provisions isolated databases
   # ===========================================
   postgres-sandbox:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: pisangdb-postgres-sandbox
     restart: unless-stopped
     environment:

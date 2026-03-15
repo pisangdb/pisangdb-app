@@ -10,23 +10,27 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { Toaster } from "sonner";
 import { AuthProvider } from "#/contexts/auth-context";
-import {
-	startEphemeralEngine,
-	stopEphemeralEngine,
-} from "#/lib/ephemeral-engine";
 import { createQueryClient } from "#/lib/query-client";
 
 import appCss from "../styles.css?url";
 
 const queryClient = createQueryClient();
 
+// Start ephemeral engine only on server-side using dynamic import
+// This prevents pg (PostgreSQL) from being bundled into client code
 if (typeof window === "undefined") {
-	startEphemeralEngine();
-	if (typeof process !== "undefined" && process.on) {
-		const gracefulShutdown = () => stopEphemeralEngine();
-		process.on("SIGINT", gracefulShutdown);
-		process.on("SIGTERM", gracefulShutdown);
-	}
+	import("#/lib/ephemeral-engine")
+		.then(({ startEphemeralEngine, stopEphemeralEngine }) => {
+			startEphemeralEngine();
+			if (typeof process !== "undefined" && process.on) {
+				const gracefulShutdown = () => stopEphemeralEngine();
+				process.on("SIGINT", gracefulShutdown);
+				process.on("SIGTERM", gracefulShutdown);
+			}
+		})
+		.catch((err) => {
+			console.error("Failed to start ephemeral engine:", err);
+		});
 }
 
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`;
