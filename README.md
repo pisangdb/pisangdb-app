@@ -108,8 +108,8 @@ All routes use TanStack Router's **file-based routing**. The `_app.tsx` layout w
 ### Auth
 Auth pages (`/login`, `/register`, `/forgot-password`) use TanStack Router's **route groups** via the `(auth)/` folder (does not affect the URL).
 
-### Dummy Data
-All dashboard data (sandboxes, stats, SQL results) is **static dummy data** — no backend is connected yet. Backend integration is the next major phase.
+### Data
+Dashboard data is fetched from the backend API via TanStack Query. Server functions in `src/routes/api/` handle database operations.
 
 ### Toasts
 Global toast notifications use **Sonner** (`<Toaster />` in `__root.tsx`). Import `toast` from `"sonner"` anywhere in the app to trigger notifications.
@@ -126,10 +126,10 @@ pnpm biome check --write src/
 
 ## Roadmap
 
-- [ ] Backend: auth (sign in, register, JWT)
-- [ ] Backend: sandbox provisioning (PostgreSQL, MySQL, MariaDB containers)
-- [ ] Backend: TTL auto-cleanup scheduler
-- [ ] Backend: SQL Console execution API
+- [x] Backend: auth (sign in, register, JWT)
+- [x] Backend: sandbox provisioning (PostgreSQL, MySQL, MariaDB containers)
+- [x] Backend: TTL auto-cleanup scheduler
+- [x] Backend: SQL Console execution API
 - [ ] Backend: AI Seeder (Gemini API integration)
 - [ ] Real-time: sandbox status updates via WebSocket or polling
 - [ ] Billing: post-beta paid plans
