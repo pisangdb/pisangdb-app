@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LegalPageLayout } from "#/components/legal-page-layout";
 
 export const Route = createFileRoute("/terms")({
+	head: () => ({ meta: [{ title: "Terms of Service — PisangDB" }] }),
 	component: TermsPage,
 });
 

@@ -12,6 +12,7 @@ import {
 } from "#/components/ui/card";
 
 export const Route = createFileRoute("/_app/dashboard/ai-seeder")({
+	head: () => ({ meta: [{ title: "AI Seeder — PisangDB" }] }),
 	component: AiSeederPage,
 });
 
@@ -66,10 +67,19 @@ function AiSeederPage() {
 	);
 	const [generated, setGenerated] = useState(false);
 	const [savedPrompt, setSavedPrompt] = useState(false);
+	const [isGenerating, setIsGenerating] = useState(false);
 
 	const handleSavePrompt = () => {
 		setSavedPrompt(true);
 		setTimeout(() => setSavedPrompt(false), 2000);
+	};
+
+	const handleGenerate = () => {
+		setIsGenerating(true);
+		setTimeout(() => {
+			setIsGenerating(false);
+			setGenerated(true);
+		}, 1000);
 	};
 
 	return (
@@ -137,10 +147,11 @@ function AiSeederPage() {
 							<Button
 								size="sm"
 								className="gap-1.5"
-								onClick={() => setGenerated(true)}
+								onClick={handleGenerate}
+								disabled={isGenerating}
 							>
 								<SparklesIcon className="size-4" />
-								Generate SQL
+								{isGenerating ? "Generating…" : "Generate SQL"}
 							</Button>
 							<Button variant="outline" size="sm" onClick={handleSavePrompt}>
 								{savedPrompt ? "Saved ✓" : "Save Prompt"}

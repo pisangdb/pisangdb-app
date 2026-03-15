@@ -12,6 +12,7 @@ import {
 } from "#/components/ui/card";
 
 export const Route = createFileRoute("/_app/dashboard/console")({
+	head: () => ({ meta: [{ title: "SQL Console — PisangDB" }] }),
 	component: SqlConsolePage,
 });
 

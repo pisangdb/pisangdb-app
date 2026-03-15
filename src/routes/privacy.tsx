@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { LegalPageLayout } from "#/components/legal-page-layout";
 
 export const Route = createFileRoute("/privacy")({
+	head: () => ({ meta: [{ title: "Privacy Policy — PisangDB" }] }),
 	component: PrivacyPage,
 });
 

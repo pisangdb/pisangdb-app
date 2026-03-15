@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
@@ -16,6 +17,8 @@ export function SignupForm({
 	...props
 }: React.ComponentProps<"div">) {
 	const [isLoading, setIsLoading] = useState(false);
+	const [showPassword, setShowPassword] = useState(false);
+	const [showConfirm, setShowConfirm] = useState(false);
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
@@ -65,13 +68,53 @@ export function SignupForm({
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<Field>
 							<FieldLabel htmlFor="password">Password</FieldLabel>
-							<Input id="password" type="password" required />
+							<div className="relative">
+								<Input
+									id="password"
+									type={showPassword ? "text" : "password"}
+									required
+									className="pr-10"
+								/>
+								<button
+									type="button"
+									onClick={() => setShowPassword((v) => !v)}
+									className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									tabIndex={-1}
+									aria-label={showPassword ? "Hide password" : "Show password"}
+								>
+									{showPassword ? (
+										<EyeOffIcon className="size-4" />
+									) : (
+										<EyeIcon className="size-4" />
+									)}
+								</button>
+							</div>
 						</Field>
 						<Field>
 							<FieldLabel htmlFor="confirm-password">
 								Confirm Password
 							</FieldLabel>
-							<Input id="confirm-password" type="password" required />
+							<div className="relative">
+								<Input
+									id="confirm-password"
+									type={showConfirm ? "text" : "password"}
+									required
+									className="pr-10"
+								/>
+								<button
+									type="button"
+									onClick={() => setShowConfirm((v) => !v)}
+									className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									tabIndex={-1}
+									aria-label={showConfirm ? "Hide password" : "Show password"}
+								>
+									{showConfirm ? (
+										<EyeOffIcon className="size-4" />
+									) : (
+										<EyeIcon className="size-4" />
+									)}
+								</button>
+							</div>
 						</Field>
 					</div>
 

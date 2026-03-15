@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "#/components/ui/button";
 import {
@@ -16,6 +17,7 @@ export function LoginForm({
 	...props
 }: React.ComponentProps<"div">) {
 	const [isLoading, setIsLoading] = useState(false);
+	const [showPassword, setShowPassword] = useState(false);
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
@@ -64,7 +66,27 @@ export function LoginForm({
 								Forgot your password?
 							</Link>
 						</div>
-						<Input id="password" type="password" required />
+						<div className="relative">
+							<Input
+								id="password"
+								type={showPassword ? "text" : "password"}
+								required
+								className="pr-10"
+							/>
+							<button
+								type="button"
+								onClick={() => setShowPassword((v) => !v)}
+								className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+								tabIndex={-1}
+								aria-label={showPassword ? "Hide password" : "Show password"}
+							>
+								{showPassword ? (
+									<EyeOffIcon className="size-4" />
+								) : (
+									<EyeIcon className="size-4" />
+								)}
+							</button>
+						</div>
 					</Field>
 					<Field>
 						<Button type="submit" className="w-full" disabled={isLoading}>

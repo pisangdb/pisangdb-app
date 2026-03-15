@@ -4,6 +4,7 @@ import { ForgotPasswordForm } from "#/components/forgot-password-form";
 import { Logo } from "#/components/logo";
 
 export const Route = createFileRoute("/(auth)/forgot-password")({
+	head: () => ({ meta: [{ title: "Forgot Password — PisangDB" }] }),
 	component: ForgotPasswordPage,
 });
 

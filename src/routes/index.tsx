@@ -19,6 +19,9 @@ import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
 
 export const Route = createFileRoute("/")({
+	head: () => ({
+		meta: [{ title: "PisangDB — Fresh Databases for Developers" }],
+	}),
 	component: LandingPage,
 });
 

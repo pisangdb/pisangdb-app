@@ -4,6 +4,7 @@ import { Logo } from "#/components/logo";
 import { SignupForm } from "#/components/signup-form";
 
 export const Route = createFileRoute("/(auth)/register")({
+	head: () => ({ meta: [{ title: "Create Account — PisangDB" }] }),
 	component: SignupPage,
 });
 

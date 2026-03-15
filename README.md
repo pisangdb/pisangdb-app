@@ -1,204 +1,141 @@
-Welcome to your new TanStack Start app! 
+# PisangDB 🍌
 
-# Getting Started
+> **Ephemeral databases, ready in seconds.** Isolated PostgreSQL, MySQL, and MariaDB sandboxes — copy the connection string, build and test, then let auto-cleanup handle the rest.
 
-To run this application:
+---
+
+## What is PisangDB?
+
+PisangDB is a SaaS tool for developers who need a production-like database **immediately**, without installing anything locally. You pick the engine and retention time, get instant credentials, and the database cleans itself up when the TTL expires.
+
+**Free tier includes:**
+- 5 active sandboxes
+- 100 MB per sandbox
+- Retention from 1 hour up to 7 days
+- 3 engines: PostgreSQL 16, MySQL 8, MariaDB 11
+- SQL Console (browser-based)
+- AI Seeder — 30 requests/day (powered by Gemini)
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | [TanStack Start](https://tanstack.com/start) (SSR + file-based routing) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| UI Components | [shadcn/ui](https://ui.shadcn.com/) |
+| Router | [TanStack Router](https://tanstack.com/router) |
+| Icons | [Lucide React](https://lucide.dev/) |
+| Toast | [Sonner](https://sonner.emilkowal.ski/) |
+| Linter/Formatter | [Biome](https://biomejs.dev/) |
+
+---
+
+## Getting Started
 
 ```bash
+# Install dependencies
 pnpm install
+
+# Start development server
 pnpm dev
 ```
 
-# Building For Production
+The app runs at `http://localhost:3000`.
 
-To build this application for production:
+---
+
+## Project Structure
+
+```
+src/
+├── components/          # Shared UI components
+│   ├── ui/              # shadcn/ui primitives
+│   ├── app-sidebar.tsx  # Dashboard sidebar
+│   ├── auth-branding-panel.tsx
+│   ├── login-form.tsx
+│   ├── signup-form.tsx
+│   ├── forgot-password-form.tsx
+│   ├── legal-page-layout.tsx
+│   └── logo.tsx
+├── routes/              # File-based routes (TanStack Router)
+│   ├── __root.tsx       # Root layout, Toaster, 404 page
+│   ├── index.tsx        # Landing page
+│   ├── (auth)/
+│   │   ├── login.tsx
+│   │   ├── register.tsx
+│   │   └── forgot-password.tsx
+│   ├── _app.tsx         # Dashboard layout with sidebar + breadcrumbs
+│   └── _app/
+│       └── dashboard/
+│           ├── index.tsx        # Dashboard home
+│           ├── sandboxes.tsx    # Sandbox list
+│           ├── sandboxes/
+│           │   ├── new.tsx      # Create sandbox form
+│           │   └── $id.tsx      # Sandbox detail page
+│           ├── console.tsx      # SQL Console
+│           ├── ai-seeder.tsx    # AI Seeder (Gemini)
+│           ├── settings.tsx     # User settings
+│           ├── account.tsx      # Account management
+│           └── help.tsx         # Help / docs
+├── styles.css           # Global styles + Tailwind
+└── lib/
+    └── utils.ts         # cn() helper
+```
+
+---
+
+## Available Scripts
 
 ```bash
-pnpm build
+pnpm dev       # Start dev server with HMR
+pnpm build     # Build for production
+pnpm lint      # Run Biome lint
+pnpm format    # Run Biome format
+pnpm check     # Run Biome lint + format check
+pnpm test      # Run Vitest
 ```
 
-## Testing
+---
 
-This project uses [Vitest](https://vitest.dev/) for testing. You can run the tests with:
+## Development Notes
+
+### Routing
+All routes use TanStack Router's **file-based routing**. The `_app.tsx` layout wraps all dashboard routes and provides the sidebar, breadcrumbs, and tooltip context.
+
+### Auth
+Auth pages (`/login`, `/register`, `/forgot-password`) use TanStack Router's **route groups** via the `(auth)/` folder (does not affect the URL).
+
+### Dummy Data
+All dashboard data (sandboxes, stats, SQL results) is **static dummy data** — no backend is connected yet. Backend integration is the next major phase.
+
+### Toasts
+Global toast notifications use **Sonner** (`<Toaster />` in `__root.tsx`). Import `toast` from `"sonner"` anywhere in the app to trigger notifications.
+
+### Linting & Formatting
+This project uses **Biome** exclusively. Do not install ESLint or Prettier.
 
 ```bash
-pnpm test
+# Auto-fix all issues
+pnpm biome check --write src/
 ```
 
-## Styling
+---
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+## Roadmap
 
-### Removing Tailwind CSS
+- [ ] Backend: auth (sign in, register, JWT)
+- [ ] Backend: sandbox provisioning (PostgreSQL, MySQL, MariaDB containers)
+- [ ] Backend: TTL auto-cleanup scheduler
+- [ ] Backend: SQL Console execution API
+- [ ] Backend: AI Seeder (Gemini API integration)
+- [ ] Real-time: sandbox status updates via WebSocket or polling
+- [ ] Billing: post-beta paid plans
 
-If you prefer not to use Tailwind CSS:
+---
 
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Uninstall the packages: `pnpm add @tailwindcss/vite tailwindcss --dev`
+## License
 
-## Linting & Formatting
-
-This project uses [Biome](https://biomejs.dev/) for linting and formatting. The following scripts are available:
-
-
-```bash
-pnpm lint
-pnpm format
-pnpm check
-```
-
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Demo files
-
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+MIT — see [LICENSE](./LICENSE).

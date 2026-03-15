@@ -4,6 +4,7 @@ import { LoginForm } from "#/components/login-form";
 import { Logo } from "#/components/logo";
 
 export const Route = createFileRoute("/(auth)/login")({
+	head: () => ({ meta: [{ title: "Sign In — PisangDB" }] }),
 	component: LoginPage,
 });
 

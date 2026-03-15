@@ -18,6 +18,7 @@ import {
 } from "#/components/ui/card";
 
 export const Route = createFileRoute("/_app/dashboard/account")({
+	head: () => ({ meta: [{ title: "Account — PisangDB" }] }),
 	component: AccountPage,
 });
 
