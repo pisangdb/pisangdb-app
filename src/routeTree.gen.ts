@@ -9,38 +9,268 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as authRegisterRouteImport } from './routes/(auth)/register'
+import { Route as authLoginRouteImport } from './routes/(auth)/login'
+import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AppDashboardSettingsRouteImport } from './routes/_app/dashboard/settings'
+import { Route as AppDashboardSandboxesRouteImport } from './routes/_app/dashboard/sandboxes'
+import { Route as AppDashboardHelpRouteImport } from './routes/_app/dashboard/help'
+import { Route as AppDashboardConsoleRouteImport } from './routes/_app/dashboard/console'
+import { Route as AppDashboardAiSeederRouteImport } from './routes/_app/dashboard/ai-seeder'
+import { Route as AppDashboardAccountRouteImport } from './routes/_app/dashboard/account'
+import { Route as AppDashboardSandboxesNewRouteImport } from './routes/_app/dashboard/sandboxes/new'
+import { Route as AppDashboardSandboxesIdRouteImport } from './routes/_app/dashboard/sandboxes/$id'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const authRegisterRoute = authRegisterRouteImport.update({
+  id: '/(auth)/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authLoginRoute = authLoginRouteImport.update({
+  id: '/(auth)/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
+  id: '/(auth)/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppDashboardSettingsRoute = AppDashboardSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
+const AppDashboardSandboxesRoute = AppDashboardSandboxesRouteImport.update({
+  id: '/sandboxes',
+  path: '/sandboxes',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
+const AppDashboardHelpRoute = AppDashboardHelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
+const AppDashboardConsoleRoute = AppDashboardConsoleRouteImport.update({
+  id: '/console',
+  path: '/console',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
+const AppDashboardAiSeederRoute = AppDashboardAiSeederRouteImport.update({
+  id: '/ai-seeder',
+  path: '/ai-seeder',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
+const AppDashboardAccountRoute = AppDashboardAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AppDashboardRoute,
+} as any)
+const AppDashboardSandboxesNewRoute =
+  AppDashboardSandboxesNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AppDashboardSandboxesRoute,
+  } as any)
+const AppDashboardSandboxesIdRoute = AppDashboardSandboxesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppDashboardSandboxesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/forgot-password': typeof authForgotPasswordRoute
+  '/login': typeof authLoginRoute
+  '/register': typeof authRegisterRoute
+  '/dashboard': typeof AppDashboardRouteWithChildren
+  '/dashboard/account': typeof AppDashboardAccountRoute
+  '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
+  '/dashboard/console': typeof AppDashboardConsoleRoute
+  '/dashboard/help': typeof AppDashboardHelpRoute
+  '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
+  '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/dashboard/': typeof AppDashboardIndexRoute
+  '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
+  '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/forgot-password': typeof authForgotPasswordRoute
+  '/login': typeof authLoginRoute
+  '/register': typeof authRegisterRoute
+  '/dashboard/account': typeof AppDashboardAccountRoute
+  '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
+  '/dashboard/console': typeof AppDashboardConsoleRoute
+  '/dashboard/help': typeof AppDashboardHelpRoute
+  '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
+  '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/dashboard': typeof AppDashboardIndexRoute
+  '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
+  '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/privacy': typeof PrivacyRoute
+  '/terms': typeof TermsRoute
+  '/(auth)/forgot-password': typeof authForgotPasswordRoute
+  '/(auth)/login': typeof authLoginRoute
+  '/(auth)/register': typeof authRegisterRoute
+  '/_app/dashboard': typeof AppDashboardRouteWithChildren
+  '/_app/dashboard/account': typeof AppDashboardAccountRoute
+  '/_app/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
+  '/_app/dashboard/console': typeof AppDashboardConsoleRoute
+  '/_app/dashboard/help': typeof AppDashboardHelpRoute
+  '/_app/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
+  '/_app/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_app/dashboard/': typeof AppDashboardIndexRoute
+  '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
+  '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/privacy'
+    | '/terms'
+    | '/forgot-password'
+    | '/login'
+    | '/register'
+    | '/dashboard'
+    | '/dashboard/account'
+    | '/dashboard/ai-seeder'
+    | '/dashboard/console'
+    | '/dashboard/help'
+    | '/dashboard/sandboxes'
+    | '/dashboard/settings'
+    | '/api/auth/$'
+    | '/dashboard/'
+    | '/dashboard/sandboxes/$id'
+    | '/dashboard/sandboxes/new'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/privacy'
+    | '/terms'
+    | '/forgot-password'
+    | '/login'
+    | '/register'
+    | '/dashboard/account'
+    | '/dashboard/ai-seeder'
+    | '/dashboard/console'
+    | '/dashboard/help'
+    | '/dashboard/sandboxes'
+    | '/dashboard/settings'
+    | '/api/auth/$'
+    | '/dashboard'
+    | '/dashboard/sandboxes/$id'
+    | '/dashboard/sandboxes/new'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/privacy'
+    | '/terms'
+    | '/(auth)/forgot-password'
+    | '/(auth)/login'
+    | '/(auth)/register'
+    | '/_app/dashboard'
+    | '/_app/dashboard/account'
+    | '/_app/dashboard/ai-seeder'
+    | '/_app/dashboard/console'
+    | '/_app/dashboard/help'
+    | '/_app/dashboard/sandboxes'
+    | '/_app/dashboard/settings'
+    | '/api/auth/$'
+    | '/_app/dashboard/'
+    | '/_app/dashboard/sandboxes/$id'
+    | '/_app/dashboard/sandboxes/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  PrivacyRoute: typeof PrivacyRoute
+  TermsRoute: typeof TermsRoute
+  authForgotPasswordRoute: typeof authForgotPasswordRoute
+  authLoginRoute: typeof authLoginRoute
+  authRegisterRoute: typeof authRegisterRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +278,165 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/(auth)/register': {
+      id: '/(auth)/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof authRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/login': {
+      id: '/(auth)/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof authLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/(auth)/forgot-password': {
+      id: '/(auth)/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof authForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/dashboard/': {
+      id: '/_app/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof AppDashboardIndexRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/dashboard/settings': {
+      id: '/_app/dashboard/settings'
+      path: '/settings'
+      fullPath: '/dashboard/settings'
+      preLoaderRoute: typeof AppDashboardSettingsRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
+    '/_app/dashboard/sandboxes': {
+      id: '/_app/dashboard/sandboxes'
+      path: '/sandboxes'
+      fullPath: '/dashboard/sandboxes'
+      preLoaderRoute: typeof AppDashboardSandboxesRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
+    '/_app/dashboard/help': {
+      id: '/_app/dashboard/help'
+      path: '/help'
+      fullPath: '/dashboard/help'
+      preLoaderRoute: typeof AppDashboardHelpRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
+    '/_app/dashboard/console': {
+      id: '/_app/dashboard/console'
+      path: '/console'
+      fullPath: '/dashboard/console'
+      preLoaderRoute: typeof AppDashboardConsoleRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
+    '/_app/dashboard/ai-seeder': {
+      id: '/_app/dashboard/ai-seeder'
+      path: '/ai-seeder'
+      fullPath: '/dashboard/ai-seeder'
+      preLoaderRoute: typeof AppDashboardAiSeederRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
+    '/_app/dashboard/account': {
+      id: '/_app/dashboard/account'
+      path: '/account'
+      fullPath: '/dashboard/account'
+      preLoaderRoute: typeof AppDashboardAccountRouteImport
+      parentRoute: typeof AppDashboardRoute
+    }
+    '/_app/dashboard/sandboxes/new': {
+      id: '/_app/dashboard/sandboxes/new'
+      path: '/new'
+      fullPath: '/dashboard/sandboxes/new'
+      preLoaderRoute: typeof AppDashboardSandboxesNewRouteImport
+      parentRoute: typeof AppDashboardSandboxesRoute
+    }
+    '/_app/dashboard/sandboxes/$id': {
+      id: '/_app/dashboard/sandboxes/$id'
+      path: '/$id'
+      fullPath: '/dashboard/sandboxes/$id'
+      preLoaderRoute: typeof AppDashboardSandboxesIdRouteImport
+      parentRoute: typeof AppDashboardSandboxesRoute
+    }
   }
 }
 
+interface AppDashboardSandboxesRouteChildren {
+  AppDashboardSandboxesIdRoute: typeof AppDashboardSandboxesIdRoute
+  AppDashboardSandboxesNewRoute: typeof AppDashboardSandboxesNewRoute
+}
+
+const AppDashboardSandboxesRouteChildren: AppDashboardSandboxesRouteChildren = {
+  AppDashboardSandboxesIdRoute: AppDashboardSandboxesIdRoute,
+  AppDashboardSandboxesNewRoute: AppDashboardSandboxesNewRoute,
+}
+
+const AppDashboardSandboxesRouteWithChildren =
+  AppDashboardSandboxesRoute._addFileChildren(
+    AppDashboardSandboxesRouteChildren,
+  )
+
+interface AppDashboardRouteChildren {
+  AppDashboardAccountRoute: typeof AppDashboardAccountRoute
+  AppDashboardAiSeederRoute: typeof AppDashboardAiSeederRoute
+  AppDashboardConsoleRoute: typeof AppDashboardConsoleRoute
+  AppDashboardHelpRoute: typeof AppDashboardHelpRoute
+  AppDashboardSandboxesRoute: typeof AppDashboardSandboxesRouteWithChildren
+  AppDashboardSettingsRoute: typeof AppDashboardSettingsRoute
+  AppDashboardIndexRoute: typeof AppDashboardIndexRoute
+}
+
+const AppDashboardRouteChildren: AppDashboardRouteChildren = {
+  AppDashboardAccountRoute: AppDashboardAccountRoute,
+  AppDashboardAiSeederRoute: AppDashboardAiSeederRoute,
+  AppDashboardConsoleRoute: AppDashboardConsoleRoute,
+  AppDashboardHelpRoute: AppDashboardHelpRoute,
+  AppDashboardSandboxesRoute: AppDashboardSandboxesRouteWithChildren,
+  AppDashboardSettingsRoute: AppDashboardSettingsRoute,
+  AppDashboardIndexRoute: AppDashboardIndexRoute,
+}
+
+const AppDashboardRouteWithChildren = AppDashboardRoute._addFileChildren(
+  AppDashboardRouteChildren,
+)
+
+interface AppRouteChildren {
+  AppDashboardRoute: typeof AppDashboardRouteWithChildren
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppDashboardRoute: AppDashboardRouteWithChildren,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  PrivacyRoute: PrivacyRoute,
+  TermsRoute: TermsRoute,
+  authForgotPasswordRoute: authForgotPasswordRoute,
+  authLoginRoute: authLoginRoute,
+  authRegisterRoute: authRegisterRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

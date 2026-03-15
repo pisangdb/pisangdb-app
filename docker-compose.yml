@@ -1,0 +1,205 @@
+services:
+  # ─────────────────────────────────────────────────────────────
+  # App — TanStack Start SSR
+  # ─────────────────────────────────────────────────────────────
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      postgres-sandbox:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      mariadb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      # App metadata DB (users, sandboxes, ai_logs, query_history)
+      DATABASE_URL: postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb
+      # Sandbox engine admin URLs — region: id (Indonesia, VPS ini)
+      POSTGRES_SANDBOX_URL_ID: postgresql://pisang:${PG_SANDBOX_PASSWORD}@postgres-sandbox:5432/postgres
+      MYSQL_SANDBOX_URL_ID: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306
+      MARIADB_SANDBOX_URL_ID: mysql://root:${MARIADB_ROOT_PASSWORD}@mariadb:3307
+      # Google OAuth (opsional — aktif otomatis jika diisi)
+      # GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      # GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      # AI Provider (pilih salah satu, uncomment sesuai provider)
+      # GEMINI_API_KEY: ${GEMINI_API_KEY}
+      # OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — App Database (metadata only)
+  # Tidak expose port ke host — hanya accessible dalam Docker network
+  # ─────────────────────────────────────────────────────────────
+  postgres-app:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pisangdb
+      POSTGRES_USER: pisang
+      POSTGRES_PASSWORD: ${PG_APP_PASSWORD}
+    volumes:
+      - pgdata_app:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pisang -d pisangdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — Sandbox Engine (region: id)
+  # Port 5432 exposed ke host — developer connect via id.pisangdb.com:5432
+  # User 'pisang' otomatis jadi superuser (untuk CREATE DATABASE / CREATE USER)
+  # ─────────────────────────────────────────────────────────────
+  postgres-sandbox:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pisang
+      POSTGRES_PASSWORD: ${PG_SANDBOX_PASSWORD}
+      # POSTGRES_DB diisi agar database 'pisangdb' otomatis terbuat saat
+      # container pertama start. Dipakai sebagai app metadata DB di local dev
+      # (postgres-app tidak expose port ke host di luar Docker network).
+      POSTGRES_DB: pisangdb
+    volumes:
+      - pgdata_sandbox:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pisang -d pisangdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────
+  # MySQL 8.0 — Sandbox Engine (region: id)
+  # Catatan: pakai 8.0 bukan 8.4 karena mysql_native_password
+  # masih aktif by default (kompatibel dengan mysql2 driver)
+  # Port 3306 exposed ke host — developer connect via id.pisangdb.com:3306
+  # ─────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --skip-name-resolve
+      --skip-show-database
+      --innodb-buffer-pool-size=128M
+      --max-connections=100
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysqldata:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 768M
+        reservations:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────
+  # MariaDB 11.4 LTS — Sandbox Engine (region: id)
+  # Port 3307 (bukan 3306) agar tidak bentrok dengan MySQL
+  # Port 3307 exposed ke host — developer connect via id.pisangdb.com:3307
+  # ─────────────────────────────────────────────────────────────
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    command: >
+      --skip-name-resolve
+      --skip-show-database
+      --innodb-buffer-pool-size=128M
+      --max-connections=100
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+    volumes:
+      - mariadbdata:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 200M
+
+  # ─────────────────────────────────────────────────────────────
+  # Caddy — Reverse Proxy + HTTPS otomatis
+  # Hanya handle pisangdb.com (HTTP/HTTPS)
+  # DB ports (5432/3306/3307) tidak lewat Caddy — TCP langsung
+  # ─────────────────────────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata_app:
+  pgdata_sandbox:
+  mysqldata:
+  mariadbdata:
+  caddy_data:
+  caddy_config:

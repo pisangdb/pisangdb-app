@@ -1,0 +1,7 @@
+pisangdb.com {
+	reverse_proxy app:3000
+}
+
+www.pisangdb.com {
+    redir https://pisangdb.com{uri} permanent
+}

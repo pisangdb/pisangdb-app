@@ -2,8 +2,6 @@
   "languages": {
     "CSS": {
       "language_servers": ["tailwindcss-language-server", "!css-lsp"],
-    },
-    "JavaScript": {
       "formatter": {
         "external": {
           "command": "biome",
@@ -11,7 +9,7 @@
         },
       },
     },
-    "JSX": {
+    "JavaScript": {
       "formatter": {
         "external": {
           "command": "biome",
@@ -36,14 +34,6 @@
       },
     },
     "JSON": {
-      "formatter": {
-        "external": {
-          "command": "biome",
-          "arguments": ["format", "--stdin-file-path", "{buffer_path}"],
-        },
-      },
-    },
-    "JSONC": {
       "formatter": {
         "external": {
           "command": "biome",

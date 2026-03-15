@@ -2,10 +2,12 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import {
 	createRootRoute,
 	HeadContent,
+	Link,
 	Outlet,
 	Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { Toaster } from "sonner";
 
 import appCss from "../styles.css?url";
 
@@ -13,12 +15,37 @@ const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getIte
 
 function NotFound() {
 	return (
-		<div className="flex flex-col items-center justify-center min-h-screen gap-4">
-			<h1 className="text-4xl font-bold">404</h1>
-			<p className="text-muted-foreground">Halaman tidak ditemukan.</p>
-			<a href="/" className="underline">
-				Kembali ke beranda
-			</a>
+		<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 text-center">
+			<div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-linear-to-b from-primary/8 to-transparent" />
+			<div className="relative">
+				<p className="text-8xl font-black tracking-tighter text-primary/20">
+					404
+				</p>
+				<div className="absolute inset-0 flex items-center justify-center text-5xl">
+					🍌
+				</div>
+			</div>
+			<div className="space-y-2">
+				<h1 className="text-2xl font-bold tracking-tight">Page not found</h1>
+				<p className="max-w-sm text-sm text-muted-foreground">
+					This page doesn't exist or has been moved. Go back to the dashboard or
+					landing page.
+				</p>
+			</div>
+			<div className="flex flex-wrap justify-center gap-3">
+				<Link
+					to="/dashboard"
+					className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+				>
+					Go to Dashboard
+				</Link>
+				<Link
+					to="/"
+					className="inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted"
+				>
+					Back to Home
+				</Link>
+			</div>
 		</div>
 	);
 }
@@ -35,7 +62,7 @@ export const Route = createRootRoute({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "TanStack Start Starter",
+				title: "PisangDB",
 			},
 		],
 		links: [
@@ -59,6 +86,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 			</head>
 			<body className="font-sans antialiased [wrap-anywhere] selection:bg-[rgba(79,184,178,0.24)]">
 				{children}
+				<Toaster richColors closeButton />
 				<TanStackDevtools
 					config={{
 						position: "bottom-right",
