@@ -1,36 +1,36 @@
 ---
 name: Bug Report
-about: Report something that is broken or not working as expected
+about: Laporkan sesuatu yang rusak atau tidak berjalan sesuai harapan
 title: "fix: "
 labels: ["bug"]
 assignees: ""
 ---
 
-## Description
+## Deskripsi
 
-A clear and concise description of what the bug is.
+Deskripsi singkat dan jelas tentang bug yang terjadi.
 
-## Steps to Reproduce
+## Langkah Reproduksi
 
-1. Go to '...'
-2. Click on '...'
-3. See error
+1. Buka '...'
+2. Klik '...'
+3. Lihat error
 
-## Expected Behavior
+## Perilaku yang Diharapkan
 
-What you expected to happen.
+Apa yang seharusnya terjadi.
 
-## Actual Behavior
+## Perilaku yang Terjadi
 
-What actually happened. Include error messages, screenshots, or logs if available.
+Apa yang sebenarnya terjadi. Sertakan pesan error, screenshot, atau log jika ada.
 
 ## Environment
 
-- **Browser / Client**: (e.g. Chrome 124, curl, Prisma client)
-- **Database Engine**: (e.g. PostgreSQL, MySQL, MariaDB — if applicable)
-- **Sandbox TTL**: (e.g. 1h, 6h — if applicable)
-- **Node version**: (e.g. 22.x)
+- **Browser / Client**: (contoh: Chrome 124, curl, Prisma client)
+- **Database Engine**: (contoh: PostgreSQL, MySQL, MariaDB — jika relevan)
+- **Sandbox TTL**: (contoh: 1h, 6h — jika relevan)
+- **Versi Node**: (contoh: 22.x)
 
-## Additional Context
+## Konteks Tambahan
 
-Any other context about the problem (related issues, recent changes, etc.).
+Informasi lain yang relevan (issue terkait, perubahan terbaru, dll.).
