@@ -1,7 +1,5 @@
 const API_BASE = "";
 
-
-
 async function fetchApi<T>(
 	endpoint: string,
 	options: RequestInit = {},

@@ -62,7 +62,6 @@ function NewSandboxPage() {
 	const [template, setTemplate] = useState("Blank");
 	const [copied, setCopied] = useState(false);
 
-
 	// Parse retention string to hours
 	const parseRetentionToHours = (retentionStr: string): number => {
 		const match = retentionStr.match(/^(\d+)\s*(hour|hours|day|days)$/i);

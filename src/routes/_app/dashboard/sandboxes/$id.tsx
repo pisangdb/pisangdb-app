@@ -127,7 +127,7 @@ function SandboxDetailPage() {
 	const [extended, setExtended] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
 
-	const handleExtend = (duration: string) => {
+	const handleExtend = (_duration: string) => {
 		setExtendOpen(false);
 		setExtended(true);
 		setTimeout(() => setExtended(false), 2000);

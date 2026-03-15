@@ -21,10 +21,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
-import { useDeleteSandbox } from "#/hooks/use-delete-sandbox";
-import { useExtendSandbox } from "#/hooks/use-extend-sandbox";
 import { useSandboxes } from "#/hooks/use-sandboxes";
-import { useTtlCountdown } from "#/hooks/use-ttl-countdown";
 import { formatTtl } from "#/lib/format-ttl";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes")({
@@ -68,8 +65,7 @@ const formatDate = (dateString: string) => {
 	});
 };
 
-
-const sandboxes: {
+const _sandboxes: {
 	id: string;
 	displayName: string;
 	engine: string;
@@ -172,7 +168,7 @@ function SandboxesPage() {
 		}, 1200);
 	};
 
-	const handleExtend = (id: string, duration: string) => {
+	const handleExtend = (id: string, _duration: string) => {
 		setExtendMenuId(null);
 		setExtendedId(id);
 		setTimeout(() => setExtendedId((cur) => (cur === id ? null : cur)), 2000);
@@ -279,8 +275,9 @@ function SandboxesPage() {
 													</Badge>
 												</div>
 												<p className="text-xs text-muted-foreground">
-													{formatEngine(sandbox.engine)} · {regionDisplayMap[sandbox.region] ?? sandbox.region} · Created{" "}
-													{formatDate(sandbox.createdAt)}
+													{formatEngine(sandbox.engine)} ·{" "}
+													{regionDisplayMap[sandbox.region] ?? sandbox.region} ·
+													Created {formatDate(sandbox.createdAt)}
 												</p>
 												<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 													<Clock3Icon className="size-3.5" />

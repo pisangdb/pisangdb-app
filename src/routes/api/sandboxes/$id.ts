@@ -51,7 +51,11 @@ export const Route = createFileRoute("/api/sandboxes/$id")({
 				const token = getCookie(SESSION_COOKIE_NAME);
 
 				if (!token) {
-					return errorResponse("authentication_required", "Authentication required", 401);
+					return errorResponse(
+						"authentication_required",
+						"Authentication required",
+						401,
+					);
 				}
 
 				const payload = await verifyToken(token);
@@ -151,7 +155,11 @@ export const Route = createFileRoute("/api/sandboxes/$id")({
 				const token = getCookie(SESSION_COOKIE_NAME);
 
 				if (!token) {
-					return errorResponse("authentication_required", "Authentication required", 401);
+					return errorResponse(
+						"authentication_required",
+						"Authentication required",
+						401,
+					);
 				}
 
 				const payload = await verifyToken(token);
@@ -288,7 +296,11 @@ export const Route = createFileRoute("/api/sandboxes/$id")({
 				const token = getCookie(SESSION_COOKIE_NAME);
 
 				if (!token) {
-					return errorResponse("authentication_required", "Authentication required", 401);
+					return errorResponse(
+						"authentication_required",
+						"Authentication required",
+						401,
+					);
 				}
 
 				const payload = await verifyToken(token);

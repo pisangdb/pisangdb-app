@@ -28,10 +28,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Skeleton } from "#/components/ui/skeleton";
-import { useDeleteSandbox } from "#/hooks/use-delete-sandbox";
-import { useExtendSandbox } from "#/hooks/use-extend-sandbox";
 import { useSandboxes } from "#/hooks/use-sandboxes";
-import { useTtlCountdown } from "#/hooks/use-ttl-countdown";
 import { formatTtl } from "#/lib/format-ttl";
 
 const MAX_ACTIVE_SANDBOXES = 5;
@@ -71,7 +68,7 @@ const getStatusCategory = (status: string): SandboxStatus => {
 	return "active";
 };
 
-const recentSandboxes: {
+const _recentSandboxes: {
 	id: string;
 	name: string;
 	engine: string;
@@ -177,7 +174,7 @@ const quickActions = [
 ];
 
 const activeCount = 0;
-const expiringCount = 0;
+const _expiringCount = 0;
 const totalCreated = 0;
 const autoCleaned = 0;
 const aiQueries = 0;
@@ -271,8 +268,8 @@ export function DashboardHome() {
 
 	const { data, isLoading, error } = useSandboxes();
 	const sandboxList = data?.sandboxes ?? [];
-	const activeCount = sandboxList.filter((s) => s.status === "active").length;
-	const expiringCount = sandboxList.filter(
+	const _activeCount = sandboxList.filter((s) => s.status === "active").length;
+	const _expiringCount = sandboxList.filter(
 		(s) => s.status === "expiring",
 	).length;
 
