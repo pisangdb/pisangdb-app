@@ -58,10 +58,10 @@ BETTER_AUTH_SECRET=         # openssl rand -base64 32
 BETTER_AUTH_URL=http://localhost:3000
 DATABASE_URL=postgresql://pisang:password@localhost:5432/pisangdb
 
-# Sandbox engines (Docker)
-POSTGRES_SANDBOX_URL=postgresql://pisang:password@localhost:5432/postgres
-MYSQL_SANDBOX_URL=mysql://root:password@localhost:3306
-MARIADB_SANDBOX_URL=mysql://root:password@localhost:3307
+# Sandbox engines (Docker) — region: id
+POSTGRES_SANDBOX_URL_ID=postgresql://pisang:password@localhost:5432/postgres
+MYSQL_SANDBOX_URL_ID=mysql://root:password@localhost:3306
+MARIADB_SANDBOX_URL_ID=mysql://root:password@localhost:3307
 
 # Optional — Google OAuth
 # GOOGLE_CLIENT_ID=
@@ -71,7 +71,7 @@ MARIADB_SANDBOX_URL=mysql://root:password@localhost:3307
 ### 3. Start database containers
 
 ```bash
-docker compose up -d postgres mysql mariadb
+docker compose up -d postgres-sandbox mysql mariadb
 ```
 
 ### 4. Run migrations

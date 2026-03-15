@@ -8,20 +8,23 @@ export const db = drizzle(
 	{ schema },
 );
 
-export function createPgAdminPool() {
-	const url = process.env.POSTGRES_SANDBOX_URL;
-	if (!url) throw new Error("POSTGRES_SANDBOX_URL is not set");
+export function createPgAdminPool(region: string) {
+	const key = `POSTGRES_SANDBOX_URL_${region.toUpperCase()}`;
+	const url = process.env[key];
+	if (!url) throw new Error(`${key} is not set`);
 	return new Pool({ connectionString: url });
 }
 
-export function createMysqlAdminPool() {
-	const url = process.env.MYSQL_SANDBOX_URL;
-	if (!url) throw new Error("MYSQL_SANDBOX_URL is not set");
+export function createMysqlAdminPool(region: string) {
+	const key = `MYSQL_SANDBOX_URL_${region.toUpperCase()}`;
+	const url = process.env[key];
+	if (!url) throw new Error(`${key} is not set`);
 	return mysql.createPool(url);
 }
 
-export function createMariadbAdminPool() {
-	const url = process.env.MARIADB_SANDBOX_URL;
-	if (!url) throw new Error("MARIADB_SANDBOX_URL is not set");
+export function createMariadbAdminPool(region: string) {
+	const key = `MARIADB_SANDBOX_URL_${region.toUpperCase()}`;
+	const url = process.env[key];
+	if (!url) throw new Error(`${key} is not set`);
 	return mysql.createPool(url);
 }
