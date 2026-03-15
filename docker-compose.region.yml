@@ -1,0 +1,127 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PisangDB — Regional VPS Compose (template)
+#
+# Digunakan untuk VPS regional (sg, us, eu, dll.) yang HANYA menjalankan
+# sandbox database engines. App dan Caddy tidak ada di sini — mereka ada
+# di VPS utama (docker-compose.yml).
+#
+# Setup per region:
+#   1. Copy file ini ke VPS regional
+#   2. Ganti REGION_CODE di nama file/env sesuai region (sg, us, eu, dll.)
+#   3. Set env vars di .env (lihat .env.example bagian "Regional VPS")
+#   4. DNS: {region}.pisangdb.com → A record → IP VPS ini
+#   5. docker compose -f docker-compose.region.yml up -d
+#
+# Developer connect langsung ke port DB — tidak lewat Caddy:
+#   postgresql://user:pass@sg.pisangdb.com:5432/dbname
+#   mysql://user:pass@sg.pisangdb.com:3306/dbname
+#   mysql://user:pass@sg.pisangdb.com:3307/dbname
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — Sandbox Engine
+  # User 'pisang' otomatis jadi superuser (untuk CREATE DATABASE / CREATE USER)
+  # ─────────────────────────────────────────────────────────────
+  postgres-sandbox:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pisang
+      POSTGRES_PASSWORD: ${PG_SANDBOX_PASSWORD}
+    volumes:
+      - pgdata_sandbox:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pisang"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────
+  # MySQL 8.0 — Sandbox Engine
+  # Catatan: pakai 8.0 bukan 8.4 karena mysql_native_password
+  # masih aktif by default (kompatibel dengan mysql2 driver)
+  # ─────────────────────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: >
+      --default-authentication-plugin=mysql_native_password
+      --skip-name-resolve
+      --skip-show-database
+      --innodb-buffer-pool-size=256M
+      --max-connections=150
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysqldata:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          memory: 256M
+
+  # ─────────────────────────────────────────────────────────────
+  # MariaDB 11.4 LTS — Sandbox Engine
+  # Port 3307 (bukan 3306) agar tidak bentrok dengan MySQL
+  # ─────────────────────────────────────────────────────────────
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    command: >
+      --skip-name-resolve
+      --skip-show-database
+      --innodb-buffer-pool-size=256M
+      --max-connections=150
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+    volumes:
+      - mariadbdata:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+        reservations:
+          memory: 200M
+
+volumes:
+  pgdata_sandbox:
+  mysqldata:
+  mariadbdata:

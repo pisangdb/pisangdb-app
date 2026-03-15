@@ -18,6 +18,7 @@ import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AppDashboardSettingsRouteImport } from './routes/_app/dashboard/settings'
 import { Route as AppDashboardSandboxesRouteImport } from './routes/_app/dashboard/sandboxes'
 import { Route as AppDashboardHelpRouteImport } from './routes/_app/dashboard/help'
@@ -70,6 +71,11 @@ const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppDashboardRoute,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppDashboardSettingsRoute = AppDashboardSettingsRouteImport.update({
   id: '/settings',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/help': typeof AppDashboardHelpRoute
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard/': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
@@ -144,6 +151,7 @@ export interface FileRoutesByTo {
   '/dashboard/help': typeof AppDashboardHelpRoute
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
@@ -164,6 +172,7 @@ export interface FileRoutesById {
   '/_app/dashboard/help': typeof AppDashboardHelpRoute
   '/_app/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/_app/dashboard/settings': typeof AppDashboardSettingsRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/dashboard/': typeof AppDashboardIndexRoute
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
@@ -184,6 +193,7 @@ export interface FileRouteTypes {
     | '/dashboard/help'
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
+    | '/api/auth/$'
     | '/dashboard/'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/dashboard/help'
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
+    | '/api/auth/$'
     | '/dashboard'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard/help'
     | '/_app/dashboard/sandboxes'
     | '/_app/dashboard/settings'
+    | '/api/auth/$'
     | '/_app/dashboard/'
     | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
@@ -233,6 +245,7 @@ export interface RootRouteChildren {
   authForgotPasswordRoute: typeof authForgotPasswordRoute
   authLoginRoute: typeof authLoginRoute
   authRegisterRoute: typeof authRegisterRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -299,6 +312,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof AppDashboardIndexRouteImport
       parentRoute: typeof AppDashboardRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/dashboard/settings': {
       id: '/_app/dashboard/settings'
@@ -416,6 +436,7 @@ const rootRouteChildren: RootRouteChildren = {
   authForgotPasswordRoute: authForgotPasswordRoute,
   authLoginRoute: authLoginRoute,
   authRegisterRoute: authRegisterRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

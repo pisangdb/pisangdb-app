@@ -1,0 +1,30 @@
+import { z } from "zod";
+
+export const createSandboxSchema = z.object({
+	displayName: z.string().min(1).max(50),
+	engine: z.enum(["postgresql", "mysql", "mariadb"]),
+	region: z.enum(["id", "sg", "us", "eu"]),
+	retentionHours: z.union([
+		z.literal(1),
+		z.literal(6),
+		z.literal(12),
+		z.literal(24),
+		z.literal(72),
+		z.literal(168),
+	]),
+	templateId: z.string().uuid().optional(),
+});
+
+export const extendSandboxSchema = z.object({
+	sandboxId: z.string().uuid(),
+	additionalHours: z.union([
+		z.literal(1),
+		z.literal(6),
+		z.literal(12),
+		z.literal(24),
+	]),
+});
+
+export const sandboxIdSchema = z.object({
+	sandboxId: z.string().uuid(),
+});

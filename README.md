@@ -14,7 +14,7 @@ PisangDB is a SaaS tool for developers who need a production-like database **imm
 - Retention from 1 hour up to 7 days
 - 3 engines: PostgreSQL 16, MySQL 8, MariaDB 11
 - SQL Console (browser-based)
-- AI Seeder — 30 requests/day (powered by Gemini)
+- AI Seeder — 30 requests/day
 
 ---
 
@@ -26,7 +26,10 @@ PisangDB is a SaaS tool for developers who need a production-like database **imm
 | Language | TypeScript |
 | Styling | Tailwind CSS v4 |
 | UI Components | [shadcn/ui](https://ui.shadcn.com/) |
-| Router | [TanStack Router](https://tanstack.com/router) |
+| State / Data | [TanStack Query](https://tanstack.com/query) |
+| Auth | [better-auth](https://www.better-auth.com/) |
+| ORM | [Drizzle ORM](https://orm.drizzle.team/) |
+| Database | PostgreSQL 16 + MySQL 8 + MariaDB 11 |
 | Icons | [Lucide React](https://lucide.dev/) |
 | Toast | [Sonner](https://sonner.emilkowal.ski/) |
 | Linter/Formatter | [Biome](https://biomejs.dev/) |
@@ -35,11 +38,51 @@ PisangDB is a SaaS tool for developers who need a production-like database **imm
 
 ## Getting Started
 
-```bash
-# Install dependencies
-pnpm install
+### 1. Install dependencies
 
-# Start development server
+```bash
+pnpm install
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Fill in `.env`:
+
+```env
+# Required
+BETTER_AUTH_SECRET=         # openssl rand -base64 32
+BETTER_AUTH_URL=http://localhost:3000
+DATABASE_URL=postgresql://pisang:password@localhost:5432/pisangdb
+
+# Sandbox engines (Docker)
+POSTGRES_SANDBOX_URL=postgresql://pisang:password@localhost:5432/postgres
+MYSQL_SANDBOX_URL=mysql://root:password@localhost:3306
+MARIADB_SANDBOX_URL=mysql://root:password@localhost:3307
+
+# Optional — Google OAuth
+# GOOGLE_CLIENT_ID=
+# GOOGLE_CLIENT_SECRET=
+```
+
+### 3. Start database containers
+
+```bash
+docker compose up -d postgres mysql mariadb
+```
+
+### 4. Run migrations
+
+```bash
+pnpm drizzle-kit push
+```
+
+### 5. Start dev server
+
+```bash
 pnpm dev
 ```
 
@@ -53,36 +96,30 @@ The app runs at `http://localhost:3000`.
 src/
 ├── components/          # Shared UI components
 │   ├── ui/              # shadcn/ui primitives
-│   ├── app-sidebar.tsx  # Dashboard sidebar
-│   ├── auth-branding-panel.tsx
+│   ├── app-sidebar.tsx
 │   ├── login-form.tsx
 │   ├── signup-form.tsx
-│   ├── forgot-password-form.tsx
-│   ├── legal-page-layout.tsx
-│   └── logo.tsx
+│   └── ...
+├── db/
+│   ├── schema.ts        # Drizzle schema (users, sandboxes, sessions, ...)
+│   └── index.ts         # DB pool factories (pg + mysql2)
+├── lib/
+│   ├── auth.ts          # better-auth server instance
+│   ├── auth-client.ts   # better-auth browser client
+│   ├── types.ts         # Shared TypeScript types
+│   └── utils.ts         # cn() helper
+├── modules/             # Feature modules (schema + serverFns)
+│   ├── auth/
+│   ├── sandboxes/
+│   └── console/
 ├── routes/              # File-based routes (TanStack Router)
-│   ├── __root.tsx       # Root layout, Toaster, 404 page
+│   ├── __root.tsx       # Root layout
 │   ├── index.tsx        # Landing page
-│   ├── (auth)/
-│   │   ├── login.tsx
-│   │   ├── register.tsx
-│   │   └── forgot-password.tsx
-│   ├── _app.tsx         # Dashboard layout with sidebar + breadcrumbs
-│   └── _app/
-│       └── dashboard/
-│           ├── index.tsx        # Dashboard home
-│           ├── sandboxes.tsx    # Sandbox list
-│           ├── sandboxes/
-│           │   ├── new.tsx      # Create sandbox form
-│           │   └── $id.tsx      # Sandbox detail page
-│           ├── console.tsx      # SQL Console
-│           ├── ai-seeder.tsx    # AI Seeder (Gemini)
-│           ├── settings.tsx     # User settings
-│           ├── account.tsx      # Account management
-│           └── help.tsx         # Help / docs
-├── styles.css           # Global styles + Tailwind
-└── lib/
-    └── utils.ts         # cn() helper
+│   ├── api/auth/$.ts    # better-auth handler
+│   ├── (auth)/          # Login, register, forgot-password
+│   ├── _app.tsx         # Dashboard layout (sidebar + breadcrumbs)
+│   └── _app/dashboard/  # All dashboard pages
+└── styles.css
 ```
 
 ---
@@ -90,49 +127,53 @@ src/
 ## Available Scripts
 
 ```bash
-pnpm dev       # Start dev server with HMR
-pnpm build     # Build for production
-pnpm lint      # Run Biome lint
-pnpm format    # Run Biome format
-pnpm check     # Run Biome lint + format check
-pnpm test      # Run Vitest
+pnpm dev            # Start dev server with HMR
+pnpm build          # Build for production
+pnpm check          # Biome lint + format check
+pnpm check:write    # Biome auto-fix
+pnpm test           # Vitest
 ```
 
 ---
 
 ## Development Notes
 
-### Routing
-All routes use TanStack Router's **file-based routing**. The `_app.tsx` layout wraps all dashboard routes and provides the sidebar, breadcrumbs, and tooltip context.
-
 ### Auth
-Auth pages (`/login`, `/register`, `/forgot-password`) use TanStack Router's **route groups** via the `(auth)/` folder (does not affect the URL).
+Authentication is handled by **better-auth** with session-based auth (stored in PostgreSQL). On the client, import from `#/lib/auth-client`:
 
-### Dummy Data
-All dashboard data (sandboxes, stats, SQL results) is **static dummy data** — no backend is connected yet. Backend integration is the next major phase.
+```ts
+import { signIn, signUp, signOut, useSession } from '#/lib/auth-client'
+```
 
-### Toasts
-Global toast notifications use **Sonner** (`<Toaster />` in `__root.tsx`). Import `toast` from `"sonner"` anywhere in the app to trigger notifications.
+Google OAuth activates automatically when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set. Redirect URI: `{BETTER_AUTH_URL}/api/auth/callback/google`.
+
+### Routing
+TanStack Router file-based routing. `_app.tsx` wraps all dashboard routes. Auth pages live in `(auth)/` route group (no URL effect).
+
+### Server Functions
+Backend logic lives in `src/modules/{feature}/serverFn.ts`. Use `createServerFn` from `@tanstack/react-start`. Always use `.inputValidator()` — not `.validator()`.
 
 ### Linting & Formatting
-This project uses **Biome** exclusively. Do not install ESLint or Prettier.
+Biome only — no ESLint, no Prettier.
 
 ```bash
-# Auto-fix all issues
-pnpm biome check --write src/
+pnpm check:write    # auto-fix everything
 ```
 
 ---
 
 ## Roadmap
 
-- [ ] Backend: auth (sign in, register, JWT)
-- [ ] Backend: sandbox provisioning (PostgreSQL, MySQL, MariaDB containers)
-- [ ] Backend: TTL auto-cleanup scheduler
-- [ ] Backend: SQL Console execution API
-- [ ] Backend: AI Seeder (Gemini API integration)
-- [ ] Real-time: sandbox status updates via WebSocket or polling
-- [ ] Billing: post-beta paid plans
+- [x] Project setup (TanStack Start + Drizzle + better-auth)
+- [x] Database schema (users, sandboxes, sessions, ai_logs, query_history, templates)
+- [x] Auth — email/password + Google SSO via better-auth
+- [x] Server functions scaffold (sandboxes, console, AI seeder)
+- [x] Dashboard UI (sidebar, sandbox cards, SQL console — static)
+- [ ] Sandbox provisioning (create/delete DB on Docker containers)
+- [ ] Ephemeral engine (TTL auto-cleanup scheduler)
+- [ ] SQL Console execution API
+- [ ] AI Seeder integration
+- [ ] Connect frontend to real backend
 
 ---
 
