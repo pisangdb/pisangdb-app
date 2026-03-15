@@ -38,3 +38,6 @@ coverage
 
 # Misc
 todos.json
+
+# Sisyphus planning tool
+.sisyphus
