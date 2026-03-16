@@ -1,4 +1,4 @@
-import { Pool, Pool } from "pg";
+import { Pool } from "pg";
 import type { DbManager, SandboxCredentials } from "./interface";
 
 export class PostgresManager implements DbManager {
@@ -12,35 +12,27 @@ export class PostgresManager implements DbManager {
 
 	async createSandboxDatabase(credentials: SandboxCredentials): Promise<void> {
 		const escapedPassword = credentials.dbPassword.replace(/'/g, "''");
-
 		await this.pool.query(`CREATE DATABASE "${credentials.dbName}"`);
-
 		await this.pool.query(
 			`CREATE USER "${credentials.dbUser}" WITH PASSWORD '${escapedPassword}' NOCREATEDB NOCREATEROLE CONNECTION LIMIT 5`,
 		);
-
 		await this.pool.query(
 			`GRANT ALL PRIVILEGES ON DATABASE "${credentials.dbName}" TO "${credentials.dbUser}"`,
 		);
-
 		const sandboxPool = new Pool({
-			connectionString: credentials.host.includes("localhost")
-				? `postgresql://${credentials.dbUser}:${credentials.dbPassword}@${credentials.host}:${credentials.port}/${credentials.dbName}`
-				: `postgresql://${credentials.dbUser}:${credentials.dbPassword}@${credentials.host}:${credentials.port}/${credentials.dbName}`,
+			connectionString: `postgresql://${credentials.dbUser}:${credentials.dbPassword}@${credentials.host}:${credentials.port}/${credentials.dbName}`,
 			max: 1,
 		});
-
 		await sandboxPool.query(
 			`GRANT ALL ON SCHEMA public TO "${credentials.dbUser}"`,
 		);
 		await sandboxPool.query(
 			`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "${credentials.dbUser}"`,
 		);
-		await sandboxPool.end();
-
-		await this.pool.query(
+		await sandboxPool.query(
 			`ALTER ROLE "${credentials.dbUser}" SET statement_timeout = '30s'`,
 		);
+		await sandboxPool.end();
 	}
 
 	async dropSandboxDatabase(dbName: string, dbUser: string): Promise<void> {
@@ -62,5 +54,9 @@ export class PostgresManager implements DbManager {
 		} catch {
 			return false;
 		}
+	}
+
+	async executeSql(sql: string): Promise<void> {
+		await this.pool.query(sql);
 	}
 }

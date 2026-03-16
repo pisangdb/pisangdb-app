@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -629,10 +630,11 @@ function ConsoleTab({ sandbox }: { sandbox: Sandbox }) {
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-3">
-				<textarea
+				<SqlEditor
 					value={query}
-					onChange={(e) => setQuery(e.target.value)}
-					className="min-h-36 w-full rounded-md border bg-muted/30 p-3 font-mono text-sm"
+					onChange={setQuery}
+					placeholder="Enter your SQL query here..."
+					className="min-h-36"
 				/>
 				<div className="flex gap-2">
 					<Button

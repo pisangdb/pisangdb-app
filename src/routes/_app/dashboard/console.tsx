@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2Icon, PlayIcon, ShieldIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -131,11 +132,11 @@ function SqlConsolePage() {
 							</select>
 						</div>
 
-						<textarea
+						<SqlEditor
 							value={query}
-							onChange={(event) => setQuery(event.target.value)}
+							onChange={setQuery}
 							placeholder="Enter your SQL query here..."
-							className="min-h-48 w-full rounded-md border bg-muted/30 p-3 font-mono text-sm"
+							className="min-h-48"
 						/>
 
 						<div className="flex flex-wrap items-center gap-2">

@@ -57,4 +57,8 @@ export class MySqlManager implements DbManager {
 			return false;
 		}
 	}
+
+	async executeSql(sql: string): Promise<void> {
+		await this.pool.query(sql);
+	}
 }

@@ -281,7 +281,7 @@ function SandboxesPage() {
 												</p>
 												<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
 													<Clock3Icon className="size-3.5" />
-													<span>{formatTtl(sandbox.expiredAt)}</span>
+													<span>{formatTtl(sandbox.ttl)}</span>
 													<span>•</span>
 													<span>{sandbox.size}</span>
 												</div>

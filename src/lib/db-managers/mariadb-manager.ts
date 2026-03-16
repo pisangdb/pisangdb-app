@@ -57,4 +57,8 @@ export class MariaDbManager implements DbManager {
 			return false;
 		}
 	}
+
+	async executeSql(sql: string): Promise<void> {
+		await this.pool.query(sql);
+	}
 }

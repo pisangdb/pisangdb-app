@@ -26,6 +26,7 @@ import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiAuthGithubRouteImport } from './routes/api/auth/github'
 import { Route as AppDashboardSettingsRouteImport } from './routes/_app/dashboard/settings'
 import { Route as AppDashboardSandboxesRouteImport } from './routes/_app/dashboard/sandboxes'
@@ -35,6 +36,7 @@ import { Route as AppDashboardAiSeederRouteImport } from './routes/_app/dashboar
 import { Route as AppDashboardAccountRouteImport } from './routes/_app/dashboard/account'
 import { Route as ApiSandboxesIdTablesRouteImport } from './routes/api/sandboxes/$id/tables'
 import { Route as ApiSandboxesIdQueryRouteImport } from './routes/api/sandboxes/$id/query'
+import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
 import { Route as ApiAuthGithubCallbackRouteImport } from './routes/api/auth/github/callback'
 import { Route as AppDashboardSandboxesNewRouteImport } from './routes/_app/dashboard/sandboxes/new'
 import { Route as AppDashboardSandboxesIdRouteImport } from './routes/_app/dashboard/sandboxes/$id'
@@ -126,6 +128,11 @@ const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
   path: '/api/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthGoogleRoute = ApiAuthGoogleRouteImport.update({
+  id: '/api/auth/google',
+  path: '/api/auth/google',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthGithubRoute = ApiAuthGithubRouteImport.update({
   id: '/api/auth/github',
   path: '/api/auth/github',
@@ -170,6 +177,11 @@ const ApiSandboxesIdQueryRoute = ApiSandboxesIdQueryRouteImport.update({
   id: '/query',
   path: '/query',
   getParentRoute: () => ApiSandboxesIdRoute,
+} as any)
+const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => ApiAuthGoogleRoute,
 } as any)
 const ApiAuthGithubCallbackRoute = ApiAuthGithubCallbackRouteImport.update({
   id: '/callback',
@@ -220,6 +232,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/github': typeof ApiAuthGithubRouteWithChildren
+  '/api/auth/google': typeof ApiAuthGoogleRouteWithChildren
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -231,6 +244,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
   '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
+  '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
   '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
   '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
@@ -252,6 +266,7 @@ export interface FileRoutesByTo {
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/github': typeof ApiAuthGithubRouteWithChildren
+  '/api/auth/google': typeof ApiAuthGoogleRouteWithChildren
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -263,6 +278,7 @@ export interface FileRoutesByTo {
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
   '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
+  '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
   '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
   '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
@@ -287,6 +303,7 @@ export interface FileRoutesById {
   '/_app/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/_app/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/github': typeof ApiAuthGithubRouteWithChildren
+  '/api/auth/google': typeof ApiAuthGoogleRouteWithChildren
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -298,6 +315,7 @@ export interface FileRoutesById {
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
   '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
+  '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
   '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
   '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
@@ -322,6 +340,7 @@ export interface FileRouteTypes {
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
     | '/api/auth/github'
+    | '/api/auth/google'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -333,6 +352,7 @@ export interface FileRouteTypes {
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
     | '/api/auth/github/callback'
+    | '/api/auth/google/callback'
     | '/api/sandboxes/$id/query'
     | '/api/sandboxes/$id/tables'
     | '/api/sandboxes/$id/ai/execute'
@@ -354,6 +374,7 @@ export interface FileRouteTypes {
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
     | '/api/auth/github'
+    | '/api/auth/google'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -365,6 +386,7 @@ export interface FileRouteTypes {
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
     | '/api/auth/github/callback'
+    | '/api/auth/google/callback'
     | '/api/sandboxes/$id/query'
     | '/api/sandboxes/$id/tables'
     | '/api/sandboxes/$id/ai/execute'
@@ -388,6 +410,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard/sandboxes'
     | '/_app/dashboard/settings'
     | '/api/auth/github'
+    | '/api/auth/google'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -399,6 +422,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
     | '/api/auth/github/callback'
+    | '/api/auth/google/callback'
     | '/api/sandboxes/$id/query'
     | '/api/sandboxes/$id/tables'
     | '/api/sandboxes/$id/ai/execute'
@@ -416,6 +440,7 @@ export interface RootRouteChildren {
   authRegisterRoute: typeof authRegisterRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthGithubRoute: typeof ApiAuthGithubRouteWithChildren
+  ApiAuthGoogleRoute: typeof ApiAuthGoogleRouteWithChildren
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
@@ -546,6 +571,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/google': {
+      id: '/api/auth/google'
+      path: '/api/auth/google'
+      fullPath: '/api/auth/google'
+      preLoaderRoute: typeof ApiAuthGoogleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/github': {
       id: '/api/auth/github'
       path: '/api/auth/github'
@@ -608,6 +640,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/sandboxes/$id/query'
       preLoaderRoute: typeof ApiSandboxesIdQueryRouteImport
       parentRoute: typeof ApiSandboxesIdRoute
+    }
+    '/api/auth/google/callback': {
+      id: '/api/auth/google/callback'
+      path: '/callback'
+      fullPath: '/api/auth/google/callback'
+      preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
+      parentRoute: typeof ApiAuthGoogleRoute
     }
     '/api/auth/github/callback': {
       id: '/api/auth/github/callback'
@@ -715,6 +754,18 @@ const ApiAuthGithubRouteWithChildren = ApiAuthGithubRoute._addFileChildren(
   ApiAuthGithubRouteChildren,
 )
 
+interface ApiAuthGoogleRouteChildren {
+  ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+}
+
+const ApiAuthGoogleRouteChildren: ApiAuthGoogleRouteChildren = {
+  ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+}
+
+const ApiAuthGoogleRouteWithChildren = ApiAuthGoogleRoute._addFileChildren(
+  ApiAuthGoogleRouteChildren,
+)
+
 interface ApiSandboxesIdRouteChildren {
   ApiSandboxesIdQueryRoute: typeof ApiSandboxesIdQueryRoute
   ApiSandboxesIdTablesRoute: typeof ApiSandboxesIdTablesRoute
@@ -745,6 +796,7 @@ const rootRouteChildren: RootRouteChildren = {
   authRegisterRoute: authRegisterRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiAuthGithubRoute: ApiAuthGithubRouteWithChildren,
+  ApiAuthGoogleRoute: ApiAuthGoogleRouteWithChildren,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
