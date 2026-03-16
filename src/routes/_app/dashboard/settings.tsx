@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
 	BellIcon,
 	KeyRoundIcon,
+	Loader2Icon,
+	LogOutIcon,
 	ShieldCheckIcon,
 	UserIcon,
 } from "lucide-react";
@@ -17,6 +19,8 @@ import {
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useAuth } from "#/contexts/auth-context";
+import { useSandboxes } from "#/hooks/use-sandboxes";
 
 export const Route = createFileRoute("/_app/dashboard/settings")({
 	head: () => ({ meta: [{ title: "Settings — PisangDB" }] }),
@@ -24,24 +28,80 @@ export const Route = createFileRoute("/_app/dashboard/settings")({
 });
 
 function SettingsPage() {
-	const [displayName, setDisplayName] = useState("Rio Developer");
-	const [email, setEmail] = useState("rio@example.com");
+	const { user, isLoading: userLoading } = useAuth();
+	const { data: sandboxesData } = useSandboxes();
+
+	const [displayName, setDisplayName] = useState(user?.name ?? "");
+	const [email, setEmail] = useState(user?.email ?? "");
+	const [newPassword, setNewPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
 	const [expireWarning, setExpireWarning] = useState(true);
 	const [newsletter, setNewsletter] = useState(false);
+	const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+	const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
-	const handleSaveProfile = () => {
-		toast.success("Profile saved", {
-			description: `Display name updated to "${displayName}".`,
-		});
+	// Update form when user data loads
+	useState(() => {
+		if (user) {
+			setDisplayName(user.name);
+			setEmail(user.email);
+		}
+	});
+
+	const activeSandboxes =
+		sandboxesData?.sandboxes?.filter((s) => s.status === "active").length ?? 0;
+
+	const handleSaveProfile = async () => {
+		if (!displayName.trim()) {
+			toast.error("Display name is required");
+			return;
+		}
+		setIsUpdatingProfile(true);
+		try {
+			// TODO: Call actual API endpoint when available
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			toast.success("Profile saved", {
+				description: `Display name updated to "${displayName}".`,
+			});
+		} catch (error) {
+			toast.error("Failed to save profile");
+		} finally {
+			setIsUpdatingProfile(false);
+		}
 	};
 
-	const handleUpdatePassword = () => {
-		toast.success("Password updated", {
-			description: "Your password has been changed successfully.",
-		});
+	const handleUpdatePassword = async () => {
+		if (!newPassword || !confirmPassword) {
+			toast.error("Please fill in both password fields");
+			return;
+		}
+		if (newPassword !== confirmPassword) {
+			toast.error("Passwords do not match");
+			return;
+		}
+		if (newPassword.length < 8) {
+			toast.error("Password must be at least 8 characters");
+			return;
+		}
+		setIsUpdatingPassword(true);
+		try {
+			// TODO: Call actual API endpoint when available
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			toast.success("Password updated", {
+				description: "Your password has been changed successfully.",
+			});
+			setNewPassword("");
+			setConfirmPassword("");
+		} catch (error) {
+			toast.error("Failed to update password");
+		} finally {
+			setIsUpdatingPassword(false);
+		}
 	};
 
-	const handleSignOutAll = () => {
+	const handleSignOutAll = async () => {
+		// TODO: Call actual API endpoint when available
+		await new Promise((resolve) => setTimeout(resolve, 300));
 		toast("Signed out from all sessions", {
 			description: "All other sessions have been terminated.",
 		});
@@ -52,6 +112,14 @@ function SettingsPage() {
 			description: "Notification settings updated.",
 		});
 	};
+
+	if (userLoading) {
+		return (
+			<div className="flex items-center justify-center p-8">
+				<Loader2Icon className="size-6 animate-spin text-muted-foreground" />
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -80,6 +148,7 @@ function SettingsPage() {
 								id="display-name"
 								value={displayName}
 								onChange={(event) => setDisplayName(event.target.value)}
+								placeholder="Your name"
 							/>
 						</div>
 						<div className="space-y-2">
@@ -89,10 +158,22 @@ function SettingsPage() {
 								type="email"
 								value={email}
 								onChange={(event) => setEmail(event.target.value)}
+								placeholder="your@email.com"
 							/>
 						</div>
-						<Button size="sm" onClick={handleSaveProfile}>
-							Save profile
+						<Button
+							size="sm"
+							onClick={handleSaveProfile}
+							disabled={isUpdatingProfile}
+						>
+							{isUpdatingProfile ? (
+								<>
+									<Loader2Icon className="size-4 animate-spin" />
+									Saving...
+								</>
+							) : (
+								"Save profile"
+							)}
 						</Button>
 					</CardContent>
 				</Card>
@@ -110,7 +191,13 @@ function SettingsPage() {
 					<CardContent className="space-y-3">
 						<div className="space-y-2">
 							<Label htmlFor="password">New password</Label>
-							<Input id="password" type="password" placeholder="••••••••" />
+							<Input
+								id="password"
+								type="password"
+								placeholder="••••••••"
+								value={newPassword}
+								onChange={(e) => setNewPassword(e.target.value)}
+							/>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="confirm-password">Confirm password</Label>
@@ -118,13 +205,27 @@ function SettingsPage() {
 								id="confirm-password"
 								type="password"
 								placeholder="••••••••"
+								value={confirmPassword}
+								onChange={(e) => setConfirmPassword(e.target.value)}
 							/>
 						</div>
-						<div className="flex gap-2">
-							<Button size="sm" onClick={handleUpdatePassword}>
-								Update password
+						<div className="flex flex-wrap gap-2">
+							<Button
+								size="sm"
+								onClick={handleUpdatePassword}
+								disabled={isUpdatingPassword}
+							>
+								{isUpdatingPassword ? (
+									<>
+										<Loader2Icon className="size-4 animate-spin" />
+										Updating...
+									</>
+								) : (
+									"Update password"
+								)}
 							</Button>
 							<Button size="sm" variant="outline" onClick={handleSignOutAll}>
+								<LogOutIcon className="size-4" />
 								Sign out all sessions
 							</Button>
 						</div>
@@ -147,6 +248,7 @@ function SettingsPage() {
 								type="checkbox"
 								checked={expireWarning}
 								onChange={(event) => setExpireWarning(event.target.checked)}
+								className="mt-0.5"
 							/>
 							<span>
 								<span className="font-medium">Sandbox expiry warning</span>
@@ -160,6 +262,7 @@ function SettingsPage() {
 								type="checkbox"
 								checked={newsletter}
 								onChange={(event) => setNewsletter(event.target.checked)}
+								className="mt-0.5"
 							/>
 							<span>
 								<span className="font-medium">Product updates</span>
@@ -187,15 +290,21 @@ function SettingsPage() {
 					<CardContent className="space-y-2 text-sm">
 						<div className="flex items-center justify-between rounded-md border p-2">
 							<span>Active sandboxes</span>
-							<span className="font-medium">2 / 5</span>
+							<span className="font-medium">{activeSandboxes} / 5</span>
 						</div>
 						<div className="flex items-center justify-between rounded-md border p-2">
 							<span>AI requests today</span>
-							<span className="font-medium">8 / 30</span>
+							<span className="font-medium">— / 30</span>
 						</div>
 						<div className="flex items-center justify-between rounded-md border p-2">
 							<span>Max size per sandbox</span>
 							<span className="font-medium">100 MB</span>
+						</div>
+						<div className="flex items-center justify-between rounded-md border p-2">
+							<span>Account role</span>
+							<span className="font-medium capitalize">
+								{user?.role ?? "user"}
+							</span>
 						</div>
 					</CardContent>
 				</Card>

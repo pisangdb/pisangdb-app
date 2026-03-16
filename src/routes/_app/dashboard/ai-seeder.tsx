@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { BotIcon, SparklesIcon } from "lucide-react";
-import { useState } from "react";
+import { BotIcon, Loader2Icon, SparklesIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -10,6 +11,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { useExecuteAiSql, useGenerateAiSql } from "#/hooks/use-execute-query";
+import { useSandboxes } from "#/hooks/use-sandboxes";
 
 export const Route = createFileRoute("/_app/dashboard/ai-seeder")({
 	head: () => ({ meta: [{ title: "AI Seeder — PisangDB" }] }),
@@ -40,46 +43,64 @@ const modeConfig: {
 	},
 ];
 
-const sqlPreview = `CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(120) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-INSERT INTO users (name, email)
-VALUES
-  ('Andi Pratama', 'andi@example.com'),
-  ('Citra Dewi', 'citra@example.com');`;
-
-const sandboxOptions = [
-	{ id: "sb_a1b2x8", label: "migration-check (PostgreSQL 16)" },
-	{ id: "sb_c3d4y9", label: "bootcamp-prisma (MySQL 8)" },
-];
-
 function AiSeederPage() {
-	const [selectedSandbox, setSelectedSandbox] = useState(
-		sandboxOptions[0]?.id ?? "",
-	);
+	const [selectedSandboxId, setSelectedSandboxId] = useState<string>("");
 	const [mode, setMode] = useState<Mode>("schema");
 	const [prompt, setPrompt] = useState(
 		"Create users, products, and orders tables for a simple e-commerce app.",
 	);
-	const [generated, setGenerated] = useState(false);
-	const [savedPrompt, setSavedPrompt] = useState(false);
-	const [isGenerating, setIsGenerating] = useState(false);
+	const [generatedSql, setGeneratedSql] = useState<string | null>(null);
+	const [explanation, setExplanation] = useState<string | null>(null);
 
-	const handleSavePrompt = () => {
-		setSavedPrompt(true);
-		setTimeout(() => setSavedPrompt(false), 2000);
+	const { data: sandboxesData, isLoading: sandboxesLoading } = useSandboxes();
+
+	const sandboxOptions = useMemo(() => {
+		const sandboxes = sandboxesData?.sandboxes ?? [];
+		return sandboxes
+			.filter((s) => s.status === "active")
+			.map((s) => ({
+				id: s.id,
+				label: `${s.displayName} (${s.engine})`,
+			}));
+	}, [sandboxesData]);
+
+	const generateAiSqlMutation = useGenerateAiSql(selectedSandboxId);
+	const executeAiSqlMutation = useExecuteAiSql(selectedSandboxId);
+
+	const handleGenerate = async () => {
+		if (!selectedSandboxId) {
+			toast.error("Please select a sandbox first");
+			return;
+		}
+		if (!prompt.trim()) {
+			toast.error("Please enter a prompt");
+			return;
+		}
+
+		try {
+			const result = await generateAiSqlMutation.mutateAsync(prompt);
+			setGeneratedSql(result.sql);
+			setExplanation(result.explanation);
+			toast.success("SQL generated successfully!");
+		} catch {
+			// Error handled by mutation hook
+		}
 	};
 
-	const handleGenerate = () => {
-		setIsGenerating(true);
-		setTimeout(() => {
-			setIsGenerating(false);
-			setGenerated(true);
-		}, 1000);
+	const handleExecute = async () => {
+		if (!generatedSql) {
+			toast.error("No SQL to execute");
+			return;
+		}
+
+		try {
+			await executeAiSqlMutation.mutateAsync(generatedSql);
+			toast.success("SQL executed successfully!");
+			setGeneratedSql(null);
+			setExplanation(null);
+		} catch {
+			// Error handled by mutation hook
+		}
 	};
 
 	return (
@@ -106,10 +127,14 @@ function AiSeederPage() {
 							</label>
 							<select
 								id="ai-sandbox"
-								value={selectedSandbox}
-								onChange={(e) => setSelectedSandbox(e.target.value)}
+								value={selectedSandboxId}
+								onChange={(e) => setSelectedSandboxId(e.target.value)}
+								disabled={sandboxesLoading}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
 							>
+								<option value="" disabled>
+									{sandboxesLoading ? "Loading..." : "Select a sandbox"}
+								</option>
 								{sandboxOptions.map((opt) => (
 									<option key={opt.id} value={opt.id}>
 										{opt.label}
@@ -148,33 +173,64 @@ function AiSeederPage() {
 								size="sm"
 								className="gap-1.5"
 								onClick={handleGenerate}
-								disabled={isGenerating}
+								disabled={generateAiSqlMutation.isPending || !selectedSandboxId}
 							>
-								<SparklesIcon className="size-4" />
-								{isGenerating ? "Generating…" : "Generate SQL"}
-							</Button>
-							<Button variant="outline" size="sm" onClick={handleSavePrompt}>
-								{savedPrompt ? "Saved ✓" : "Save Prompt"}
+								{generateAiSqlMutation.isPending ? (
+									<>
+										<Loader2Icon className="size-4 animate-spin" />
+										Generating…
+									</>
+								) : (
+									<>
+										<SparklesIcon className="size-4" />
+										Generate SQL
+									</>
+								)}
 							</Button>
 							<Badge variant="outline">30 requests/day (free)</Badge>
 						</div>
 
-						{generated ? (
+						{generatedSql ? (
 							<div className="space-y-2 rounded-lg border p-3">
 								<p className="text-sm font-medium">Generated SQL</p>
 								<pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs">
-									<code>{sqlPreview}</code>
+									<code>{generatedSql}</code>
 								</pre>
+								{explanation && (
+									<p className="text-xs text-muted-foreground">{explanation}</p>
+								)}
 								<div className="flex items-center gap-2">
-									<Button size="sm">Execute SQL</Button>
-									<Button size="sm" variant="outline">
-										Edit Before Execute
+									<Button
+										size="sm"
+										onClick={handleExecute}
+										disabled={executeAiSqlMutation.isPending}
+									>
+										{executeAiSqlMutation.isPending ? (
+											<>
+												<Loader2Icon className="size-4 animate-spin" />
+												Executing…
+											</>
+										) : (
+											"Execute SQL"
+										)}
+									</Button>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() => {
+											navigator.clipboard.writeText(generatedSql);
+											toast.success("SQL copied to clipboard");
+										}}
+									>
+										Copy SQL
 									</Button>
 								</div>
 							</div>
 						) : (
 							<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-								Generate SQL to preview and run it in your selected sandbox.
+								{selectedSandboxId
+									? "Enter a prompt and click Generate SQL to create database schema or seed data."
+									: "Select a sandbox to start generating SQL."}
 							</div>
 						)}
 					</CardContent>
@@ -190,7 +246,7 @@ function AiSeederPage() {
 					<CardContent className="space-y-3 text-sm text-muted-foreground">
 						<p className="flex items-center gap-1.5 text-foreground">
 							<BotIcon className="size-4" />
-							Current model: Gemini (dummy integration)
+							Current model: Gemini AI
 						</p>
 						<ul className="list-disc space-y-1 pl-4 text-xs">
 							<li>Prompt length up to 1000 chars</li>
@@ -204,9 +260,6 @@ function AiSeederPage() {
 								better SQL output.
 							</p>
 						</div>
-						<p className="text-xs text-muted-foreground">
-							AI interaction logs will be available in a future update.
-						</p>
 					</CardContent>
 				</Card>
 			</div>
