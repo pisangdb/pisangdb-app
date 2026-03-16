@@ -105,7 +105,9 @@ export function startEphemeralEngine(): void {
 
 	heartbeat();
 	cleanupExpiredSandboxes();
-	checkAndSendExpiryWarnings().catch((err) => log.error("Expiry warning check failed", err));
+	checkAndSendExpiryWarnings().catch((err) =>
+		log.error("Expiry warning check failed", err),
+	);
 }
 
 export function stopEphemeralEngine(): void {

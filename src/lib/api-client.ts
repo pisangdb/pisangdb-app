@@ -262,4 +262,3 @@ export async function getNotifications() {
 	);
 	return response.notifications;
 }
-

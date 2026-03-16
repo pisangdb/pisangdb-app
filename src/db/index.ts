@@ -56,22 +56,26 @@ export function getMysqlAdminPool(region: string): mysql.Pool {
 	const key = `MYSQL_SANDBOX_URL_${region.toUpperCase()}`;
 	const url = process.env[key];
 	if (!url) throw new Error(`${key} is not set`);
-	
-	if (!mysqlPools.has(key)) {
-		mysqlPools.set(key, mysql.createPool(url));
+
+	let pool = mysqlPools.get(key);
+	if (!pool) {
+		pool = mysql.createPool(url);
+		mysqlPools.set(key, pool);
 	}
-	return mysqlPools.get(key)!;
+	return pool;
 }
 
 export function getMariadbAdminPool(region: string): mysql.Pool {
 	const key = `MARIADB_SANDBOX_URL_${region.toUpperCase()}`;
 	const url = process.env[key];
 	if (!url) throw new Error(`${key} is not set`);
-	
-	if (!mariadbPools.has(key)) {
-		mariadbPools.set(key, mysql.createPool(url));
+
+	let pool = mariadbPools.get(key);
+	if (!pool) {
+		pool = mysql.createPool(url);
+		mariadbPools.set(key, pool);
 	}
-	return mariadbPools.get(key)!;
+	return pool;
 }
 
 export function createPgAdminPool(region: string) {

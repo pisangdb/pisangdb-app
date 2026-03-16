@@ -196,4 +196,3 @@ export type NewAiLog = typeof aiLogs.$inferInsert;
 
 export type Template = typeof templates.$inferSelect;
 export type NewTemplate = typeof templates.$inferInsert;
-

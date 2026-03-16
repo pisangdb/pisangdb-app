@@ -144,6 +144,6 @@ export type ErrorResponse = {
 	details?: FieldError[];
 };
 
-export type SuccessResponse<T = any> = {
+export type SuccessResponse<T = Record<string, unknown>> = {
 	success: true;
 } & T;

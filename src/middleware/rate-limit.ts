@@ -17,11 +17,18 @@ interface RateLimitResult {
 const requests = new Map<string, { count: number; resetTime: number }>();
 
 export function rateLimit(config: RateLimitConfig) {
-	const { windowMs, max, message = "Too many requests, please try again later." } = config;
+	const {
+		windowMs,
+		max,
+		message = "Too many requests, please try again later.",
+	} = config;
 
-	return async (request: { headers: { get: (name: string) => string | null } }): Promise<RateLimitResult> => {
-		const ip = request.headers.get("x-forwarded-for") ?? 
-			request.headers.get("x-real-ip") ?? 
+	return async (request: {
+		headers: { get: (name: string) => string | null };
+	}): Promise<RateLimitResult> => {
+		const ip =
+			request.headers.get("x-forwarded-for") ??
+			request.headers.get("x-real-ip") ??
 			"unknown";
 		const key = ip;
 		const now = Date.now();
@@ -40,17 +47,24 @@ export function rateLimit(config: RateLimitConfig) {
 				};
 			}
 			entry.count++;
-		} else {
-			requests.set(key, { count: 1, resetTime: now + windowMs });
+			return {
+				success: true,
+				headers: {
+					"X-RateLimit-Limit": String(max),
+					"X-RateLimit-Remaining": String(Math.max(0, max - entry.count)),
+					"X-RateLimit-Reset": String(entry.resetTime),
+				},
+			};
 		}
 
-		const currentEntry = requests.get(key)!;
+		const newEntry = { count: 1, resetTime: now + windowMs };
+		requests.set(key, newEntry);
 		return {
 			success: true,
 			headers: {
 				"X-RateLimit-Limit": String(max),
-				"X-RateLimit-Remaining": String(Math.max(0, max - currentEntry.count)),
-				"X-RateLimit-Reset": String(currentEntry.resetTime),
+				"X-RateLimit-Remaining": String(max - 1),
+				"X-RateLimit-Reset": String(newEntry.resetTime),
 			},
 		};
 	};
@@ -61,12 +75,12 @@ export function addRateLimitHeaders(
 	headers?: RateLimitResult["headers"],
 ): Response {
 	if (!headers) return response;
-	
+
 	const newHeaders = new Headers(response.headers);
 	newHeaders.set("X-RateLimit-Limit", headers["X-RateLimit-Limit"]);
 	newHeaders.set("X-RateLimit-Remaining", headers["X-RateLimit-Remaining"]);
 	newHeaders.set("X-RateLimit-Reset", headers["X-RateLimit-Reset"]);
-	
+
 	return new Response(response.body, {
 		status: response.status,
 		statusText: response.statusText,
@@ -98,7 +112,10 @@ export const aiGenerateRateLimit = rateLimit({
 	message: "AI generation rate limit exceeded. Max 30 requests per hour.",
 });
 
-export function createRateLimitResponse(message: string, headers?: RateLimitResult["headers"]): Response {
+export function createRateLimitResponse(
+	message: string,
+	headers?: RateLimitResult["headers"],
+): Response {
 	return addRateLimitHeaders(
 		new Response(JSON.stringify({ error: message }), {
 			status: 429,
