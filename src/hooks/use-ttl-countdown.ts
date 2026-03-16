@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+const EXPIRING_SOON_THRESHOLD_SECONDS = 30 * 60; // 30 minutes
+
 export function useTtlCountdown(expiredAt: string | null) {
 	const [ttl, setTtl] = useState<number>(0);
 
@@ -18,5 +20,7 @@ export function useTtlCountdown(expiredAt: string | null) {
 		return () => clearInterval(interval);
 	}, [expiredAt]);
 
-	return ttl;
+	const isExpiringSoon = ttl > 0 && ttl <= EXPIRING_SOON_THRESHOLD_SECONDS;
+
+	return { ttl, isExpiringSoon };
 }

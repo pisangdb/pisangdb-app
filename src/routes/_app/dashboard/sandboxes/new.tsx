@@ -13,6 +13,8 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { useCreateSandbox } from "#/hooks/use-create-sandbox";
+import { useTemplates } from "#/hooks/use-templates";
+import type { Template } from "#/lib/api-client";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/new")({
 	head: () => ({ meta: [{ title: "New Sandbox — PisangDB" }] }),
@@ -51,7 +53,15 @@ const retentionOptions = [
 	"3 days",
 	"7 days",
 ];
-const templateOptions = ["Blank", "E-commerce", "Blog", "Inventory"];
+
+const BLANK_TEMPLATE: Template = {
+	id: "",
+	name: "Blank",
+	description: "Start with an empty database",
+	engine: "postgresql",
+	is_builtin: true,
+	created_at: new Date().toISOString(),
+};
 
 function NewSandboxPage() {
 	const createSandbox = useCreateSandbox();
@@ -59,13 +69,21 @@ function NewSandboxPage() {
 	const [region, setRegion] = useState<Region>("id");
 	const [name, setName] = useState("my-project-db");
 	const [retention, setRetention] = useState("6 hours");
-	const [template, setTemplate] = useState("Blank");
+	const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 	const [copied, setCopied] = useState(false);
 
-	// Parse retention string to hours
+	const { data: templatesData, isLoading: templatesLoading } =
+		useTemplates(engine);
+
+	const templateOptions = useMemo(() => {
+		if (!templatesData?.templates) return [BLANK_TEMPLATE];
+		const filtered = templatesData.templates.filter((t) => t.engine === engine);
+		return [BLANK_TEMPLATE, ...filtered];
+	}, [templatesData, engine]);
+
 	const parseRetentionToHours = (retentionStr: string): number => {
 		const match = retentionStr.match(/^(\d+)\s*(hour|hours|day|days)$/i);
-		if (!match) return 6; // default
+		if (!match) return 6;
 		const value = Number.parseInt(match[1], 10);
 		const unit = match[2].toLowerCase();
 		if (unit.startsWith("day")) return value * 24;
@@ -78,7 +96,8 @@ function NewSandboxPage() {
 			engine,
 			region,
 			name,
-			retentionHours,
+			retention_hours: retentionHours,
+			template_id: selectedTemplateId || null,
 		});
 	};
 
@@ -151,7 +170,10 @@ function NewSandboxPage() {
 									<button
 										key={item.value}
 										type="button"
-										onClick={() => setEngine(item.value)}
+										onClick={() => {
+											setEngine(item.value);
+											setSelectedTemplateId("");
+										}}
 										className={`rounded-lg border p-3 text-left transition-colors ${
 											engine === item.value
 												? "border-primary bg-primary/5"
@@ -219,18 +241,27 @@ function NewSandboxPage() {
 
 						<div className="space-y-2">
 							<Label htmlFor="template">Template</Label>
-							<select
-								id="template"
-								value={template}
-								onChange={(event) => setTemplate(event.target.value)}
-								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
-							>
-								{templateOptions.map((option) => (
-									<option key={option} value={option}>
-										{option}
-									</option>
-								))}
-							</select>
+							{templatesLoading ? (
+								<div className="flex h-9 items-center px-3 text-sm text-muted-foreground">
+									Loading templates...
+								</div>
+							) : (
+								<select
+									id="template"
+									value={selectedTemplateId}
+									onChange={(event) =>
+										setSelectedTemplateId(event.target.value)
+									}
+									className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
+								>
+									{templateOptions.map((option) => (
+										<option key={option.id} value={option.id}>
+											{option.name}
+											{option.description ? ` — ${option.description}` : ""}
+										</option>
+									))}
+								</select>
+							)}
 						</div>
 
 						<Button

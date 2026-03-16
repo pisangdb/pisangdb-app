@@ -32,7 +32,7 @@ import { getCookie } from "@tanstack/react-start/server";
 import { and, count, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "#/db";
-import { sandboxes } from "#/db/schema";
+import { sandboxes, templates } from "#/db/schema";
 import { errorResponse, successResponse } from "#/lib/api-response";
 import { type DatabaseEngine, getDbManager } from "#/lib/db-managers/interface";
 import {
@@ -87,11 +87,8 @@ const DEFAULT_MAX_SIZE_MB = 100;
 // ============================================================================
 
 const createSandboxSchema = z.object({
-	// Engine selection: PostgreSQL, MySQL, or MariaDB
 	engine: z.enum(["postgresql", "mysql", "mariadb"]).default("postgresql"),
-	// Region selection: MVP Indonesia only (expandable for future)
-	region: z.enum(["id"]).default("id"),
-	// Sandbox display name (1-50 characters)
+	region: z.enum(["id", "sg", "us"]).default("id"),
 	name: z
 		.string()
 		.min(1, "Sandbox name is required")
@@ -100,14 +97,12 @@ const createSandboxSchema = z.object({
 			/^[a-zA-Z0-9_-]+$/,
 			"Sandbox name can only contain letters, numbers, underscores, and hyphens",
 		),
-	// Retention time in hours (1 hour to 7 days = 168 hours)
 	retention_hours: z
 		.number()
 		.int("Retention hours must be an integer")
 		.min(1, "Minimum retention is 1 hour")
 		.max(168, "Maximum retention is 7 days (168 hours)"),
-	// Template ID (null for MVP - no templates)
-	template_id: z.null().optional(),
+	template_id: z.string().uuid().nullable().optional(),
 });
 
 // ============================================================================
@@ -255,7 +250,8 @@ export const Route = createFileRoute("/api/sandboxes/")({
 					);
 				}
 
-				const { name, retention_hours, engine, region } = validationResult.data;
+				const { name, retention_hours, engine, region, template_id } =
+					validationResult.data;
 
 				// Step 4: Check quota (max 5 active sandboxes per user)
 				try {
@@ -360,7 +356,7 @@ export const Route = createFileRoute("/api/sandboxes/")({
 							port: ENGINE_PORTS[engine],
 							displayName: name,
 							status: "active",
-							templateId: null,
+							templateId: template_id ?? null,
 							maxSizeMb: DEFAULT_MAX_SIZE_MB,
 							expiredAt,
 						})

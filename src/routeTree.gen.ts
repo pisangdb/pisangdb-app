@@ -18,6 +18,7 @@ import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
+import { Route as ApiTemplatesIndexRouteImport } from './routes/api/templates/index'
 import { Route as ApiSandboxesIndexRouteImport } from './routes/api/sandboxes/index'
 import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
 import { Route as ApiSandboxesIdRouteImport } from './routes/api/sandboxes/$id'
@@ -83,6 +84,11 @@ const authLoginRoute = authLoginRouteImport.update({
 const authForgotPasswordRoute = authForgotPasswordRouteImport.update({
   id: '/(auth)/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTemplatesIndexRoute = ApiTemplatesIndexRouteImport.update({
+  id: '/api/templates/',
+  path: '/api/templates/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSandboxesIndexRoute = ApiSandboxesIndexRouteImport.update({
@@ -221,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/dashboard/': typeof AppDashboardIndexRoute
   '/api/sandboxes/': typeof ApiSandboxesIndexRoute
+  '/api/templates/': typeof ApiTemplatesIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
   '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
@@ -252,6 +259,7 @@ export interface FileRoutesByTo {
   '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/dashboard': typeof AppDashboardIndexRoute
   '/api/sandboxes': typeof ApiSandboxesIndexRoute
+  '/api/templates': typeof ApiTemplatesIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
   '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/_app/dashboard/': typeof AppDashboardIndexRoute
   '/api/sandboxes/': typeof ApiSandboxesIndexRoute
+  '/api/templates/': typeof ApiTemplatesIndexRoute
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
   '/api/auth/github/callback': typeof ApiAuthGithubCallbackRoute
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/api/sandboxes/$id'
     | '/dashboard/'
     | '/api/sandboxes/'
+    | '/api/templates/'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
     | '/api/auth/github/callback'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/sandboxes/$id'
     | '/dashboard'
     | '/api/sandboxes'
+    | '/api/templates'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
     | '/api/auth/github/callback'
@@ -384,6 +395,7 @@ export interface FileRouteTypes {
     | '/api/sandboxes/$id'
     | '/_app/dashboard/'
     | '/api/sandboxes/'
+    | '/api/templates/'
     | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
     | '/api/auth/github/callback'
@@ -410,6 +422,7 @@ export interface RootRouteChildren {
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiSandboxesIdRoute: typeof ApiSandboxesIdRouteWithChildren
   ApiSandboxesIndexRoute: typeof ApiSandboxesIndexRoute
+  ApiTemplatesIndexRoute: typeof ApiTemplatesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -475,6 +488,13 @@ declare module '@tanstack/react-router' {
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof authForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/templates/': {
+      id: '/api/templates/'
+      path: '/api/templates'
+      fullPath: '/api/templates/'
+      preLoaderRoute: typeof ApiTemplatesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sandboxes/': {
@@ -731,6 +751,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiSandboxesIdRoute: ApiSandboxesIdRouteWithChildren,
   ApiSandboxesIndexRoute: ApiSandboxesIndexRoute,
+  ApiTemplatesIndexRoute: ApiTemplatesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

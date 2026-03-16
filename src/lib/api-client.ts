@@ -115,10 +115,11 @@ export async function getSandbox(id: string) {
 }
 
 interface CreateSandboxBody {
-	engine: "postgresql";
-	region: "id";
+	engine: "postgresql" | "mysql" | "mariadb";
+	region: "id" | "sg" | "us";
 	name: string;
 	retention_hours: number;
+	template_id: string | null;
 }
 
 export async function createSandbox(body: CreateSandboxBody) {
@@ -213,4 +214,18 @@ export async function getAiLogs(sandboxId: string) {
 			createdAt: string;
 		}>;
 	}>(`/api/sandboxes/${sandboxId}/ai/logs`);
+}
+
+export interface Template {
+	id: string;
+	name: string;
+	description: string | null;
+	engine: "postgresql" | "mysql" | "mariadb";
+	is_builtin: boolean;
+	created_at: string;
+}
+
+export async function getTemplates(engine?: string) {
+	const query = engine ? `?engine=${engine}` : "";
+	return fetchApi<{ templates: Template[] }>(`/api/templates/${query}`);
 }

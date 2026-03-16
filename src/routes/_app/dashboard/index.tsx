@@ -6,6 +6,7 @@ export const Route = createFileRoute("/_app/dashboard/")({
 
 import {
 	ActivityIcon,
+	AlertTriangleIcon,
 	BotIcon,
 	CircleCheckIcon,
 	ClockIcon,
@@ -29,7 +30,7 @@ import {
 } from "#/components/ui/card";
 import { Skeleton } from "#/components/ui/skeleton";
 import { useSandboxes } from "#/hooks/use-sandboxes";
-import { formatTtl } from "#/lib/format-ttl";
+import { formatTtl, isExpiringSoon } from "#/lib/format-ttl";
 
 const MAX_ACTIVE_SANDBOXES = 5;
 type DashboardState = "loading" | "error" | "success";
@@ -61,10 +62,12 @@ const formatEngine = (engine: string) => {
 };
 
 // Helper to determine status category
-const getStatusCategory = (status: string): SandboxStatus => {
+const getStatusCategory = (status: string, ttl: number): SandboxStatus => {
 	if (status === "destroying") return "destroying";
 	if (status === "expired") return "expired";
 	if (status === "expiring") return "expiring";
+	// Check if expiring soon based on TTL
+	if (isExpiringSoon(ttl)) return "expiring";
 	return "active";
 };
 
@@ -122,6 +125,7 @@ const statusConfig: Record<
 	{
 		label: string;
 		variant: "default" | "secondary" | "destructive" | "outline";
+		className?: string;
 	}
 > = {
 	active: {
@@ -131,6 +135,7 @@ const statusConfig: Record<
 	expiring: {
 		label: "Expiring Soon",
 		variant: "outline",
+		className: "border-yellow-500 text-yellow-600 dark:text-yellow-400",
 	},
 	expired: {
 		label: "Expired",
@@ -442,13 +447,13 @@ export function DashboardHome() {
 									</div>
 								) : (
 									sandboxList.map((sb) => {
-										const statusKey = getStatusCategory(sb.status);
+										const statusKey = getStatusCategory(sb.status, sb.ttl);
 										const status = statusConfig[statusKey];
 										const engineEmoji = engineEmojiMap[sb.engine] ?? "🗄️";
 										const regionDisplay =
 											regionDisplayMap[sb.region] ?? sb.region;
 										const engineDisplay = formatEngine(sb.engine);
-										const ttlDisplay = formatTtl(sb.expiredAt);
+										const ttlDisplay = formatTtl(sb.ttl);
 										return (
 											<div
 												key={sb.id}
@@ -487,12 +492,18 @@ export function DashboardHome() {
 												<div className="flex shrink-0 flex-col items-end gap-1">
 													<Badge
 														variant={status.variant}
-														className="px-1.5 py-0 text-[10px]"
+														className={`px-1.5 py-0 text-[10px] ${status.className ?? ""}`}
 													>
 														{status.label}
 													</Badge>
-													<div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-														<ClockIcon className="size-3" />
+													<div
+														className={`flex items-center gap-1 text-[10px] ${isExpiringSoon(sb.ttl) ? "text-yellow-600 dark:text-yellow-400 font-medium" : "text-muted-foreground"}`}
+													>
+														{isExpiringSoon(sb.ttl) ? (
+															<AlertTriangleIcon className="size-3" />
+														) : (
+															<ClockIcon className="size-3" />
+														)}
 														{ttlDisplay}
 													</div>
 													<div className="mt-1 flex items-center gap-1">
