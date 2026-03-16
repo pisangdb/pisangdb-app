@@ -25,6 +25,7 @@ import { Route as AppDashboardHelpRouteImport } from './routes/_app/dashboard/he
 import { Route as AppDashboardConsoleRouteImport } from './routes/_app/dashboard/console'
 import { Route as AppDashboardAiSeederRouteImport } from './routes/_app/dashboard/ai-seeder'
 import { Route as AppDashboardAccountRouteImport } from './routes/_app/dashboard/account'
+import { Route as AppDashboardSandboxesIndexRouteImport } from './routes/_app/dashboard/sandboxes/index'
 import { Route as AppDashboardSandboxesNewRouteImport } from './routes/_app/dashboard/sandboxes/new'
 import { Route as AppDashboardSandboxesIdRouteImport } from './routes/_app/dashboard/sandboxes/$id'
 
@@ -107,6 +108,12 @@ const AppDashboardAccountRoute = AppDashboardAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AppDashboardRoute,
 } as any)
+const AppDashboardSandboxesIndexRoute =
+  AppDashboardSandboxesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppDashboardSandboxesRoute,
+  } as any)
 const AppDashboardSandboxesNewRoute =
   AppDashboardSandboxesNewRouteImport.update({
     id: '/new',
@@ -137,6 +144,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/dashboard/sandboxes/': typeof AppDashboardSandboxesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -149,12 +157,12 @@ export interface FileRoutesByTo {
   '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/dashboard/console': typeof AppDashboardConsoleRoute
   '/dashboard/help': typeof AppDashboardHelpRoute
-  '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/dashboard': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/dashboard/sandboxes': typeof AppDashboardSandboxesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/_app/dashboard/': typeof AppDashboardIndexRoute
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/_app/dashboard/sandboxes/': typeof AppDashboardSandboxesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/dashboard/'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
+    | '/dashboard/sandboxes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -209,12 +219,12 @@ export interface FileRouteTypes {
     | '/dashboard/ai-seeder'
     | '/dashboard/console'
     | '/dashboard/help'
-    | '/dashboard/sandboxes'
     | '/dashboard/settings'
     | '/api/auth/$'
     | '/dashboard'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
+    | '/dashboard/sandboxes'
   id:
     | '__root__'
     | '/'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard/'
     | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
+    | '/_app/dashboard/sandboxes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -362,6 +373,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardAccountRouteImport
       parentRoute: typeof AppDashboardRoute
     }
+    '/_app/dashboard/sandboxes/': {
+      id: '/_app/dashboard/sandboxes/'
+      path: '/'
+      fullPath: '/dashboard/sandboxes/'
+      preLoaderRoute: typeof AppDashboardSandboxesIndexRouteImport
+      parentRoute: typeof AppDashboardSandboxesRoute
+    }
     '/_app/dashboard/sandboxes/new': {
       id: '/_app/dashboard/sandboxes/new'
       path: '/new'
@@ -382,11 +400,13 @@ declare module '@tanstack/react-router' {
 interface AppDashboardSandboxesRouteChildren {
   AppDashboardSandboxesIdRoute: typeof AppDashboardSandboxesIdRoute
   AppDashboardSandboxesNewRoute: typeof AppDashboardSandboxesNewRoute
+  AppDashboardSandboxesIndexRoute: typeof AppDashboardSandboxesIndexRoute
 }
 
 const AppDashboardSandboxesRouteChildren: AppDashboardSandboxesRouteChildren = {
   AppDashboardSandboxesIdRoute: AppDashboardSandboxesIdRoute,
   AppDashboardSandboxesNewRoute: AppDashboardSandboxesNewRoute,
+  AppDashboardSandboxesIndexRoute: AppDashboardSandboxesIndexRoute,
 }
 
 const AppDashboardSandboxesRouteWithChildren =
