@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { Pool } from "pg";
+import { generateSql } from "#/lib/gemini-client";
 import type {
 	AiGenerateInput,
 	AiGenerateResult,
@@ -224,42 +225,42 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 			throw new Error("AI rate limit exceeded. Max 30 requests per day.");
 		}
 
-		const mockSql = `-- Generated for: ${input.prompt}
--- Engine: ${sandbox.engine}
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-INSERT INTO users (name, email) VALUES
-  ('Alice', 'alice@example.com'),
-  ('Bob', 'bob@example.com');`;
+		let sqlResult: { sql: string; explanation: string; tokensUsed: number };
+		try {
+			sqlResult = await generateSql(
+				input.prompt,
+				sandbox.engine as "postgresql" | "mysql" | "mariadb",
+				"schema",
+			);
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : "AI generation failed";
+			throw new Error(message);
+		}
 
 		const insertPool = new Pool({
 			connectionString: process.env.DATABASE_URL,
 		});
 		const logResult = await insertPool.query(
-			`INSERT INTO ai_logs (sandbox_id, user_id, prompt, response, sql_generated, executed)
-			 VALUES ($1, $2, $3, $4, $5, false)
+			`INSERT INTO ai_logs (sandbox_id, user_id, prompt, response, sql_generated, executed, tokens_used)
+			 VALUES ($1, $2, $3, $4, $5, false, $6)
 			 RETURNING id`,
 			[
 				input.sandboxId,
 				user.id,
 				input.prompt,
-				"Generated SQL based on prompt",
-				mockSql,
+				sqlResult.explanation,
+				sqlResult.sql,
+				sqlResult.tokensUsed,
 			],
 		);
 		await insertPool.end();
 
 		return {
 			logId: logResult.rows[0].id,
-			sqlGenerated: mockSql,
-			explanation:
-				"Membuat tabel users dengan kolom dasar dan mengisi 2 data contoh.",
-			tokensUsed: 312,
+			sqlGenerated: sqlResult.sql,
+			explanation: sqlResult.explanation,
+			tokensUsed: sqlResult.tokensUsed,
 		};
 	});
 
