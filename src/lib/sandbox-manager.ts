@@ -223,9 +223,14 @@ export async function createSandboxDatabase(
 		// alphanumeric characters and underscores
 		await pool.query(`CREATE DATABASE "${dbName}"`);
 
-		// Step 2: Create the dedicated user with password
-		// Password is parameterized to prevent SQL injection
-		await pool.query(`CREATE USER "${dbUser}" WITH PASSWORD $1`, [password]);
+		// Step 2: Create the dedicated user with all restrictions in one statement
+		// Note: PostgreSQL doesn't support parameterized passwords in CREATE USER
+		// We escape single quotes by doubling them (SQL standard escaping)
+		// All options are set at creation time to avoid ALTER USER permission issues
+		const escapedPassword = password.replace(/'/g, "''");
+		await pool.query(
+			`CREATE USER "${dbUser}" WITH PASSWORD '${escapedPassword}' NOCREATEDB NOCREATEROLE CONNECTION LIMIT ${MAX_CONNECTIONS_PER_USER}`,
+		);
 
 		// Step 3: Grant access ONLY to this database
 		// This is critical for isolation - user cannot access other databases
@@ -245,25 +250,11 @@ export async function createSandboxDatabase(
 			dbPool.release();
 		}
 
-		// Step 5: Revoke dangerous privileges
-		// User should NOT be able to:
-		// - Create other databases (NOCREATEDB)
-		// - Create other roles (NOCREATEROLE)
-		// - Act as superuser (NOSUPERUSER)
-		await pool.query(
-			`ALTER USER "${dbUser}" WITH NOSUPERUSER NOCREATEDB NOCREATEROLE`,
-		);
-
-		// Step 6: Set statement timeout (30 seconds per PRD §12.2)
+		// Step 5: Set statement timeout (30 seconds per PRD §12.2)
 		// This prevents long-running queries from blocking resources
+		// Note: We use ALTER ROLE ... SET which is a different permission than ALTER USER
 		await pool.query(
-			`ALTER USER "${dbUser}" SET statement_timeout = '${STATEMENT_TIMEOUT}'`,
-		);
-
-		// Step 7: Set connection limit (5 concurrent connections per PRD §12.2)
-		// This prevents resource exhaustion from a single sandbox
-		await pool.query(
-			`ALTER USER "${dbUser}" CONNECTION LIMIT ${MAX_CONNECTIONS_PER_USER}`,
+			`ALTER ROLE "${dbUser}" SET statement_timeout = '${STATEMENT_TIMEOUT}'`,
 		);
 
 		log.info("Created sandbox", { dbName, dbUser });
