@@ -1,9 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-
-export const Route = createFileRoute("/_app/dashboard/")({
-	component: DashboardHome,
-});
-
 import {
 	ActivityIcon,
 	BotIcon,
@@ -28,10 +23,24 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Skeleton } from "#/components/ui/skeleton";
+import {
+	$getDashboardStats,
+	$getSandboxes,
+} from "#/modules/sandboxes/serverFn";
+
+export const Route = createFileRoute("/_app/dashboard/")({
+	loader: async () => {
+		const [stats, sandboxes] = await Promise.all([
+			$getDashboardStats(),
+			$getSandboxes(),
+		]);
+		return { stats, sandboxes };
+	},
+	pendingComponent: DashboardSkeleton,
+	component: DashboardHome,
+});
 
 const MAX_ACTIVE_SANDBOXES = 5;
-type DashboardState = "loading" | "error" | "success";
-const dashboardState: DashboardState = "success";
 
 type SandboxStatus = "active" | "expiring" | "expired" | "destroying";
 
