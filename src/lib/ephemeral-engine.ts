@@ -1,11 +1,20 @@
 import { and, eq, lte } from "drizzle-orm";
-import { db, getSandboxAdminDb } from "#/db";
+import { db } from "#/db";
 import { sandboxes } from "#/db/schema";
+import type { DatabaseEngine } from "#/lib/db-managers/interface";
+import { getDbManager } from "#/lib/db-managers/interface";
 import { createLogger } from "#/lib/logger";
 
 const log = createLogger("EphemeralEngine");
 
 const CLEANUP_INTERVAL_MS = 30 * 1000;
+
+/** Engine-specific admin URLs for provisioning */
+const ENGINE_ADMIN_URLS: Record<DatabaseEngine, string> = {
+	postgresql: process.env.POSTGRES_SANDBOX_URL || "",
+	mysql: process.env.MYSQL_SANDBOX_URL || "",
+	mariadb: process.env.MARIADB_SANDBOX_URL || "",
+};
 const HEARTBEAT_INTERVAL_MS = 60 * 1000;
 
 let isRunning = false;
@@ -14,21 +23,18 @@ let heartbeatInterval: NodeJS.Timeout | null = null;
 let lastHeartbeat: Date | null = null;
 
 async function dropSandboxDatabase(
+	engine: DatabaseEngine,
 	dbName: string,
 	dbUser: string,
 ): Promise<void> {
-	const adminPool = getSandboxAdminDb();
-	const client = await adminPool.connect();
-	try {
-		await client.query(
-			"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1",
-			[dbName],
-		);
-		await client.query(`DROP DATABASE IF EXISTS "${dbName}"`, []);
-		await client.query(`DROP USER IF EXISTS "${dbUser}"`, []);
-	} finally {
-		client.release();
+	const adminUrl = ENGINE_ADMIN_URLS[engine];
+	if (!adminUrl) {
+		log.error("No admin URL configured for engine", { engine });
+		throw new Error(`No admin URL configured for engine: ${engine}`);
 	}
+
+	const dbManager = await getDbManager(engine, adminUrl);
+	await dbManager.dropSandboxDatabase(dbName, dbUser);
 }
 
 async function cleanupExpiredSandboxes(): Promise<void> {
@@ -54,7 +60,11 @@ async function cleanupExpiredSandboxes(): Promise<void> {
 					.set({ status: "destroying", updatedAt: new Date() })
 					.where(eq(sandboxes.id, sandbox.id));
 
-				await dropSandboxDatabase(sandbox.dbName, sandbox.dbUser);
+				await dropSandboxDatabase(
+					sandbox.engine as DatabaseEngine,
+					sandbox.dbName,
+					sandbox.dbUser,
+				);
 
 				await db
 					.update(sandboxes)

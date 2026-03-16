@@ -14,9 +14,11 @@
  */
 
 import { eq } from "drizzle-orm";
-import { Pool } from "pg";
+import mysql from "mysql2/promise";
+import { Pool as PgPool } from "pg";
 import { db } from "#/db/index";
 import { queryHistory, type Sandbox } from "#/db/schema";
+import type { DatabaseEngine } from "#/lib/db-managers/interface";
 import { createLogger } from "#/lib/logger";
 import { decryptPassword } from "#/lib/session";
 
@@ -193,7 +195,8 @@ function createSandboxPool(sandbox: {
 	dbPassword: string;
 	host: string;
 	port: number;
-}): Pool | null {
+	engine: DatabaseEngine;
+}): PgPool | null | mysql.Connection {
 	// Decrypt the password before use
 	let decryptedPassword: string;
 	try {
@@ -207,16 +210,22 @@ function createSandboxPool(sandbox: {
 		process.env.NODE_ENV === "development" && process.env.SANDBOX_HOST
 			? process.env.SANDBOX_HOST
 			: sandbox.host;
-	const connectionString = `postgresql://${sandbox.dbUser}:${encodeURIComponent(decryptedPassword)}@${host}:${sandbox.port}/${sandbox.dbName}`;
 
-	return new Pool({
-		connectionString,
-		// Connection pool settings
-		max: 1, // Single connection per query execution
-		idleTimeoutMillis: 10_000, // Close idle connections after 10s
-		// Query timeout is enforced at user level (set during sandbox creation)
-		// But we also set it here as a safety net
-		statement_timeout: QUERY_TIMEOUT_MS,
+	if (sandbox.engine === "postgresql") {
+		const connectionString = `postgresql://${sandbox.dbUser}:${encodeURIComponent(decryptedPassword)}@${host}:${sandbox.port}/${sandbox.dbName}`;
+		return new PgPool({
+			connectionString,
+			max: 1,
+			idleTimeoutMillis: 10_000,
+			statement_timeout: QUERY_TIMEOUT_MS,
+		});
+	}
+
+	// MySQL or MariaDB
+	const connectionString = `mysql://${sandbox.dbUser}:${encodeURIComponent(decryptedPassword)}@${host}:${sandbox.port}/${sandbox.dbName}`;
+	return mysql.createConnection({
+		uri: connectionString,
+		connectTimeout: QUERY_TIMEOUT_MS,
 	});
 }
 
@@ -253,7 +262,7 @@ export async function executeQuery(
 	sandbox: Pick<
 		Sandbox,
 		"id" | "dbName" | "dbUser" | "dbPassword" | "host" | "port" | "engine"
-	>,
+	> & { engine: DatabaseEngine },
 	sql: string,
 ): Promise<QueryResult> {
 	const startTime = Date.now();
@@ -278,23 +287,61 @@ export async function executeQuery(
 		};
 	}
 
-	// Step 2: Check engine support (MVP only supports PostgreSQL)
-	if (sandbox.engine !== "postgresql") {
+	// Step 2: Validate engine type
+	const supportedEngines: DatabaseEngine[] = ["postgresql", "mysql", "mariadb"];
+	if (!supportedEngines.includes(sandbox.engine)) {
 		const executionTimeMs = Date.now() - startTime;
 		return {
 			success: false,
 			executionTimeMs,
-			error: `Query execution is only supported for PostgreSQL sandboxes. Engine '${sandbox.engine}' is not supported in MVP.`,
+			error: `Unknown engine: ${sandbox.engine}`,
 		};
 	}
 
-	let pool: Pool | null = null;
+	let pgPool: PgPool | null = null;
+	let mysqlConn: mysql.Connection | null = null;
 
 	try {
-		// Step 3: Create connection pool with sandbox credentials
-		pool = createSandboxPool(sandbox);
+		// Step 3: Create connection with sandbox credentials
+		if (sandbox.engine === "postgresql") {
+			pgPool = createSandboxPool(sandbox) as PgPool | null;
+			if (!pgPool) {
+				const executionTimeMs = Date.now() - startTime;
+				return {
+					success: false,
+					executionTimeMs,
+					error: "Failed to connect to the database. Invalid credentials.",
+				};
+			}
 
-		if (!pool) {
+			// Execute PostgreSQL query with timeout
+			const result = await Promise.race([
+				pgPool.query(sql),
+				new Promise<never>((_, reject) =>
+					setTimeout(
+						() => reject(new Error("Query timeout exceeded")),
+						QUERY_TIMEOUT_MS,
+					),
+				),
+			]);
+
+			const executionTimeMs = Date.now() - startTime;
+			const rows = (result.rows || []).slice(0, MAX_RESULT_ROWS);
+			const rowCount = result.rowCount ?? rows.length;
+
+			await logQuery(sandbox.id, sql, "success", executionTimeMs, rowCount);
+
+			return {
+				success: true,
+				rows,
+				rowCount,
+				executionTimeMs,
+			};
+		}
+
+		// MySQL or MariaDB
+		mysqlConn = createSandboxPool(sandbox) as mysql.Connection | null;
+		if (!mysqlConn) {
 			const executionTimeMs = Date.now() - startTime;
 			return {
 				success: false,
@@ -303,9 +350,9 @@ export async function executeQuery(
 			};
 		}
 
-		// Step 4: Execute query with timeout
-		const result = await Promise.race([
-			pool.query(sql),
+		// Execute MySQL/MariaDB query with timeout
+		const [mysqlResult] = await Promise.race([
+			mysqlConn.execute(sql),
 			new Promise<never>((_, reject) =>
 				setTimeout(
 					() => reject(new Error("Query timeout exceeded")),
@@ -316,11 +363,16 @@ export async function executeQuery(
 
 		const executionTimeMs = Date.now() - startTime;
 
-		// Step 5: Limit result rows
-		const rows = result.rows.slice(0, MAX_RESULT_ROWS);
-		const rowCount = result.rowCount ?? result.rows.length;
+		// MySQL result structure is different from PostgreSQL
+		const rows =
+			"rows" in mysqlResult
+				? (mysqlResult.rows || []).slice(0, MAX_RESULT_ROWS)
+				: [];
+		const rowCount =
+			"affectedRows" in mysqlResult
+				? mysqlResult.affectedRows || 0
+				: rows.length || 0;
 
-		// Step 6: Log successful query
 		await logQuery(sandbox.id, sql, "success", executionTimeMs, rowCount);
 
 		return {
@@ -351,16 +403,23 @@ export async function executeQuery(
 		return {
 			success: false,
 			executionTimeMs,
-			error: formatErrorMessage(errorMessage),
+			error: formatErrorMessage(errorMessage, sandbox.engine),
 			_errorDetails: errorDetails,
 		};
 	} finally {
-		// Step 7: Always clean up the connection pool
-		if (pool) {
+		// Step 7: Always clean up connections
+		if (pgPool) {
 			try {
-				await pool.end();
+				await pgPool.end();
 			} catch (error) {
-				log.error("Failed to close pool", { error });
+				log.error("Failed to close PostgreSQL pool", { error });
+			}
+		}
+		if (mysqlConn) {
+			try {
+				await mysqlConn.end();
+			} catch (error) {
+				log.error("Failed to close MySQL connection", { error });
 			}
 		}
 	}
@@ -373,25 +432,44 @@ export async function executeQuery(
  * @param message - Raw error message from PostgreSQL
  * @returns User-friendly error message
  */
-function formatErrorMessage(message: string): string {
+function formatErrorMessage(
+	message: string,
+	engine: DatabaseEngine = "postgresql",
+): string {
 	// Common PostgreSQL error patterns
-	if (message.includes("relation") && message.includes("does not exist")) {
-		return "Table does not exist. Please check the table name and try again.";
+	if (engine === "postgresql") {
+		if (message.includes("relation") && message.includes("does not exist")) {
+			return "Table does not exist. Please check the table name and try again.";
+		}
+		if (message.includes("column") && message.includes("does not exist")) {
+			return "Column does not exist. Please check the column name and try again.";
+		}
+		if (message.includes("syntax error")) {
+			return "SQL syntax error. Please check your query and try again.";
+		}
+		if (message.includes("permission denied")) {
+			return "Permission denied. You don't have access to perform this operation.";
+		}
 	}
 
-	if (message.includes("column") && message.includes("does not exist")) {
-		return "Column does not exist. Please check the column name and try again.";
+	// Common MySQL/MariaDB error patterns
+	if (engine === "mysql" || engine === "mariadb") {
+		if (message.includes("Table") && message.includes("doesn't exist")) {
+			return "Table does not exist. Please check the table name and try again.";
+		}
+		if (message.includes("Unknown column")) {
+			return "Column does not exist. Please check the column name and try again.";
+		}
+		if (message.includes("syntax") && message.includes("error")) {
+			return "SQL syntax error. Please check your query and try again.";
+		}
+		if (message.includes("denied")) {
+			return "Permission denied. You don't have access to perform this operation.";
+		}
 	}
 
-	if (message.includes("syntax error")) {
-		return "SQL syntax error. Please check your query and try again.";
-	}
-
-	if (message.includes("permission denied")) {
-		return "Permission denied. You don't have access to perform this operation.";
-	}
-
-	if (message.includes("Query timeout")) {
+	// Common errors for all engines
+	if (message.includes("Query timeout") || message.includes("timeout")) {
 		return "Query timed out after 30 seconds. Please simplify your query or add appropriate indexes.";
 	}
 

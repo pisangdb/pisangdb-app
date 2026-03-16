@@ -34,8 +34,8 @@ import { z } from "zod";
 import { db } from "#/db";
 import { sandboxes } from "#/db/schema";
 import { errorResponse, successResponse } from "#/lib/api-response";
+import { type DatabaseEngine, getDbManager } from "#/lib/db-managers/interface";
 import {
-	createSandboxDatabase,
 	generateDbUser,
 	generatePassword,
 	generateUniqueSandboxName,
@@ -56,10 +56,28 @@ const SESSION_COOKIE_NAME = "session";
 const MAX_ACTIVE_SANDBOXES = 5;
 
 /** Default host for sandboxes (configurable for dev/prod) */
-const DEFAULT_HOST = process.env.SANDBOX_HOST || "id.pisangdb.com";
+const DEFAULT_HOST = process.env.SANDBOX_HOST || "localhost";
 
-/** PostgreSQL port for sandbox (configurable - 5433 for local Docker, 5432 for production) */
-const POSTGRESQL_PORT = parseInt(process.env.SANDBOX_PORT || "5433", 10);
+/** Engine-specific ports */
+const ENGINE_PORTS: Record<DatabaseEngine, number> = {
+	postgresql: parseInt(process.env.POSTGRES_SANDBOX_PORT || "5433", 10),
+	mysql: parseInt(process.env.MYSQL_SANDBOX_PORT || "3306", 10),
+	mariadb: parseInt(process.env.MARIADB_SANDBOX_PORT || "3307", 10),
+};
+
+/** Engine-specific admin URLs for provisioning */
+const ENGINE_ADMIN_URLS: Record<DatabaseEngine, string> = {
+	postgresql: process.env.POSTGRES_SANDBOX_URL || "",
+	mysql: process.env.MYSQL_SANDBOX_URL || "",
+	mariadb: process.env.MARIADB_SANDBOX_URL || "",
+};
+
+/** Engine-specific connection URL prefixes */
+const ENGINE_URL_PREFIX: Record<DatabaseEngine, string> = {
+	postgresql: "postgresql",
+	mysql: "mysql",
+	mariadb: "mysql",
+};
 
 /** Maximum database size in MB (PRD §6.2.1) */
 const DEFAULT_MAX_SIZE_MB = 100;
@@ -69,20 +87,10 @@ const DEFAULT_MAX_SIZE_MB = 100;
 // ============================================================================
 
 const createSandboxSchema = z.object({
-	// MVP: PostgreSQL only
-	engine: z
-		.literal("postgresql")
-		.refine(
-			(val) => val === "postgresql",
-			"Only PostgreSQL engine is supported in MVP",
-		),
-	// MVP: Indonesia region only
-	region: z
-		.literal("id")
-		.refine(
-			(val) => val === "id",
-			"Only Indonesia (id) region is supported in MVP",
-		),
+	// Engine selection: PostgreSQL, MySQL, or MariaDB
+	engine: z.enum(["postgresql", "mysql", "mariadb"]).default("postgresql"),
+	// Region selection: MVP Indonesia only (expandable for future)
+	region: z.enum(["id"]).default("id"),
 	// Sandbox display name (1-50 characters)
 	name: z
 		.string()
@@ -247,7 +255,7 @@ export const Route = createFileRoute("/api/sandboxes/")({
 					);
 				}
 
-				const { name, retention_hours } = validationResult.data;
+				const { name, retention_hours, engine, region } = validationResult.data;
 
 				// Step 4: Check quota (max 5 active sandboxes per user)
 				try {
@@ -300,9 +308,19 @@ export const Route = createFileRoute("/api/sandboxes/")({
 					);
 				}
 
-				// Step 6: Create database and user in PostgreSQL
+				// Step 6: Create database and user using dbManager
 				try {
-					await createSandboxDatabase(dbName, dbUser, password);
+					const dbManager = await getDbManager(
+						engine,
+						ENGINE_ADMIN_URLS[engine],
+					);
+					await dbManager.createSandboxDatabase({
+						dbName,
+						dbUser,
+						dbPassword: password,
+						host: DEFAULT_HOST,
+						port: ENGINE_PORTS[engine],
+					});
 				} catch (dbError) {
 					console.error("[CreateSandbox] Failed to create database:", dbError);
 					return errorResponse(
@@ -323,7 +341,7 @@ export const Route = createFileRoute("/api/sandboxes/")({
 
 				// Step 9: Build connection URL
 				// Format: postgresql://user:pass@host:port/dbname
-				const connectionUrl = `postgresql://${dbUser}:${encodeURIComponent(password)}@${DEFAULT_HOST}:${POSTGRESQL_PORT}/${dbName}`;
+				const connectionUrl = `${ENGINE_URL_PREFIX[engine]}://${dbUser}:${encodeURIComponent(password)}@${DEFAULT_HOST}:${ENGINE_PORTS[engine]}/${dbName}`;
 
 				// Step 10: Create sandbox record in database
 				let newSandbox: (typeof sandboxes.$inferSelect)[];
@@ -332,14 +350,14 @@ export const Route = createFileRoute("/api/sandboxes/")({
 						.insert(sandboxes)
 						.values({
 							userId,
-							engine: "postgresql",
-							region: "id",
+							engine: engine,
+							region: region,
 							dbName,
 							dbUser,
 							dbPassword: encryptedPassword,
 							connectionUrl,
 							host: DEFAULT_HOST,
-							port: POSTGRESQL_PORT,
+							port: ENGINE_PORTS[engine],
 							displayName: name,
 							status: "active",
 							templateId: null,
@@ -354,10 +372,11 @@ export const Route = createFileRoute("/api/sandboxes/")({
 					);
 					// Attempt cleanup
 					try {
-						const { dropSandboxDatabase } = await import(
-							"#/lib/sandbox-manager"
+						const cleanupDbManager = await getDbManager(
+							engine,
+							ENGINE_ADMIN_URLS[engine],
 						);
-						await dropSandboxDatabase(dbName, dbUser);
+						await cleanupDbManager.dropSandboxDatabase(dbName, dbUser);
 					} catch (cleanupError) {
 						console.error("[CreateSandbox] Cleanup failed:", cleanupError);
 					}
