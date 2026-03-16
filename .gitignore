@@ -38,3 +38,11 @@ coverage
 
 # Misc
 todos.json
+
+# Sisyphus
+.sisyphus
+
+# Test artifacts
+playwright-report
+test-results
+playwright/.cache
