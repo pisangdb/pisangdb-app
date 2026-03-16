@@ -50,6 +50,7 @@ function AiSeederPage() {
 		"Create users, products, and orders tables for a simple e-commerce app.",
 	);
 	const [generatedSql, setGeneratedSql] = useState<string | null>(null);
+	const [aiLogId, setAiLogId] = useState<string | null>(null);
 	const [explanation, setExplanation] = useState<string | null>(null);
 
 	const { data: sandboxesData, isLoading: sandboxesLoading } = useSandboxes();
@@ -80,6 +81,7 @@ function AiSeederPage() {
 		try {
 			const result = await generateAiSqlMutation.mutateAsync(prompt);
 			setGeneratedSql(result.sql);
+			setAiLogId(result.aiLogId ?? null);
 			setExplanation(result.explanation);
 			toast.success("SQL generated successfully!");
 		} catch {
@@ -94,9 +96,15 @@ function AiSeederPage() {
 		}
 
 		try {
-			await executeAiSqlMutation.mutateAsync(generatedSql);
+			if (!aiLogId) {
+				toast.error("No AI log found");
+				return;
+			}
+
+			await executeAiSqlMutation.mutateAsync(aiLogId);
 			toast.success("SQL executed successfully!");
 			setGeneratedSql(null);
+			setAiLogId(null);
 			setExplanation(null);
 		} catch {
 			// Error handled by mutation hook
