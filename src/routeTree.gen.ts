@@ -38,6 +38,7 @@ import { Route as ApiAuthGithubCallbackRouteImport } from './routes/api/auth/git
 import { Route as AppDashboardSandboxesNewRouteImport } from './routes/_app/dashboard/sandboxes/new'
 import { Route as AppDashboardSandboxesIdRouteImport } from './routes/_app/dashboard/sandboxes/$id'
 import { Route as ApiSandboxesIdAiLogsRouteImport } from './routes/api/sandboxes/$id/ai/logs'
+import { Route as ApiSandboxesIdAiGenerateRouteImport } from './routes/api/sandboxes/$id/ai/generate'
 import { Route as ApiSandboxesIdAiExecuteRouteImport } from './routes/api/sandboxes/$id/ai/execute'
 
 const TermsRoute = TermsRouteImport.update({
@@ -185,6 +186,12 @@ const ApiSandboxesIdAiLogsRoute = ApiSandboxesIdAiLogsRouteImport.update({
   path: '/ai/logs',
   getParentRoute: () => ApiSandboxesIdRoute,
 } as any)
+const ApiSandboxesIdAiGenerateRoute =
+  ApiSandboxesIdAiGenerateRouteImport.update({
+    id: '/ai/generate',
+    path: '/ai/generate',
+    getParentRoute: () => ApiSandboxesIdRoute,
+  } as any)
 const ApiSandboxesIdAiExecuteRoute = ApiSandboxesIdAiExecuteRouteImport.update({
   id: '/ai/execute',
   path: '/ai/execute',
@@ -220,6 +227,7 @@ export interface FileRoutesByFullPath {
   '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
   '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
   '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
+  '/api/sandboxes/$id/ai/generate': typeof ApiSandboxesIdAiGenerateRoute
   '/api/sandboxes/$id/ai/logs': typeof ApiSandboxesIdAiLogsRoute
 }
 export interface FileRoutesByTo {
@@ -250,6 +258,7 @@ export interface FileRoutesByTo {
   '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
   '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
   '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
+  '/api/sandboxes/$id/ai/generate': typeof ApiSandboxesIdAiGenerateRoute
   '/api/sandboxes/$id/ai/logs': typeof ApiSandboxesIdAiLogsRoute
 }
 export interface FileRoutesById {
@@ -283,6 +292,7 @@ export interface FileRoutesById {
   '/api/sandboxes/$id/query': typeof ApiSandboxesIdQueryRoute
   '/api/sandboxes/$id/tables': typeof ApiSandboxesIdTablesRoute
   '/api/sandboxes/$id/ai/execute': typeof ApiSandboxesIdAiExecuteRoute
+  '/api/sandboxes/$id/ai/generate': typeof ApiSandboxesIdAiGenerateRoute
   '/api/sandboxes/$id/ai/logs': typeof ApiSandboxesIdAiLogsRoute
 }
 export interface FileRouteTypes {
@@ -316,6 +326,7 @@ export interface FileRouteTypes {
     | '/api/sandboxes/$id/query'
     | '/api/sandboxes/$id/tables'
     | '/api/sandboxes/$id/ai/execute'
+    | '/api/sandboxes/$id/ai/generate'
     | '/api/sandboxes/$id/ai/logs'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -346,6 +357,7 @@ export interface FileRouteTypes {
     | '/api/sandboxes/$id/query'
     | '/api/sandboxes/$id/tables'
     | '/api/sandboxes/$id/ai/execute'
+    | '/api/sandboxes/$id/ai/generate'
     | '/api/sandboxes/$id/ai/logs'
   id:
     | '__root__'
@@ -378,6 +390,7 @@ export interface FileRouteTypes {
     | '/api/sandboxes/$id/query'
     | '/api/sandboxes/$id/tables'
     | '/api/sandboxes/$id/ai/execute'
+    | '/api/sandboxes/$id/ai/generate'
     | '/api/sandboxes/$id/ai/logs'
   fileRoutesById: FileRoutesById
 }
@@ -604,6 +617,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxesIdAiLogsRouteImport
       parentRoute: typeof ApiSandboxesIdRoute
     }
+    '/api/sandboxes/$id/ai/generate': {
+      id: '/api/sandboxes/$id/ai/generate'
+      path: '/ai/generate'
+      fullPath: '/api/sandboxes/$id/ai/generate'
+      preLoaderRoute: typeof ApiSandboxesIdAiGenerateRouteImport
+      parentRoute: typeof ApiSandboxesIdRoute
+    }
     '/api/sandboxes/$id/ai/execute': {
       id: '/api/sandboxes/$id/ai/execute'
       path: '/ai/execute'
@@ -679,6 +699,7 @@ interface ApiSandboxesIdRouteChildren {
   ApiSandboxesIdQueryRoute: typeof ApiSandboxesIdQueryRoute
   ApiSandboxesIdTablesRoute: typeof ApiSandboxesIdTablesRoute
   ApiSandboxesIdAiExecuteRoute: typeof ApiSandboxesIdAiExecuteRoute
+  ApiSandboxesIdAiGenerateRoute: typeof ApiSandboxesIdAiGenerateRoute
   ApiSandboxesIdAiLogsRoute: typeof ApiSandboxesIdAiLogsRoute
 }
 
@@ -686,6 +707,7 @@ const ApiSandboxesIdRouteChildren: ApiSandboxesIdRouteChildren = {
   ApiSandboxesIdQueryRoute: ApiSandboxesIdQueryRoute,
   ApiSandboxesIdTablesRoute: ApiSandboxesIdTablesRoute,
   ApiSandboxesIdAiExecuteRoute: ApiSandboxesIdAiExecuteRoute,
+  ApiSandboxesIdAiGenerateRoute: ApiSandboxesIdAiGenerateRoute,
   ApiSandboxesIdAiLogsRoute: ApiSandboxesIdAiLogsRoute,
 }
 
