@@ -134,6 +134,34 @@ export const queryHistory = pgTable("query_history", {
 });
 
 // ============================================================================
+// NOTIFICATIONS TABLE
+// ============================================================================
+export const notifications = pgTable(
+	"notifications",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		sandboxId: uuid("sandbox_id")
+			.references(() => sandboxes.id)
+			.notNull(),
+		userId: uuid("user_id")
+			.references(() => users.id)
+			.notNull(),
+		type: text("type").notNull(),
+		message: text("message").notNull(),
+		readAt: timestamp("read_at", { withTimezone: true }),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => [
+		uniqueIndex("idx_notifications_sandbox_type").on(
+			table.sandboxId,
+			table.type,
+		),
+	],
+);
+
+// ============================================================================
 // RELATIONS
 // ============================================================================
 export const usersRelations = relations(users, ({ many }) => ({
@@ -173,6 +201,17 @@ export const queryHistoryRelations = relations(queryHistory, ({ one }) => ({
 	}),
 }));
 
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+	sandbox: one(sandboxes, {
+		fields: [notifications.sandboxId],
+		references: [sandboxes.id],
+	}),
+	user: one(users, {
+		fields: [notifications.userId],
+		references: [users.id],
+	}),
+}));
+
 export const templatesRelations = relations(templates, ({ one, many }) => ({
 	user: one(users, {
 		fields: [templates.userId],
@@ -195,6 +234,9 @@ export type NewAiLog = typeof aiLogs.$inferInsert;
 
 export type QueryHistory = typeof queryHistory.$inferSelect;
 export type NewQueryHistory = typeof queryHistory.$inferInsert;
+
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
 
 export type Template = typeof templates.$inferSelect;
 export type NewTemplate = typeof templates.$inferInsert;

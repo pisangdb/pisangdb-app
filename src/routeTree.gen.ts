@@ -20,6 +20,7 @@ import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as ApiTemplatesIndexRouteImport } from './routes/api/templates/index'
 import { Route as ApiSandboxesIndexRouteImport } from './routes/api/sandboxes/index'
+import { Route as ApiNotificationsIndexRouteImport } from './routes/api/notifications/index'
 import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
 import { Route as ApiSandboxesIdRouteImport } from './routes/api/sandboxes/$id'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
@@ -96,6 +97,11 @@ const ApiTemplatesIndexRoute = ApiTemplatesIndexRouteImport.update({
 const ApiSandboxesIndexRoute = ApiSandboxesIndexRouteImport.update({
   id: '/api/sandboxes/',
   path: '/api/sandboxes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiNotificationsIndexRoute = ApiNotificationsIndexRouteImport.update({
+  id: '/api/notifications/',
+  path: '/api/notifications/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
@@ -239,6 +245,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/dashboard/': typeof AppDashboardIndexRoute
+  '/api/notifications/': typeof ApiNotificationsIndexRoute
   '/api/sandboxes/': typeof ApiSandboxesIndexRoute
   '/api/templates/': typeof ApiTemplatesIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
@@ -273,6 +280,7 @@ export interface FileRoutesByTo {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/dashboard': typeof AppDashboardIndexRoute
+  '/api/notifications': typeof ApiNotificationsIndexRoute
   '/api/sandboxes': typeof ApiSandboxesIndexRoute
   '/api/templates': typeof ApiTemplatesIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
@@ -310,6 +318,7 @@ export interface FileRoutesById {
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/sandboxes/$id': typeof ApiSandboxesIdRouteWithChildren
   '/_app/dashboard/': typeof AppDashboardIndexRoute
+  '/api/notifications/': typeof ApiNotificationsIndexRoute
   '/api/sandboxes/': typeof ApiSandboxesIndexRoute
   '/api/templates/': typeof ApiTemplatesIndexRoute
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
@@ -347,6 +356,7 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/sandboxes/$id'
     | '/dashboard/'
+    | '/api/notifications/'
     | '/api/sandboxes/'
     | '/api/templates/'
     | '/dashboard/sandboxes/$id'
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/sandboxes/$id'
     | '/dashboard'
+    | '/api/notifications'
     | '/api/sandboxes'
     | '/api/templates'
     | '/dashboard/sandboxes/$id'
@@ -417,6 +428,7 @@ export interface FileRouteTypes {
     | '/api/auth/register'
     | '/api/sandboxes/$id'
     | '/_app/dashboard/'
+    | '/api/notifications/'
     | '/api/sandboxes/'
     | '/api/templates/'
     | '/_app/dashboard/sandboxes/$id'
@@ -446,6 +458,7 @@ export interface RootRouteChildren {
   ApiAuthMeRoute: typeof ApiAuthMeRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiSandboxesIdRoute: typeof ApiSandboxesIdRouteWithChildren
+  ApiNotificationsIndexRoute: typeof ApiNotificationsIndexRoute
   ApiSandboxesIndexRoute: typeof ApiSandboxesIndexRoute
   ApiTemplatesIndexRoute: typeof ApiTemplatesIndexRoute
 }
@@ -527,6 +540,13 @@ declare module '@tanstack/react-router' {
       path: '/api/sandboxes'
       fullPath: '/api/sandboxes/'
       preLoaderRoute: typeof ApiSandboxesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notifications/': {
+      id: '/api/notifications/'
+      path: '/api/notifications'
+      fullPath: '/api/notifications/'
+      preLoaderRoute: typeof ApiNotificationsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/dashboard/': {
@@ -802,6 +822,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthMeRoute: ApiAuthMeRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiSandboxesIdRoute: ApiSandboxesIdRouteWithChildren,
+  ApiNotificationsIndexRoute: ApiNotificationsIndexRoute,
   ApiSandboxesIndexRoute: ApiSandboxesIndexRoute,
   ApiTemplatesIndexRoute: ApiTemplatesIndexRoute,
 }

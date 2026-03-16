@@ -246,3 +246,20 @@ export async function createTemplate(body: CreateTemplateBody) {
 		body: JSON.stringify(body),
 	});
 }
+
+export interface Notification {
+	id: string;
+	sandboxId: string;
+	type: string;
+	message: string;
+	readAt: string | null;
+	createdAt: string;
+}
+
+export async function getNotifications() {
+	const response = await fetchApi<{ notifications: Notification[] }>(
+		"/api/notifications",
+	);
+	return response.notifications;
+}
+

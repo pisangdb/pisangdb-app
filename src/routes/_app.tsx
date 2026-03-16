@@ -4,6 +4,8 @@ import {
 	Outlet,
 	useMatches,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { toast } from "sonner";
 import { AppSidebar } from "#/components/app-sidebar";
 import {
 	Breadcrumb,
@@ -20,6 +22,7 @@ import {
 	SidebarTrigger,
 } from "#/components/ui/sidebar";
 import { TooltipProvider } from "#/components/ui/tooltip";
+import { useNotifications } from "#/hooks/use-notifications";
 
 export const Route = createFileRoute("/_app")({
 	component: AppLayout,
@@ -38,7 +41,6 @@ const ROUTE_LABELS: Record<string, string> = {
 
 function getRouteLabel(pathname: string): string | undefined {
 	if (ROUTE_LABELS[pathname]) return ROUTE_LABELS[pathname];
-	// Handle /dashboard/sandboxes/:id
 	const sandboxDetailMatch = /^\/dashboard\/sandboxes\/([^/]+)$/.exec(pathname);
 	if (sandboxDetailMatch) return sandboxDetailMatch[1];
 	return undefined;
@@ -46,6 +48,22 @@ function getRouteLabel(pathname: string): string | undefined {
 
 function AppLayout() {
 	const matches = useMatches();
+	const { data: notifications } = useNotifications();
+
+	useEffect(() => {
+		if (notifications && notifications.length > 0) {
+			const unreadExpiryWarnings = notifications.filter(
+				(n) => n.type === "expiry_warning" && !n.readAt,
+			);
+			if (unreadExpiryWarnings.length > 0) {
+				unreadExpiryWarnings.forEach((notification) => {
+					toast.warning(notification.message, {
+						duration: 10000,
+					});
+				});
+			}
+		}
+	}, [notifications]);
 
 	const crumbs = matches
 		.filter((m) => m.pathname !== "/" && getRouteLabel(m.pathname))

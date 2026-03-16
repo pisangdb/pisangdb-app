@@ -4,6 +4,7 @@ import { sandboxes } from "#/db/schema";
 import type { DatabaseEngine } from "#/lib/db-managers/interface";
 import { getDbManager } from "#/lib/db-managers/interface";
 import { createLogger } from "#/lib/logger";
+import { checkAndSendExpiryWarnings } from "#/lib/notification-service";
 
 const log = createLogger("EphemeralEngine");
 
@@ -104,6 +105,7 @@ export function startEphemeralEngine(): void {
 
 	heartbeat();
 	cleanupExpiredSandboxes();
+	checkAndSendExpiryWarnings().catch((err) => log.error("Expiry warning check failed", err));
 }
 
 export function stopEphemeralEngine(): void {
