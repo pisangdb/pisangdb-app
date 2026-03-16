@@ -12,6 +12,7 @@ export const sandboxIdSchema = z.object({
 export const aiGenerateSchema = z.object({
 	sandboxId: z.string().uuid(),
 	prompt: z.string().min(1).max(1000),
+	mode: z.enum(["schema", "seed", "helper"]).default("schema"),
 });
 
 export const aiExecuteSchema = z.object({

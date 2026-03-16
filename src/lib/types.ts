@@ -89,9 +89,12 @@ export interface ExecuteQueryInput {
 	query: string;
 }
 
+export type AiGenerateMode = "schema" | "seed" | "helper";
+
 export interface AiGenerateInput {
 	sandboxId: string;
 	prompt: string;
+	mode?: AiGenerateMode;
 }
 
 export interface AiGenerateResult {

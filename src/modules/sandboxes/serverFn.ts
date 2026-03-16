@@ -3,6 +3,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { Pool } from "pg";
 import { getDbManager } from "#/lib/db-managers/interface";
+import {
+	triggerCleanup,
+	triggerExpiryWarningCheck,
+} from "#/lib/ephemeral-engine";
 import type {
 	CreateSandboxInput,
 	DashboardStats,
@@ -56,6 +60,9 @@ function generateDbPassword(): string {
 }
 
 async function getCurrentUser(): Promise<{ id: string; role: string }> {
+	triggerCleanup();
+	triggerExpiryWarningCheck();
+
 	const request = getRequest();
 	const session = await import("#/lib/auth").then((m) =>
 		m.auth.api.getSession({ headers: request.headers }),

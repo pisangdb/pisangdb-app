@@ -230,7 +230,7 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 			sqlResult = await generateSql(
 				input.prompt,
 				sandbox.engine as "postgresql" | "mysql" | "mariadb",
-				"schema",
+				input.mode || input.mode || "schema",
 			);
 		} catch (error) {
 			const message =
