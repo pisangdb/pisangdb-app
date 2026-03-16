@@ -44,14 +44,6 @@ export type SqlMode = "schema" | "seed" | "helper";
  */
 export type DatabaseEngine = "postgresql" | "mysql" | "mariadb";
 
-/**
- * Error returned when API call fails
- */
-export interface GenerateSqlError {
-	error: string;
-	message: string;
-}
-
 // ============================================================================
 // Configuration
 // ============================================================================
@@ -272,54 +264,4 @@ Remember: Respond ONLY with valid JSON in this format:
 		log.error("Unexpected error during generation", { error });
 		throw new Error("Failed to generate SQL. Please try again.");
 	}
-}
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/**
- * Validate if a prompt is acceptable for processing
- *
- * @param prompt - User's prompt
- * @returns Object with isValid flag and error message if invalid
- */
-export function validatePrompt(prompt: string): {
-	isValid: boolean;
-	error?: string;
-} {
-	if (!prompt || typeof prompt !== "string") {
-		return { isValid: false, error: "Prompt is required" };
-	}
-
-	const trimmed = prompt.trim();
-
-	if (trimmed.length === 0) {
-		return { isValid: false, error: "Prompt cannot be empty" };
-	}
-
-	if (trimmed.length > MAX_PROMPT_LENGTH) {
-		return {
-			isValid: false,
-			error: `Prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters`,
-		};
-	}
-
-	// Check for potentially malicious patterns
-	const dangerousPatterns = [
-		/drop\s+database/i,
-		/drop\s+schema/i,
-		/delete\s+from\s+users/i,
-		/truncate\s+all/i,
-		/shutdown/i,
-	];
-
-	for (const pattern of dangerousPatterns) {
-		if (pattern.test(trimmed)) {
-			// Still allow but log for safety
-			log.warn("Potentially dangerous prompt detected", { prompt: trimmed });
-		}
-	}
-
-	return { isValid: true };
 }

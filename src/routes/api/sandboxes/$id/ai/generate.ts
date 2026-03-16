@@ -7,6 +7,11 @@ import { aiLogs, sandboxes } from "#/db/schema";
 import { errorResponse, successResponse } from "#/lib/api-response";
 import { generateSql, type SqlMode } from "#/lib/gemini-client";
 import { verifyToken } from "#/lib/session";
+import {
+	addRateLimitHeaders,
+	aiGenerateRateLimit,
+	createRateLimitResponse,
+} from "#/middleware/rate-limit";
 
 const SESSION_COOKIE_NAME = "session";
 
@@ -37,6 +42,16 @@ export const Route = createFileRoute("/api/sandboxes/$id/ai/generate")({
 				}
 
 				const userId = payload.userId;
+
+				const rateLimitResult = await aiGenerateRateLimit(request);
+				if (!rateLimitResult.success) {
+					const resp = createRateLimitResponse(
+						rateLimitResult.message,
+						rateLimitResult.retryAfter,
+						rateLimitResult.headers,
+					);
+					return addRateLimitHeaders(resp, rateLimitResult.headers);
+				}
 
 				let body: unknown;
 				try {
