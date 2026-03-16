@@ -1,5 +1,5 @@
 # PisangDB Docker Compose Configuration
-# MVP: PostgreSQL only (MySQL/MariaDB deferred to v1.1)
+# Multi-engine support: PostgreSQL, MySQL, MariaDB
 # See PRD §8.4 and §15.4 for architecture details
 
 services:
@@ -65,6 +65,65 @@ services:
       - pisangdb-network
 
   # ===========================================
+  # MySQL Sandbox (ephemeral user databases)
+  # ===========================================
+  mysql-sandbox:
+    image: mysql:8-oracle
+    container_name: pisangdb-mysql-sandbox
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mysqlrootdev}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysqlsandbox:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 256M
+    networks:
+      - pisangdb-network
+
+  # ===========================================
+  # MariaDB Sandbox (ephemeral user databases)
+  # ===========================================
+  mariadb-sandbox:
+    image: mariadb:11
+    container_name: pisangdb-mariadb-sandbox
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-mariadbrootdev}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadbsandbox:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 200M
+    networks:
+      - pisangdb-network
+
+  # ===========================================
   # PisangDB Application (TanStack Start)
   # ===========================================
   app:
@@ -78,9 +137,11 @@ services:
     environment:
       # App database connection (metadata)
       DATABASE_URL: postgresql://pisang:${PG_PASSWORD:-pisangdev}@postgres-app:5432/pisangdb
-      # Sandbox database connection (for provisioning)
+      # Sandbox database connections (for provisioning)
       POSTGRES_SANDBOX_URL: postgresql://postgres:${PG_SANDBOX_PASSWORD:-pisangdev}@postgres-sandbox:5432/postgres
-      # Gemini AI API key (optional for MVP)
+      MYSQL_SANDBOX_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-mysqlrootdev}@mysql-sandbox:3306
+      MARIADB_SANDBOX_URL: mysql://root:${MARIADB_ROOT_PASSWORD:-mariadbrootdev}@mariadb-sandbox:3306
+      # Gemini AI API key (optional)
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       # JWT secret for auth
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
@@ -94,6 +155,10 @@ services:
       postgres-app:
         condition: service_healthy
       postgres-sandbox:
+        condition: service_healthy
+      mysql-sandbox:
+        condition: service_healthy
+      mariadb-sandbox:
         condition: service_healthy
     deploy:
       resources:
@@ -113,7 +178,11 @@ volumes:
   pgdata:
     name: pisangdb-pgdata
   pgsandbox:
-    name: pisangdb-pgsandbox
+    name:香蕉db-pgsandbox
+  mysqlsandbox:
+    name:pisangdb-mysqlsandbox
+  mariadbsandbox:
+    name:pisangdb-mariadbsandbox
 
 # ===========================================
 # Network (inter-service communication)
