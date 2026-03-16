@@ -58,8 +58,8 @@ const MAX_ACTIVE_SANDBOXES = 5;
 /** Default host for sandboxes (configurable for dev/prod) */
 const DEFAULT_HOST = process.env.SANDBOX_HOST || "id.pisangdb.com";
 
-/** PostgreSQL default port */
-const POSTGRESQL_PORT = 5432;
+/** PostgreSQL port for sandbox (configurable - 5433 for local Docker, 5432 for production) */
+const POSTGRESQL_PORT = parseInt(process.env.SANDBOX_PORT || "5433", 10);
 
 /** Maximum database size in MB (PRD §6.2.1) */
 const DEFAULT_MAX_SIZE_MB = 100;
