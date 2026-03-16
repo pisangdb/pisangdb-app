@@ -163,6 +163,22 @@ export const aiLogs = pgTable("ai_logs", {
 		.defaultNow(),
 });
 
+export const notifications = pgTable("notifications", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	sandboxId: uuid("sandbox_id")
+		.notNull()
+		.references(() => sandboxes.id),
+	userId: text("user_id")
+		.notNull()
+		.references(() => users.id),
+	type: varchar("type", { length: 20 }).notNull(),
+	message: text("message").notNull(),
+	readAt: timestamp("read_at", { withTimezone: true }),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
@@ -180,3 +196,4 @@ export type NewAiLog = typeof aiLogs.$inferInsert;
 
 export type Template = typeof templates.$inferSelect;
 export type NewTemplate = typeof templates.$inferInsert;
+
