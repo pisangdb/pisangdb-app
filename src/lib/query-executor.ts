@@ -203,7 +203,11 @@ function createSandboxPool(sandbox: {
 		return null;
 	}
 
-	const connectionString = `postgresql://${sandbox.dbUser}:${encodeURIComponent(decryptedPassword)}@${sandbox.host}:${sandbox.port}/${sandbox.dbName}`;
+	const host =
+		process.env.NODE_ENV === "development" && process.env.SANDBOX_HOST
+			? process.env.SANDBOX_HOST
+			: sandbox.host;
+	const connectionString = `postgresql://${sandbox.dbUser}:${encodeURIComponent(decryptedPassword)}@${host}:${sandbox.port}/${sandbox.dbName}`;
 
 	return new Pool({
 		connectionString,

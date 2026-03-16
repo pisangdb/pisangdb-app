@@ -55,8 +55,8 @@ const SESSION_COOKIE_NAME = "session";
 /** Maximum active sandboxes per user (PRD §6.2.1) */
 const MAX_ACTIVE_SANDBOXES = 5;
 
-/** Default host for Indonesia region (PRD §8.3) */
-const DEFAULT_HOST = "id.pisangdb.com";
+/** Default host for sandboxes (configurable for dev/prod) */
+const DEFAULT_HOST = process.env.SANDBOX_HOST || "id.pisangdb.com";
 
 /** PostgreSQL default port */
 const POSTGRESQL_PORT = 5432;

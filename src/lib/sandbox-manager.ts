@@ -11,6 +11,7 @@
  */
 
 import { randomBytes } from "node:crypto";
+import { Pool } from "pg";
 import { getSandboxAdminPool } from "#/db/index";
 import { createLogger } from "#/lib/logger";
 
@@ -241,13 +242,29 @@ export async function createSandboxDatabase(
 		// Step 4: Connect to the new database and grant schema permissions
 		// This is needed because GRANT on DATABASE doesn't automatically grant
 		// permissions on schemas within the database
-		const dbPool = await pool.connect();
+		// We must create a new connection to the target database (not admin pool)
+		const sandboxUrl = process.env.POSTGRES_SANDBOX_URL || "";
+		const schemaPool = new Pool({
+			connectionString: sandboxUrl.replace(/\/postgres$/, `/${dbName}`),
+			max: 1,
+		});
 		try {
-			await dbPool.query(`SET ROLE "${dbUser}"`);
-			// Switch to the new database context
-			await dbPool.query(`SET search_path TO "${dbName}"`);
+			// Grant schema permissions so user can create tables
+			await schemaPool.query(`GRANT ALL ON SCHEMA public TO "${dbUser}"`);
+			await schemaPool.query(
+				`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "${dbUser}"`,
+			);
+			await schemaPool.query(
+				`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "${dbUser}"`,
+			);
+			await schemaPool.query(
+				`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "${dbUser}"`,
+			);
+			await schemaPool.query(
+				`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "${dbUser}"`,
+			);
 		} finally {
-			dbPool.release();
+			await schemaPool.end();
 		}
 
 		// Step 5: Set statement timeout (30 seconds per PRD §12.2)
