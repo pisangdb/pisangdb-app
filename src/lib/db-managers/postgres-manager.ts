@@ -1,8 +1,9 @@
-import { Pool } from "pg";
+import { Pool, Pool } from "pg";
 import type { DbManager, SandboxCredentials } from "./interface";
 
 export class PostgresManager implements DbManager {
 	engine = "postgresql" as const;
+
 	private pool: Pool;
 
 	constructor(adminUrl: string) {

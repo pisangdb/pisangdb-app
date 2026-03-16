@@ -186,13 +186,15 @@ export async function getQueryHistory(sandboxId: string) {
 
 // AI
 export async function generateAiSql(sandboxId: string, prompt: string) {
-	return fetchApi<{ sql: string; explanation: string; tokensUsed: number }>(
-		`/api/sandboxes/${sandboxId}/ai/generate`,
-		{
-			method: "POST",
-			body: JSON.stringify({ prompt }),
-		},
-	);
+	return fetchApi<{
+		sql: string;
+		explanation: string;
+		tokensUsed: number;
+		aiLogId: string;
+	}>(`/api/sandboxes/${sandboxId}/ai/generate`, {
+		method: "POST",
+		body: JSON.stringify({ prompt }),
+	});
 }
 
 export async function executeAiSql(sandboxId: string, aiLogId: string) {
