@@ -326,6 +326,51 @@ export const Route = createFileRoute("/api/sandboxes/")({
 					);
 				}
 
+				// Step 6b: Fetch and execute template SQL if provided
+				if (template_id) {
+					try {
+						// Fetch template from database
+						const [templateRecord] = await db
+							.select({ ddlSql: templates.ddlSql, seedSql: templates.seedSql })
+							.from(templates)
+							.where(eq(templates.id, template_id))
+							.limit(1);
+
+						if (templateRecord?.ddlSql) {
+							// Execute DDL using user-level connection
+							const userConnectionUrl = `${ENGINE_URL_PREFIX[engine]}://${dbUser}:${encodeURIComponent(password)}@${DEFAULT_HOST}:${ENGINE_PORTS[engine]}/${dbName}`;
+							const userDbManager = await getDbManager(
+								engine,
+								userConnectionUrl,
+							);
+
+							// Execute DDL statements
+							if (templateRecord.ddlSql.trim()) {
+								await userDbManager.executeSql(templateRecord.ddlSql);
+								console.log(
+									"[CreateSandbox] Template DDL executed for sandbox:",
+									dbName,
+								);
+							}
+
+							// Execute seed data
+							if (templateRecord.seedSql?.trim()) {
+								await userDbManager.executeSql(templateRecord.seedSql);
+								console.log(
+									"[CreateSandbox] Template seed data executed for sandbox:",
+									dbName,
+								);
+							}
+						}
+					} catch (templateError) {
+						console.error(
+							"[CreateSandbox] Failed to execute template SQL:",
+							templateError,
+						);
+						// Don't fail sandbox creation - template is optional
+					}
+				}
+
 				// Step 7: Encrypt password before storing
 				const encryptedPassword = encryptPassword(password);
 
