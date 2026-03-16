@@ -1,6 +1,7 @@
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "#/components/ui/button";
 import {
 	Field,
@@ -10,20 +11,51 @@ import {
 	FieldSeparator,
 } from "#/components/ui/field";
 import { Input } from "#/components/ui/input";
+import { register } from "#/lib/api-client";
 import { cn } from "#/lib/utils";
 
 export function SignupForm({
 	className,
 	...props
 }: React.ComponentProps<"div">) {
+	const navigate = useNavigate();
 	const [isLoading, setIsLoading] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
+	const [name, setName] = useState("");
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
+	const [error, setError] = useState<string | null>(null);
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+		setError(null);
+
+		if (password !== confirmPassword) {
+			setError("Passwords do not match");
+			return;
+		}
+
+		if (password.length < 8) {
+			setError("Password must be at least 8 characters");
+			return;
+		}
+
 		setIsLoading(true);
-		setTimeout(() => setIsLoading(false), 1200);
+
+		try {
+			await register(email, password, name);
+			toast.success("Account created successfully!");
+			navigate({ to: "/dashboard" });
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "Failed to create account";
+			setError(message);
+			toast.error(message);
+		} finally {
+			setIsLoading(false);
+		}
 	};
 
 	return (
@@ -40,7 +72,7 @@ export function SignupForm({
 								className="size-4"
 							>
 								<path
-									d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
+									d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.32 2.84-8.546 0-.76-.053-1.467-.173-2.053H12.48z"
 									fill="currentColor"
 								/>
 							</svg>
@@ -52,7 +84,14 @@ export function SignupForm({
 
 					<Field>
 						<FieldLabel htmlFor="name">Full Name</FieldLabel>
-						<Input id="name" type="text" placeholder="John Doe" required />
+						<Input
+							id="name"
+							type="text"
+							placeholder="John Doe"
+							required
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+						/>
 					</Field>
 
 					<Field>
@@ -62,6 +101,8 @@ export function SignupForm({
 							type="email"
 							placeholder="you@example.com"
 							required
+							value={email}
+							onChange={(e) => setEmail(e.target.value)}
 						/>
 					</Field>
 
@@ -74,6 +115,8 @@ export function SignupForm({
 									type={showPassword ? "text" : "password"}
 									required
 									className="pr-10"
+									value={password}
+									onChange={(e) => setPassword(e.target.value)}
 								/>
 								<button
 									type="button"
@@ -100,6 +143,8 @@ export function SignupForm({
 									type={showConfirm ? "text" : "password"}
 									required
 									className="pr-10"
+									value={confirmPassword}
+									onChange={(e) => setConfirmPassword(e.target.value)}
 								/>
 								<button
 									type="button"
@@ -122,28 +167,30 @@ export function SignupForm({
 						Use at least 8 characters to protect your account.
 					</FieldDescription>
 
+					{error && <p className="text-sm text-destructive">{error}</p>}
+
 					<Field>
 						<Button type="submit" className="w-full" disabled={isLoading}>
 							{isLoading ? "Creating account…" : "Create account"}
 						</Button>
 						<FieldDescription className="text-center">
 							Already have an account?{" "}
-							<Link to="/login" className="font-medium hover:underline">
+							<a href="/login" className="font-medium hover:underline">
 								Sign in
-							</Link>
+							</a>
 						</FieldDescription>
 					</Field>
 				</FieldGroup>
 			</form>
 			<FieldDescription className="px-2 text-center text-xs">
 				By creating an account, you agree to our{" "}
-				<Link to="/terms" className="hover:underline">
+				<a href="/terms" className="hover:underline">
 					Terms of Service
-				</Link>{" "}
+				</a>{" "}
 				and{" "}
-				<Link to="/privacy" className="hover:underline">
+				<a href="/privacy" className="hover:underline">
 					Privacy Policy
-				</Link>
+				</a>
 				.
 			</FieldDescription>
 		</div>
