@@ -86,7 +86,7 @@ function AiSeederPage() {
 
 		if (sandboxId) {
 			try {
-				const logs = await $getAiLogs({ sandboxId });
+				const logs = await $getAiLogs({ data: { sandboxId } });
 				setAiLogs(logs);
 			} catch {
 				setAiLogs([]);
@@ -105,13 +105,15 @@ function AiSeederPage() {
 
 		try {
 			const result = await $aiGenerate({
-				sandboxId: selectedSandboxId,
-				prompt,
-				mode,
+				data: {
+					sandboxId: selectedSandboxId,
+					prompt,
+					mode,
+				},
 			});
 			setGeneratedResult(result);
 
-			const logs = await $getAiLogs({ sandboxId: selectedSandboxId });
+			const logs = await $getAiLogs({ data: { sandboxId: selectedSandboxId } });
 			setAiLogs(logs);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Generation failed");
@@ -128,9 +130,11 @@ function AiSeederPage() {
 
 		try {
 			const result = await $aiExecute({
-				sandboxId: selectedSandboxId,
-				logId: generatedResult.logId,
-				sql: generatedResult.sqlGenerated,
+				data: {
+					sandboxId: selectedSandboxId,
+					logId: generatedResult.logId,
+					sql: generatedResult.sqlGenerated,
+				},
 			});
 
 			if (result.rowsAffected > 0) {

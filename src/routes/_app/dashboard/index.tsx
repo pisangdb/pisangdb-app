@@ -303,221 +303,195 @@ export function DashboardHome() {
 					</Link>
 				</Button>
 			</div>
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				{stats.map((stat) => (
+					<Card key={stat.label} className="gap-3">
+						<CardHeader className="flex flex-row items-center justify-between pb-0">
+							<CardDescription className="text-xs font-medium">
+								{stat.label}
+							</CardDescription>
+							<div
+								className={`flex size-7 items-center justify-center rounded-md ${stat.bg} ${stat.accent}`}
+							>
+								{stat.icon}
+							</div>
+						</CardHeader>
+						<CardContent>
+							<div className="flex items-baseline gap-1.5">
+								<span className="text-2xl font-bold">{stat.value}</span>
+								<span className="text-xs text-muted-foreground">
+									{stat.sub}
+								</span>
+							</div>
+						</CardContent>
+					</Card>
+				))}
+			</div>
 
-			{dashboardState === "loading" ? <DashboardSkeleton /> : null}
-
-			{dashboardState === "error" ? (
-				<Card>
+			<div className="grid gap-4 lg:grid-cols-3">
+				<Card className="lg:col-span-1">
 					<CardHeader>
-						<CardTitle className="text-base">
-							Unable to load dashboard
+						<CardTitle className="text-sm font-semibold">
+							Quick Actions
 						</CardTitle>
-						<CardDescription>
-							Something went wrong while fetching your sandbox overview.
-						</CardDescription>
 					</CardHeader>
-					<CardContent>
-						<Button variant="outline" size="sm" className="gap-1.5">
-							<RefreshCcwIcon className="size-4" />
-							Retry
-						</Button>
+					<CardContent className="flex flex-col gap-2">
+						{quickActions.map((action) => (
+							<Link
+								key={action.label}
+								to={action.href}
+								className="flex items-center gap-3 rounded-lg border border-transparent p-2.5 transition-colors hover:border-border hover:bg-muted/50"
+							>
+								<div
+									className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${action.accent}`}
+								>
+									{action.icon}
+								</div>
+								<div className="min-w-0">
+									<p className="text-sm font-medium">{action.label}</p>
+									<p className="truncate text-xs text-muted-foreground">
+										{action.description}
+									</p>
+								</div>
+							</Link>
+						))}
 					</CardContent>
 				</Card>
-			) : null}
 
-			{dashboardState === "success" ? (
-				<>
-					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-						{stats.map((stat) => (
-							<Card key={stat.label} className="gap-3">
-								<CardHeader className="flex flex-row items-center justify-between pb-0">
-									<CardDescription className="text-xs font-medium">
-										{stat.label}
-									</CardDescription>
-									<div
-										className={`flex size-7 items-center justify-center rounded-md ${stat.bg} ${stat.accent}`}
-									>
-										{stat.icon}
-									</div>
-								</CardHeader>
-								<CardContent>
-									<div className="flex items-baseline gap-1.5">
-										<span className="text-2xl font-bold">{stat.value}</span>
-										<span className="text-xs text-muted-foreground">
-											{stat.sub}
-										</span>
-									</div>
-								</CardContent>
-							</Card>
-						))}
-					</div>
-
-					<div className="grid gap-4 lg:grid-cols-3">
-						<Card className="lg:col-span-1">
-							<CardHeader>
-								<CardTitle className="text-sm font-semibold">
-									Quick Actions
-								</CardTitle>
-							</CardHeader>
-							<CardContent className="flex flex-col gap-2">
-								{quickActions.map((action) => (
-									<Link
-										key={action.label}
-										to={action.href}
-										className="flex items-center gap-3 rounded-lg border border-transparent p-2.5 transition-colors hover:border-border hover:bg-muted/50"
-									>
-										<div
-											className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${action.accent}`}
-										>
-											{action.icon}
-										</div>
-										<div className="min-w-0">
-											<p className="text-sm font-medium">{action.label}</p>
-											<p className="truncate text-xs text-muted-foreground">
-												{action.description}
-											</p>
-										</div>
-									</Link>
-								))}
-							</CardContent>
-						</Card>
-
-						<Card className="lg:col-span-2">
-							<CardHeader className="flex flex-row items-center justify-between">
-								<div>
-									<CardTitle className="text-sm font-semibold">
-										Recent Sandboxes
-									</CardTitle>
-									<CardDescription className="text-xs">
-										Your latest database sandboxes
-									</CardDescription>
-								</div>
-								<Button asChild variant="ghost" size="sm" className="text-xs">
-									<Link to="/dashboard/sandboxes">View all</Link>
+				<Card className="lg:col-span-2">
+					<CardHeader className="flex flex-row items-center justify-between">
+						<div>
+							<CardTitle className="text-sm font-semibold">
+								Recent Sandboxes
+							</CardTitle>
+							<CardDescription className="text-xs">
+								Your latest database sandboxes
+							</CardDescription>
+						</div>
+						<Button asChild variant="ghost" size="sm" className="text-xs">
+							<Link to="/dashboard/sandboxes">View all</Link>
+						</Button>
+					</CardHeader>
+					<CardContent className="flex flex-col gap-2">
+						{recentSandboxes.length === 0 ? (
+							<div className="rounded-lg border border-dashed p-6 text-center">
+								<p className="text-sm font-medium">No sandbox yet</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									Create your first sandbox to start testing quickly.
+								</p>
+								<Button asChild size="sm" className="mt-4">
+									<Link to="/dashboard/sandboxes/new">Create sandbox</Link>
 								</Button>
-							</CardHeader>
-							<CardContent className="flex flex-col gap-2">
-								{recentSandboxes.length === 0 ? (
-									<div className="rounded-lg border border-dashed p-6 text-center">
-										<p className="text-sm font-medium">No sandbox yet</p>
-										<p className="mt-1 text-xs text-muted-foreground">
-											Create your first sandbox to start testing quickly.
-										</p>
-										<Button asChild size="sm" className="mt-4">
-											<Link to="/dashboard/sandboxes/new">Create sandbox</Link>
-										</Button>
-									</div>
-								) : (
-									recentSandboxes.map((sb) => {
-										const status = statusConfig[sb.status];
-										return (
-											<div
-												key={sb.id}
-												className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40 ${
-													sb.status === "expired" || sb.status === "destroying"
-														? "opacity-50 grayscale"
-														: sb.status === "expiring"
-															? "opacity-70"
-															: ""
-												}`}
+							</div>
+						) : (
+							recentSandboxes.map((sb) => {
+								const status = statusConfig[sb.status];
+								return (
+									<div
+										key={sb.id}
+										className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40 ${
+											sb.status === "expired" || sb.status === "destroying"
+												? "opacity-50 grayscale"
+												: sb.status === "expiring"
+													? "opacity-70"
+													: ""
+										}`}
+									>
+										<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">
+											{sb.engineEmoji}
+										</div>
+
+										<div className="min-w-0 flex-1">
+											<Link
+												to="/dashboard/sandboxes/$id"
+												params={{ id: sb.id }}
+												className="truncate font-mono text-sm font-medium hover:underline"
 											>
-												<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">
-													{sb.engineEmoji}
-												</div>
-
-												<div className="min-w-0 flex-1">
-													<Link
-														to="/dashboard/sandboxes/$id"
-														params={{ id: sb.id }}
-														className="truncate font-mono text-sm font-medium hover:underline"
-													>
-														{sb.name}
-													</Link>
-													<div className="flex items-center gap-2 text-xs text-muted-foreground">
-														<span>{sb.engine}</span>
-														<span>·</span>
-														<span>{sb.region}</span>
-														<span>·</span>
-														<span>Created {sb.createdAt}</span>
-													</div>
-												</div>
-
-												<div className="flex shrink-0 flex-col items-end gap-1">
-													<Badge
-														variant={status.variant}
-														className="px-1.5 py-0 text-[10px]"
-													>
-														{status.label}
-													</Badge>
-													<div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-														<ClockIcon className="size-3" />
-														{sb.ttl}
-													</div>
-													<div className="mt-1 flex items-center gap-1">
-														<Button
-															variant="outline"
-															size="icon"
-															className="size-6"
-															onClick={() => {
-																void onCopyConnection(sb.id, sb.connectionUrl);
-															}}
-															disabled={pendingAction?.id === sb.id}
-															title="Copy connection URL"
-														>
-															<CopyIcon className="size-3" />
-														</Button>
-														<Button
-															variant="outline"
-															size="icon"
-															className="size-6"
-															onClick={() => {
-																void onMockAction(sb.id, "extend");
-															}}
-															disabled={sb.status !== "active"}
-															title="Extend sandbox"
-														>
-															<RefreshCcwIcon
-																className={`size-3 ${pendingAction?.id === sb.id && pendingAction.type === "extend" ? "animate-spin" : ""}`}
-															/>
-														</Button>
-														<Button
-															variant="outline"
-															size="icon"
-															className="size-6"
-															onClick={() => {
-																void onMockAction(sb.id, "delete");
-															}}
-															disabled={sb.status === "expired"}
-															title="Delete sandbox"
-														>
-															{pendingAction?.id === sb.id &&
-															pendingAction.type === "delete" ? (
-																<RefreshCcwIcon className="size-3 animate-spin" />
-															) : (
-																<Trash2Icon className="size-3" />
-															)}
-														</Button>
-													</div>
-													{copiedId === sb.id ? (
-														<p className="text-[10px] text-muted-foreground">
-															Copied
-														</p>
-													) : null}
-													{actionResult?.id === sb.id ? (
-														<p className="text-[10px] text-muted-foreground">
-															{actionResult.message}
-														</p>
-													) : null}
-												</div>
+												{sb.name}
+											</Link>
+											<div className="flex items-center gap-2 text-xs text-muted-foreground">
+												<span>{sb.engine}</span>
+												<span>·</span>
+												<span>{sb.region}</span>
+												<span>·</span>
+												<span>Created {sb.createdAt}</span>
 											</div>
-										);
-									})
-								)}
-							</CardContent>
-						</Card>
-					</div>
-				</>
-			) : null}
+										</div>
+
+										<div className="flex shrink-0 flex-col items-end gap-1">
+											<Badge
+												variant={status.variant}
+												className="px-1.5 py-0 text-[10px]"
+											>
+												{status.label}
+											</Badge>
+											<div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+												<ClockIcon className="size-3" />
+												{sb.ttl}
+											</div>
+											<div className="mt-1 flex items-center gap-1">
+												<Button
+													variant="outline"
+													size="icon"
+													className="size-6"
+													onClick={() => {
+														void onCopyConnection(sb.id, sb.connectionUrl);
+													}}
+													disabled={pendingAction?.id === sb.id}
+													title="Copy connection URL"
+												>
+													<CopyIcon className="size-3" />
+												</Button>
+												<Button
+													variant="outline"
+													size="icon"
+													className="size-6"
+													onClick={() => {
+														void onMockAction(sb.id, "extend");
+													}}
+													disabled={sb.status !== "active"}
+													title="Extend sandbox"
+												>
+													<RefreshCcwIcon
+														className={`size-3 ${pendingAction?.id === sb.id && pendingAction.type === "extend" ? "animate-spin" : ""}`}
+													/>
+												</Button>
+												<Button
+													variant="outline"
+													size="icon"
+													className="size-6"
+													onClick={() => {
+														void onMockAction(sb.id, "delete");
+													}}
+													disabled={sb.status === "expired"}
+													title="Delete sandbox"
+												>
+													{pendingAction?.id === sb.id &&
+													pendingAction.type === "delete" ? (
+														<RefreshCcwIcon className="size-3 animate-spin" />
+													) : (
+														<Trash2Icon className="size-3" />
+													)}
+												</Button>
+											</div>
+											{copiedId === sb.id ? (
+												<p className="text-[10px] text-muted-foreground">
+													Copied
+												</p>
+											) : null}
+											{actionResult?.id === sb.id ? (
+												<p className="text-[10px] text-muted-foreground">
+													{actionResult.message}
+												</p>
+											) : null}
+										</div>
+									</div>
+								);
+							})
+						)}
+					</CardContent>
+				</Card>
+			</div>
 		</div>
 	);
 }

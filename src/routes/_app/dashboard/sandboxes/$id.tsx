@@ -131,7 +131,7 @@ function SandboxDetailPage() {
 
 	const ttl = formatTtl(sandbox.expiredAt);
 
-	const handleExtend = async (duration: number) => {
+	const handleExtend = async (duration: 1 | 6 | 12 | 24) => {
 		setExtendOpen(false);
 		try {
 			await $extendSandboxFn({
@@ -215,7 +215,7 @@ function SandboxDetailPage() {
 											key={d}
 											type="button"
 											className="rounded px-4 py-1.5 text-left text-xs hover:bg-muted"
-											onClick={() => handleExtend(d)}
+											onClick={() => handleExtend(d as 1 | 6 | 12 | 24)}
 										>
 											+{d}h
 										</button>
