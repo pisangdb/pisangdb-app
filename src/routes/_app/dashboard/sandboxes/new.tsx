@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeftIcon, CopyIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -12,6 +13,8 @@ import {
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import type { SandboxDetail } from "#/lib/types";
+import { $createSandbox } from "#/modules/sandboxes/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/new")({
 	head: () => ({ meta: [{ title: "New Sandbox — PisangDB" }] }),
@@ -52,6 +55,15 @@ const retentionOptions = [
 ];
 const templateOptions = ["Blank", "E-commerce", "Blog", "Inventory"];
 
+const RETENTION_MAP: Record<string, 1 | 6 | 12 | 24 | 72 | 168> = {
+	"1 hour": 1,
+	"6 hours": 6,
+	"12 hours": 12,
+	"24 hours": 24,
+	"3 days": 72,
+	"7 days": 168,
+};
+
 function NewSandboxPage() {
 	const [engine, setEngine] = useState<Engine>("postgresql");
 	const [region, setRegion] = useState<Region>("id");
@@ -60,19 +72,48 @@ function NewSandboxPage() {
 	const [template, setTemplate] = useState("Blank");
 	const [copied, setCopied] = useState(false);
 	const [creating, setCreating] = useState<"idle" | "loading" | "done">("idle");
+	const [createdSandbox, setCreatedSandbox] = useState<SandboxDetail | null>(
+		null,
+	);
 
-	const handleCreate = () => {
+	const handleCreate = async () => {
 		setCreating("loading");
-		setTimeout(() => {
+
+		try {
+			const result = await $createSandbox({
+				data: {
+					displayName: name,
+					engine,
+					region,
+					retentionHours: RETENTION_MAP[retention] ?? 6,
+				},
+			});
+
+			setCreatedSandbox(result);
 			setCreating("done");
-			setTimeout(() => setCreating("idle"), 3000);
-		}, 1200);
+			toast.success("Sandbox created successfully!");
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Failed to create sandbox",
+			);
+			setCreating("idle");
+		}
 	};
 
 	const selectedEngine =
 		engineOptions.find((item) => item.value === engine) ?? engineOptions[0];
 
 	const generated = useMemo(() => {
+		if (createdSandbox) {
+			return {
+				dbName: createdSandbox.dbName,
+				dbUser: createdSandbox.dbUser,
+				host: createdSandbox.host,
+				port: createdSandbox.port,
+				connectionUrl: createdSandbox.connectionUrl,
+			};
+		}
+
 		const normalizedName =
 			name
 				.toLowerCase()
@@ -86,14 +127,13 @@ function NewSandboxPage() {
 		const protocol = engine === "postgresql" ? "postgresql" : "mysql";
 		const connectionUrl = `${protocol}://${dbUser}:***@${host}:${selectedEngine.port}/${dbName}`;
 
-		return { dbName, dbUser, host, connectionUrl };
-	}, [engine, name, region, selectedEngine.port]);
+		return { dbName, dbUser, host, port: selectedEngine.port, connectionUrl };
+	}, [engine, name, region, selectedEngine.port, createdSandbox]);
 
 	const copyEnv = async () => {
+		const url = createdSandbox?.connectionUrl ?? generated.connectionUrl;
 		if (typeof navigator === "undefined" || !navigator.clipboard) return;
-		await navigator.clipboard.writeText(
-			`DATABASE_URL=${generated.connectionUrl}`,
-		);
+		await navigator.clipboard.writeText(`DATABASE_URL=${url}`);
 		setCopied(true);
 		setTimeout(() => {
 			setCopied(false);
@@ -252,7 +292,7 @@ function NewSandboxPage() {
 								Host: <span className="font-medium">{generated.host}</span>
 							</p>
 							<p>
-								Port: <span className="font-medium">{selectedEngine.port}</span>
+								Port: <span className="font-medium">{generated.port}</span>
 							</p>
 							<p>
 								Database:{" "}
@@ -264,7 +304,11 @@ function NewSandboxPage() {
 							</p>
 							<p>
 								Password:{" "}
-								<span className="font-mono text-xs">••••••••••••••••</span>
+								<span className="font-mono text-xs">
+									{createdSandbox
+										? createdSandbox.dbPassword
+										: "••••••••••••••••"}
+								</span>
 							</p>
 							<Badge variant="outline" className="w-fit text-[10px]">
 								TTL: {retention}
