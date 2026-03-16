@@ -124,6 +124,113 @@ export const Route = createFileRoute("/api/templates/")({
 					);
 				}
 			},
+
+			// ========================================================================
+			// POST /api/templates - Create a custom template
+			// ========================================================================
+			POST: async ({ request }) => {
+				// Step 1: Authenticate user
+				const token = getCookie(SESSION_COOKIE_NAME);
+
+				if (!token) {
+					return errorResponse(
+						"authentication_required",
+						"Authentication required. Please log in.",
+						401,
+					);
+				}
+
+				const payload = await verifyToken(token);
+				if (!payload) {
+					return errorResponse(
+						"authentication_required",
+						"Invalid or expired session. Please log in again.",
+						401,
+					);
+				}
+
+				const userId = payload.userId;
+
+				// Step 2: Parse request body
+				let body: unknown;
+				try {
+					body = await request.json();
+				} catch {
+					return errorResponse("invalid_json_body", "Invalid JSON body", 400);
+				}
+
+				const schema = z.object({
+					name: z
+						.string()
+						.min(1, "Name is required")
+						.max(50, "Name must be 50 characters or less"),
+					description: z
+						.string()
+						.max(255, "Description must be 255 characters or less")
+						.optional(),
+					engine: z.enum(["postgresql", "mysql", "mariadb"]),
+					ddlSql: z.string().min(1, "DDL SQL is required"),
+					seedSql: z.string().optional().default(""),
+				});
+
+				const parsed = schema.safeParse(body);
+				if (!parsed.success) {
+					const firstError = parsed.error.issues[0];
+					return errorResponse(
+						"VALIDATION_ERROR",
+						firstError?.message ?? "Invalid request",
+						400,
+					);
+				}
+
+				const { name, description, engine, ddlSql, seedSql } = parsed.data;
+
+				// Step 3: Create template
+				try {
+					const result = await db
+						.insert(templates)
+						.values({
+							name,
+							description,
+							engine,
+							ddlSql,
+							seedSql,
+							isBuiltin: false,
+							userId,
+						})
+						.returning({
+							id: templates.id,
+							name: templates.name,
+							description: templates.description,
+							engine: templates.engine,
+							isBuiltin: templates.isBuiltin,
+							createdAt: templates.createdAt,
+						});
+
+					const template = result[0];
+
+					return successResponse(
+						{
+							template: {
+								id: template.id,
+								name: template.name,
+								description: template.description,
+								engine: template.engine,
+								is_builtin: template.isBuiltin,
+								created_at: template.createdAt.toISOString(),
+							},
+						},
+						201,
+					);
+				} catch (dbError) {
+					console.error("[CreateTemplate] Database error:", dbError);
+					return errorResponse(
+						"internal_server_error",
+						"Failed to create template",
+						500,
+					);
+				}
+			},
 		},
 	},
 });

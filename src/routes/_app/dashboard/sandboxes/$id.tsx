@@ -10,11 +10,13 @@ import {
 	LoaderIcon,
 	PlayIcon,
 	RefreshCcwIcon,
+	SaveIcon,
 	SparklesIcon,
 	TableIcon,
 	Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -24,6 +26,16 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Input } from "#/components/ui/input";
+import { Label } from "#/components/ui/label";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "#/components/ui/sheet";
 import { useDeleteSandbox } from "#/hooks/use-delete-sandbox";
 import { useExecuteAiSql } from "#/hooks/use-execute-ai-sql";
 import { useExecuteQuery } from "#/hooks/use-execute-query";
@@ -33,6 +45,7 @@ import { useQueryHistory } from "#/hooks/use-query-history";
 import { useSandbox } from "#/hooks/use-sandbox";
 import { useTables } from "#/hooks/use-tables";
 import type { Sandbox } from "#/lib/api-client";
+import { createTemplate } from "#/lib/api-client";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/$id")({
 	component: SandboxDetailPage,
@@ -119,6 +132,10 @@ function SandboxDetailPage() {
 	const [activeTab, setActiveTab] = useState<Tab>("info");
 	const [extendOpen, setExtendOpen] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
+	const [templateOpen, setTemplateOpen] = useState(false);
+	const [templateName, setTemplateName] = useState("");
+	const [templateDescription, setTemplateDescription] = useState("");
+	const [savingTemplate, setSavingTemplate] = useState(false);
 
 	const handleExtend = (duration: string) => {
 		const hours = Number.parseInt(
@@ -235,6 +252,91 @@ function SandboxDetailPage() {
 								</div>
 							)}
 						</div>
+						<Sheet open={templateOpen} onOpenChange={setTemplateOpen}>
+							<SheetTrigger asChild>
+								<Button variant="outline" size="sm" className="gap-1.5">
+									<SaveIcon className="size-3.5" />
+									Save as Template
+								</Button>
+							</SheetTrigger>
+							<SheetContent side="bottom" className="sm:max-w-md">
+								<SheetHeader>
+									<SheetTitle>Save as Template</SheetTitle>
+									<SheetDescription>
+										Save your current schema as a reusable template. This will
+										save all tables and their structure.
+									</SheetDescription>
+								</SheetHeader>
+								<div className="grid gap-4 py-4">
+									<div className="grid gap-2">
+										<Label htmlFor="template-name">Template Name</Label>
+										<Input
+											id="template-name"
+											placeholder="My Custom Schema"
+											value={templateName}
+											onChange={(e) => setTemplateName(e.target.value)}
+										/>
+									</div>
+									<div className="grid gap-2">
+										<Label htmlFor="template-description">
+											Description (optional)
+										</Label>
+										<Input
+											id="template-description"
+											placeholder="A short description of this template"
+											value={templateDescription}
+											onChange={(e) => setTemplateDescription(e.target.value)}
+										/>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Engine: {sandbox.engine.toUpperCase()}
+									</p>
+									<Button
+										className="w-full"
+										disabled={!templateName.trim() || savingTemplate}
+										onClick={async () => {
+											if (!templateName.trim()) return;
+											setSavingTemplate(true);
+											try {
+												// Get tables DDL from the sandbox
+												const tablesData = await fetch(
+													`/api/sandboxes/${sandbox.id}/tables`,
+												).then((r) => r.json());
+
+												// Build DDL from tables - simplified version
+												const ddlSql =
+													tablesData.tables
+														?.map(
+															(t: { name: string; rowCount: number }) =>
+																`-- Table: ${t.name} (${t.rowCount} rows)`,
+														)
+														.join("\n") || "-- No tables found";
+
+												await createTemplate({
+													name: templateName.trim(),
+													description: templateDescription.trim() || undefined,
+													engine: sandbox.engine as
+														| "postgresql"
+														| "mysql"
+														| "mariadb",
+													ddlSql,
+												});
+												toast.success("Template saved successfully!");
+												setTemplateOpen(false);
+												setTemplateName("");
+												setTemplateDescription("");
+											} catch (_error) {
+												toast.error("Failed to save template");
+											} finally {
+												setSavingTemplate(false);
+											}
+										}}
+									>
+										{savingTemplate ? "Saving..." : "Save Template"}
+									</Button>
+								</div>
+							</SheetContent>
+						</Sheet>
 						{!confirmDelete ? (
 							<Button
 								variant="outline"

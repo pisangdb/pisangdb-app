@@ -231,3 +231,18 @@ export async function getTemplates(engine?: string) {
 	const query = engine ? `?engine=${engine}` : "";
 	return fetchApi<{ templates: Template[] }>(`/api/templates/${query}`);
 }
+
+export interface CreateTemplateBody {
+	name: string;
+	description?: string;
+	engine: "postgresql" | "mysql" | "mariadb";
+	ddlSql: string;
+	seedSql?: string;
+}
+
+export async function createTemplate(body: CreateTemplateBody) {
+	return fetchApi<{ template: Template }>("/api/templates", {
+		method: "POST",
+		body: JSON.stringify(body),
+	});
+}
