@@ -2,6 +2,7 @@ import {
 	createFileRoute,
 	Link,
 	Outlet,
+	redirect,
 	useMatches,
 } from "@tanstack/react-router";
 import { AppSidebar } from "#/components/app-sidebar";
@@ -20,8 +21,31 @@ import {
 	SidebarTrigger,
 } from "#/components/ui/sidebar";
 import { TooltipProvider } from "#/components/ui/tooltip";
+import { $getMe } from "#/modules/auth/serverFn";
 
 export const Route = createFileRoute("/_app")({
+	beforeLoad: async () => {
+		try {
+			const user = await $getMe();
+			if (!user) {
+				throw redirect({
+					to: "/login",
+					replace: true,
+				});
+			}
+			return { user };
+		} catch (error) {
+			// If error is a redirect, re-throw it
+			if (error instanceof Error && "status" in error) {
+				throw error;
+			}
+			// Otherwise redirect to login
+			throw redirect({
+				to: "/login",
+				replace: true,
+			});
+		}
+	},
 	component: AppLayout,
 });
 

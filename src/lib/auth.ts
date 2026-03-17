@@ -22,6 +22,15 @@ export const auth = betterAuth({
 			},
 		},
 	},
+	// Session configuration: 7 days expiry (as per PRD)
+	session: {
+		expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
+		updateAgeUntilAndTime: 60 * 60 * 24, // Update session if older than 1 day
+		cookieCache: {
+			enabled: true,
+			maxAge: 60 * 60 * 24 * 7, // Match session expiry
+		},
+	},
 	emailAndPassword: {
 		enabled: true,
 		minPasswordLength: 8,

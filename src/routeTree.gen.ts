@@ -18,6 +18,7 @@ import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
+import { Route as ApiAuthForgetPasswordRouteImport } from './routes/api/auth/forget-password'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AppDashboardSettingsRouteImport } from './routes/_app/dashboard/settings'
 import { Route as AppDashboardSandboxesRouteImport } from './routes/_app/dashboard/sandboxes'
@@ -72,6 +73,11 @@ const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppDashboardRoute,
+} as any)
+const ApiAuthForgetPasswordRoute = ApiAuthForgetPasswordRouteImport.update({
+  id: '/api/auth/forget-password',
+  path: '/api/auth/forget-password',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/forget-password': typeof ApiAuthForgetPasswordRoute
   '/dashboard/': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
@@ -159,6 +166,7 @@ export interface FileRoutesByTo {
   '/dashboard/help': typeof AppDashboardHelpRoute
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/forget-password': typeof ApiAuthForgetPasswordRoute
   '/dashboard': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
@@ -181,6 +189,7 @@ export interface FileRoutesById {
   '/_app/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/_app/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/forget-password': typeof ApiAuthForgetPasswordRoute
   '/_app/dashboard/': typeof AppDashboardIndexRoute
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
@@ -203,6 +212,7 @@ export interface FileRouteTypes {
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
     | '/api/auth/$'
+    | '/api/auth/forget-password'
     | '/dashboard/'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/dashboard/help'
     | '/dashboard/settings'
     | '/api/auth/$'
+    | '/api/auth/forget-password'
     | '/dashboard'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/_app/dashboard/sandboxes'
     | '/_app/dashboard/settings'
     | '/api/auth/$'
+    | '/api/auth/forget-password'
     | '/_app/dashboard/'
     | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
@@ -257,6 +269,7 @@ export interface RootRouteChildren {
   authLoginRoute: typeof authLoginRoute
   authRegisterRoute: typeof authRegisterRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiAuthForgetPasswordRoute: typeof ApiAuthForgetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -323,6 +336,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof AppDashboardIndexRouteImport
       parentRoute: typeof AppDashboardRoute
+    }
+    '/api/auth/forget-password': {
+      id: '/api/auth/forget-password'
+      path: '/api/auth/forget-password'
+      fullPath: '/api/auth/forget-password'
+      preLoaderRoute: typeof ApiAuthForgetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -457,6 +477,7 @@ const rootRouteChildren: RootRouteChildren = {
   authLoginRoute: authLoginRoute,
   authRegisterRoute: authRegisterRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiAuthForgetPasswordRoute: ApiAuthForgetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
