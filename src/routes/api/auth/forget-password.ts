@@ -7,7 +7,7 @@ import * as schema from "#/db/schema";
 // Initialize email transporter with SMTP config
 const transporter = nodemailer.createTransport({
 	host: process.env.SMTP_HOST || "smtp.mailgun.org",
-	port: parseInt(process.env.SMTP_PORT || "587"),
+	port: parseInt(process.env.SMTP_PORT || "587", 10),
 	secure: false,
 	auth: {
 		user: process.env.SMTP_USER,
@@ -58,10 +58,13 @@ export const Route = createFileRoute("/api/auth/forget-password")({
 					const resetToken = generateResetToken();
 					const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-					// For now, we'll just log it since we'd need to add a verification table
-					// In production, you'd save this to the database
-					console.log("Password reset token for", email, ":", resetToken);
-					console.log("Expires at:", expiresAt);
+					// Save token to verifications table
+					await db.insert(schema.verifications).values({
+						id: resetToken,
+						identifier: email,
+						value: "password_reset",
+						expiresAt: expiresAt,
+					});
 
 					// Send email
 					const resetLink = `${process.env.BETTER_AUTH_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
