@@ -37,6 +37,10 @@ const ENGINE_LABELS: Record<string, string> = {
 function SqlConsolePage() {
 	const { sandboxes } = Route.useLoaderData();
 	const [selectedSandboxId, setSelectedSandboxId] = useState<string>("");
+	const [historyQueryId, setHistoryQueryId] = useState<string>("");
+	const [selectedEngine, setSelectedEngine] = useState<
+		"postgresql" | "mysql" | "mariadb"
+	>("postgresql");
 	const [query, setQuery] = useState("SELECT 1 as test;");
 	const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
 	const [queryError, setQueryError] = useState<string | null>(null);
@@ -49,10 +53,14 @@ function SqlConsolePage() {
 
 	const handleSandboxChange = async (sandboxId: string) => {
 		setSelectedSandboxId(sandboxId);
+		setHistoryQueryId("");
 		setQueryResult(null);
 		setQueryError(null);
 
 		if (sandboxId) {
+			const sandbox = activeSandboxes.find((s) => s.id === sandboxId);
+			setSelectedEngine(sandbox?.engine || "postgresql");
+			setQuery("SELECT 1 as test;");
 			try {
 				const historyData = await $getQueryHistory({ data: { sandboxId } });
 				setHistory(historyData);
@@ -92,12 +100,14 @@ function SqlConsolePage() {
 	};
 
 	const handleClear = () => {
-		setQuery("");
+		setHistoryQueryId("");
+		setQuery("SELECT 1 as test;");
 		setQueryResult(null);
 		setQueryError(null);
 	};
 
-	const handleHistoryClick = (q: string) => {
+	const handleHistoryClick = (q: string, id: string) => {
+		setHistoryQueryId(id);
 		setQuery(q);
 	};
 
@@ -141,13 +151,11 @@ function SqlConsolePage() {
 						</div>
 
 						<SqlEditor
+							key={`${selectedSandboxId}-${historyQueryId}`}
 							value={query}
 							onChange={setQuery}
 							onSubmit={handleRun}
-							engine={
-								activeSandboxes.find((s) => s.id === selectedSandboxId)
-									?.engine || "postgresql"
-							}
+							engine={selectedEngine}
 							disabled={isLoading}
 							placeholder="SELECT * FROM users LIMIT 10;"
 							className="min-h-48"
@@ -262,7 +270,7 @@ function SqlConsolePage() {
 										key={item.id}
 										type="button"
 										className="w-full cursor-pointer rounded-md border p-2 text-left hover:bg-muted/50"
-										onClick={() => handleHistoryClick(item.query)}
+										onClick={() => handleHistoryClick(item.query, item.id)}
 									>
 										<p className="line-clamp-1 text-xs font-mono">
 											{item.query}

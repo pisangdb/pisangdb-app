@@ -32,6 +32,10 @@ const defaultTheme = EditorView.theme({
 	".cm-content": {
 		fontFamily: "var(--font-mono)",
 		padding: "8px 0",
+		caretColor: "var(--primary)",
+	},
+	".cm-cursor": {
+		borderLeft: "2px solid var(--primary)",
 	},
 	".cm-line": {
 		padding: "0 8px",
@@ -43,9 +47,6 @@ const defaultTheme = EditorView.theme({
 	},
 	".cm-activeLineGutter": {
 		backgroundColor: "var(--accent)",
-	},
-	"&.cm-focused .cm-cursor": {
-		borderLeftColor: "var(--foreground)",
 	},
 	"&.cm-focused .cm-selectionBackground, ::selection": {
 		backgroundColor: "var(--accent)",
@@ -65,7 +66,6 @@ export function SqlEditor({
 	const viewRef = useRef<EditorView | null>(null);
 	const onChangeRef = useRef(onChange);
 	const onSubmitRef = useRef(onSubmit);
-	const valueRef = useRef(value);
 
 	useEffect(() => {
 		onChangeRef.current = onChange;
@@ -75,42 +75,25 @@ export function SqlEditor({
 		onSubmitRef.current = onSubmit;
 	}, [onSubmit]);
 
-	// Sync external value changes into editor
-	useEffect(() => {
-		if (!viewRef.current) return;
-		const currentValue = viewRef.current.state.doc.toString();
-		if (value !== currentValue) {
-			valueRef.current = value;
-			viewRef.current.dispatch({
-				changes: {
-					from: 0,
-					to: currentValue.length,
-					insert: value,
-				},
-			});
-		}
-	}, [value]);
-
+	// biome-ignore lint/correctness/useExhaustiveDependencies: editor must not re-mount on keystrokes; controlled via React key prop
 	useEffect(() => {
 		if (!editorRef.current) return;
 
 		const dialect =
 			engine === "mysql" || engine === "mariadb" ? MySQL : PostgreSQL;
 
-		const submitKeymap = onSubmit
-			? [
-					{
-						key: "Mod-Enter",
-						run: () => {
-							onSubmitRef.current?.();
-							return true;
-						},
-					},
-				]
-			: [];
+		const submitKeymap = [
+			{
+				key: "Mod-Enter",
+				run: () => {
+					onSubmitRef.current?.();
+					return true;
+				},
+			},
+		];
 
 		const state = EditorState.create({
-			doc: valueRef.current,
+			doc: value,
 			extensions: [
 				lineNumbers(),
 				highlightActiveLineGutter(),
@@ -121,12 +104,10 @@ export function SqlEditor({
 				EditorView.updateListener.of((update) => {
 					if (update.docChanged) {
 						const newValue = update.state.doc.toString();
-						valueRef.current = newValue;
 						onChangeRef.current(newValue);
 					}
 				}),
 				EditorView.editable.of(!disabled),
-				EditorState.readOnly.of(disabled),
 				placeholder(placeholderText),
 			],
 		});
@@ -142,7 +123,7 @@ export function SqlEditor({
 			view.destroy();
 			viewRef.current = null;
 		};
-	}, [engine, disabled, placeholderText, onSubmit]);
+	}, [engine]);
 
 	return (
 		<div
