@@ -135,6 +135,26 @@ export async function deprovisionMySQL(
 	await mysqlPool.query("FLUSH PRIVILEGES");
 }
 
+export async function deprovisionMariaDB(
+	pool: AdminPool,
+	dbName: string,
+	dbUser: string,
+): Promise<void> {
+	// MariaDB uses the same protocol as MySQL, so we can reuse mysql2
+	// But we need to use the correct syntax for MariaDB
+	const mysqlPool = pool as MySqlPool;
+	const [rows] = await mysqlPool.query("SHOW PROCESSLIST");
+	const processes = rows as { Id: number; User: string }[];
+	for (const proc of processes) {
+		if (proc.User === dbUser) {
+			await mysqlPool.query(`KILL ${proc.Id}`);
+		}
+	}
+	await mysqlPool.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
+	await mysqlPool.query(`DROP USER IF EXISTS '${dbUser}'@'%'`);
+	await mysqlPool.query("FLUSH PRIVILEGES");
+}
+
 export const ENGINE_PORTS: Record<DbEngine, number> = {
 	postgresql: 5432,
 	mysql: 3306,

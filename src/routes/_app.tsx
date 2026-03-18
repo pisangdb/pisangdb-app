@@ -23,6 +23,12 @@ import {
 import { TooltipProvider } from "#/components/ui/tooltip";
 import { $getMe } from "#/modules/auth/serverFn";
 
+if (typeof window === "undefined") {
+	import("#/lib/ephemeral-engine").then(({ startEphemeralEngine }) => {
+		startEphemeralEngine();
+	});
+}
+
 export const Route = createFileRoute("/_app")({
 	beforeLoad: async () => {
 		try {
