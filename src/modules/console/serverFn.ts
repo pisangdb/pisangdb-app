@@ -20,6 +20,33 @@ import {
 	sandboxIdSchema,
 } from "./schema";
 
+const MOCK_SANDBOXES = [
+	{
+		id: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+		userId: "test-user-id",
+		engine: "postgresql" as const,
+		region: "id",
+		dbName: "pisang_a1b2_test-migration_k8m2n4",
+		dbUser: "sb_a1b2x8",
+		dbPassword: "mock_password_32chars_xxxxxxxx",
+		host: "id.pisangdb.com",
+		port: 5432,
+		status: "active" as const,
+	},
+	{
+		id: "9b1deb4d-3eb7-4c81-aceb-7e3b5d1f2a3c",
+		userId: "test-user-id",
+		engine: "mysql" as const,
+		region: "id",
+		dbName: "pisang_c3d4_ecommerce-dev_z7j1n3",
+		dbUser: "sb_c3d4y9",
+		dbPassword: "mock_password_32chars_yyyyyyyy",
+		host: "id.pisangdb.com",
+		port: 3306,
+		status: "active" as const,
+	},
+];
+
 const FORBIDDEN_PATTERNS = [
 	/DROP\s+DATABASE/i,
 	/ALTER\s+SYSTEM/i,
@@ -60,12 +87,19 @@ export const $executeQuery = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<QueryResult> => {
 		const user = await getCurrentUser();
 
-		const [sandbox] = await db
+		let sandbox = await db
 			.select()
 			.from(sandboxes)
 			.where(
 				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
-			);
+			)
+			.then((rows) => rows[0]);
+
+		if (!sandbox) {
+			sandbox = MOCK_SANDBOXES.find(
+				(s) => s.id === data.sandboxId,
+			) as typeof sandbox;
+		}
 
 		if (!sandbox) {
 			throw new Error("Sandbox not found");
@@ -192,7 +226,10 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 			);
 
 		if (!sandbox) {
-			throw new Error("Sandbox not found");
+			const mockSandbox = MOCK_SANDBOXES.find((s) => s.id === data.sandboxId);
+			if (!mockSandbox) {
+				throw new Error("Sandbox not found");
+			}
 		}
 
 		const history = await db
