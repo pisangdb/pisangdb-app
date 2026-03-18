@@ -125,15 +125,15 @@ export function SignupForm({
 	};
 
 	const handleGoogleSignUp = () => {
-		// Use signIn.social with proper error handling
-		signIn.social({
-			provider: "google",
-			callbackURL: "/dashboard",
-		}).catch((error) => {
-			console.error("Google OAuth error:", error);
-			// Fallback to direct OAuth initiation
-			window.location.href = `/api/auth/signin/google?callbackURL=${encodeURIComponent(window.location.origin + "/dashboard")}`;
-		});
+		signIn
+			.social({
+				provider: "google",
+				callbackURL: "/dashboard",
+			})
+			.catch((error) => {
+				console.error("Google OAuth error:", error);
+				window.location.href = `/api/auth/signin/google?callbackURL=${encodeURIComponent(`${window.location.origin}/dashboard`)}`;
+			});
 	};
 
 	return (
@@ -214,9 +214,7 @@ export function SignupForm({
 					</Field>
 
 					<Field>
-						<FieldLabel htmlFor="confirmPassword">
-							Confirm Password
-						</FieldLabel>
+						<FieldLabel htmlFor="confirmPassword">Confirm Password</FieldLabel>
 						<div className="relative">
 							<Input
 								id="confirmPassword"

@@ -34,7 +34,8 @@ export default function ResetPasswordPage() {
 							Invalid Reset Link
 						</h1>
 						<p className="text-sm text-muted-foreground">
-							The password reset link is missing or invalid. Please request a new one.
+							The password reset link is missing or invalid. Please request a
+							new one.
 						</p>
 						<a
 							href="/forgot-password"

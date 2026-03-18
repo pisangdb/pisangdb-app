@@ -38,3 +38,15 @@ coverage
 
 # Misc
 todos.json
+
+# AI agents / assistants
+.sisyphus/
+.claude/
+.aios/
+.aeon/
+.ai/
+.agents/
+*.ai/
+*_ai/
+ai_*/
+__agents__/
