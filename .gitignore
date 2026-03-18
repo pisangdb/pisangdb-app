@@ -36,6 +36,11 @@ coverage
 # pnpm
 .pnpm-store
 
+# Test files
+test-*.mjs
+*.test.*
+*.spec.*
+
 # Misc
 todos.json
 
