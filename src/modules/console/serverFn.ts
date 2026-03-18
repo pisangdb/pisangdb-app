@@ -55,24 +55,34 @@ async function getCurrentUser() {
 	return session.user;
 }
 
-/**
- * Resolves sandbox connection host/port for the current environment.
- * In development (SANDBOX_HOST=localhost), overrides the stored host with
- * localhost and uses local engine ports (5432 for PostgreSQL, 3306 for MySQL/MariaDB).
- * In production, uses the stored host/port from the database.
- */
+function getSandboxPort(engine: string, region: string): number {
+	const regionKey = region.toUpperCase();
+	if (engine === "postgresql") {
+		const url = process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ?? "";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 5432;
+	}
+	if (engine === "mysql") {
+		const url = process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ?? "";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 3306;
+	}
+	const envUrl = process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ?? "";
+	const match = envUrl.match(/:(\d+)(?:\/|$)/);
+	if (match) return parseInt(match[1], 10);
+	return 3307;
+}
+
 function getSandboxConnection(
 	engine: string,
+	region: string,
 	storedHost: string,
-	storedPort: number,
 ): { host: string; port: number } {
 	const devHost = process.env.SANDBOX_HOST ?? storedHost;
-	if (devHost !== "localhost") {
-		return { host: devHost, port: storedPort };
-	}
-	// In development with localhost, use local ports
-	const devPort = engine === "postgresql" ? 5432 : 3306;
-	return { host: devHost, port: devPort };
+	const port = getSandboxPort(engine, region);
+	return { host: devHost, port };
 }
 
 export const $executeQuery = createServerFn({ method: "POST" })
@@ -100,8 +110,8 @@ export const $executeQuery = createServerFn({ method: "POST" })
 
 		const { host, port } = getSandboxConnection(
 			sandbox.engine,
+			sandbox.region,
 			sandbox.host,
-			sandbox.port,
 		);
 
 		const start = Date.now();
@@ -216,7 +226,7 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 			.from(sandboxes)
 			.where(
 				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
-			); // auth check: ensure sandbox belongs to user
+			);
 
 		const history = await db
 			.select()

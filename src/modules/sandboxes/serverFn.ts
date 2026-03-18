@@ -37,6 +37,26 @@ function createMysqlAdminPool(region: string, engine: "mysql" | "mariadb") {
 	return mysql.createPool(url);
 }
 
+function getSandboxPort(engine: string, region: string): number {
+	const regionKey = region.toUpperCase();
+	if (engine === "postgresql") {
+		const url = process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ?? "";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 5432;
+	}
+	if (engine === "mysql") {
+		const url = process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ?? "";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 3306;
+	}
+	const envUrl = process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ?? "";
+	const match = envUrl.match(/:(\d+)(?:\/|$)/);
+	if (match) return parseInt(match[1], 10);
+	return 3307;
+}
+
 async function getCurrentUser() {
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
@@ -48,12 +68,7 @@ async function getCurrentUser() {
 
 function toSandboxDetail(row: typeof sandboxes.$inferSelect): SandboxDetail {
 	const devHost = process.env.SANDBOX_HOST ?? row.host;
-	const devPort =
-		process.env.NODE_ENV === "development" || devHost === "localhost"
-			? row.engine === "postgresql"
-				? 5432
-				: 3306
-			: row.port;
+	const devPort = getSandboxPort(row.engine, row.region);
 	const proto = row.engine === "postgresql" ? "postgresql" : "mysql";
 	const devConnectionUrl = `${proto}://${row.dbUser}:${row.dbPassword}@${devHost}:${devPort}/${row.dbName}`;
 
@@ -143,12 +158,7 @@ export const $createSandbox = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<SandboxDetail> => {
 		const user = await getCurrentUser();
 
-		const port =
-			data.engine === "postgresql"
-				? 5432
-				: data.engine === "mysql"
-					? 3306
-					: 3307;
+		const port = getSandboxPort(data.engine, data.region);
 
 		const now = new Date();
 		const expiredAt = new Date(
@@ -195,6 +205,15 @@ export const $createSandbox = createServerFn({ method: "POST" })
 		try {
 			if (data.engine === "postgresql") {
 				const pgPool = createPgAdminPool(data.region);
+				const envUrl =
+					process.env[`POSTGRES_SANDBOX_URL_${data.region.toUpperCase()}`] ??
+					"";
+				const urlMatch = envUrl.match(
+					/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)/,
+				);
+				const pgHost = urlMatch?.[3] ?? "localhost";
+				const pgPort = urlMatch?.[4] ?? String(port);
+
 				try {
 					await pgPool.query(`CREATE DATABASE "${dbName}"`);
 					await pgPool.query(
@@ -209,14 +228,32 @@ export const $createSandbox = createServerFn({ method: "POST" })
 					await pgPool.query(
 						`ALTER USER "${dbUser}" SET statement_timeout = '30s'`,
 					);
-					await pgPool.query(
-						`GRANT CONNECT ON DATABASE "${dbName}" TO "${dbUser}"`,
-					);
-					await pgPool.query(
-						`GRANT ALL PRIVILEGES ON SCHEMA public TO "${dbUser}"`,
-					);
 				} finally {
 					await pgPool.end();
+				}
+
+				const targetPool = new Pool({
+					host: pgHost,
+					port: parseInt(pgPort, 10),
+					database: dbName,
+					user: "postgres",
+					password: urlMatch?.[2] ?? "",
+				});
+				try {
+					await targetPool.query(
+						`GRANT CONNECT ON DATABASE "${dbName}" TO "${dbUser}"`,
+					);
+					await targetPool.query(
+						`GRANT ALL PRIVILEGES ON SCHEMA public TO "${dbUser}"`,
+					);
+					await targetPool.query(
+						`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "${dbUser}"`,
+					);
+					await targetPool.query(
+						`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "${dbUser}"`,
+					);
+				} finally {
+					await targetPool.end();
 				}
 			} else {
 				const mysqlPool = createMysqlAdminPool(data.region, data.engine);
@@ -291,7 +328,6 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 			throw new Error("Sandbox not found");
 		}
 
-		// Mark as destroying immediately
 		await db
 			.update(sandboxes)
 			.set({ status: "destroying", updatedAt: new Date() })
