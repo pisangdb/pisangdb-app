@@ -173,6 +173,7 @@ function DashboardSkeleton() {
 export function DashboardHome() {
 	const router = useRouter();
 	const [copiedId, setCopiedId] = useState<string | null>(null);
+	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	const { data: stats, isPending: statsPending } = useQuery({
 		queryKey: ["dashboard-stats"],
@@ -206,6 +207,7 @@ export function DashboardHome() {
 	};
 
 	const handleDelete = async (id: string) => {
+		setDeleteConfirmId(null);
 		await deleteSandbox.mutateAsync(id);
 		void router.invalidate();
 	};
@@ -477,22 +479,47 @@ export function DashboardHome() {
 																className={`size-3 ${extendSandbox.isPending ? "animate-spin" : ""}`}
 															/>
 														</Button>
-														<Button
-															variant="outline"
-															size="icon"
-															className="size-6"
-															onClick={() => {
-																void handleDelete(sb.id);
-															}}
-															disabled={isPending || localStatus === "expired"}
-															title="Delete sandbox"
-														>
-															{deleteSandbox.isPending ? (
-																<RefreshCcwIcon className="size-3 animate-spin" />
-															) : (
-																<Trash2Icon className="size-3" />
-															)}
-														</Button>
+														{deleteConfirmId === sb.id ? (
+															<div className="flex items-center gap-1.5">
+																<span className="text-xs text-destructive">
+																	Delete?
+																</span>
+																<Button
+																	size="icon"
+																	variant="destructive"
+																	className="size-6"
+																	onClick={() => void handleDelete(sb.id)}
+																	title="Confirm delete"
+																>
+																	<Trash2Icon className="size-3" />
+																</Button>
+																<Button
+																	size="icon"
+																	variant="outline"
+																	className="size-6"
+																	onClick={() => setDeleteConfirmId(null)}
+																>
+																	✕
+																</Button>
+															</div>
+														) : (
+															<Button
+																variant="outline"
+																size="icon"
+																className="size-6"
+																onClick={() => setDeleteConfirmId(sb.id)}
+																disabled={
+																	isPending || localStatus === "expired"
+																}
+																title="Delete sandbox"
+															>
+																{deleteSandbox.isPending ? (
+																	<RefreshCcwIcon className="size-3 animate-spin" />
+																) : (
+																	<Trash2Icon className="size-3" />
+																)}
+															</Button>
+														)}
 													</div>
 													{copiedId === sb.id ? (
 														<p className="text-[10px] text-muted-foreground">
