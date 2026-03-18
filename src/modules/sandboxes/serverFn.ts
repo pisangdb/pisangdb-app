@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, eq, sql } from "drizzle-orm";
+import mysql from "mysql2/promise";
+import { Pool } from "pg";
 
 import { db } from "#/db";
 import { sandboxes } from "#/db/schema";
@@ -18,6 +20,23 @@ import {
 	sandboxIdSchema,
 } from "./schema";
 
+function createPgAdminPool(region: string) {
+	const key = `POSTGRES_SANDBOX_URL_${region.toUpperCase()}`;
+	const url = process.env[key];
+	if (!url) throw new Error(`${key} is not set`);
+	return new Pool({ connectionString: url });
+}
+
+function createMysqlAdminPool(region: string, engine: "mysql" | "mariadb") {
+	const key =
+		engine === "mariadb"
+			? `MARIADB_SANDBOX_URL_${region.toUpperCase()}`
+			: `MYSQL_SANDBOX_URL_${region.toUpperCase()}`;
+	const url = process.env[key];
+	if (!url) throw new Error(`${key} is not set`);
+	return mysql.createPool(url);
+}
+
 async function getCurrentUser() {
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
@@ -28,18 +47,28 @@ async function getCurrentUser() {
 }
 
 function toSandboxDetail(row: typeof sandboxes.$inferSelect): SandboxDetail {
+	const devHost = process.env.SANDBOX_HOST ?? row.host;
+	const devPort =
+		process.env.NODE_ENV === "development" || devHost === "localhost"
+			? row.engine === "postgresql"
+				? 5432
+				: 3306
+			: row.port;
+	const proto = row.engine === "postgresql" ? "postgresql" : "mysql";
+	const devConnectionUrl = `${proto}://${row.dbUser}:${row.dbPassword}@${devHost}:${devPort}/${row.dbName}`;
+
 	return {
 		id: row.id,
 		displayName: row.displayName,
 		engine: row.engine as SandboxDetail["engine"],
 		region: row.region as SandboxDetail["region"],
 		status: row.status as SandboxDetail["status"],
-		host: row.host,
-		port: row.port,
+		host: devHost,
+		port: devPort,
 		dbName: row.dbName,
 		dbUser: row.dbUser,
 		dbPassword: row.dbPassword,
-		connectionUrl: row.connectionUrl,
+		connectionUrl: devConnectionUrl,
 		sizeMb: 0,
 		maxSizeMb: row.maxSizeMb,
 		createdAt: row.createdAt.toISOString(),
@@ -136,7 +165,7 @@ export const $createSandbox = createServerFn({ method: "POST" })
 		const dbUser = `sb_${shortId}`;
 		const dbPassword = randomBytes(16).toString("hex");
 		const proto = data.engine === "postgresql" ? "postgresql" : "mysql";
-		const host = `${data.region}.pisangdb.com`;
+		const host = process.env.SANDBOX_HOST ?? `${data.region}.pisangdb.com`;
 		const connectionUrl = `${proto}://${dbUser}:${dbPassword}@${host}:${port}/${dbName}`;
 
 		const [row] = await db
@@ -153,14 +182,63 @@ export const $createSandbox = createServerFn({ method: "POST" })
 				port,
 				displayName: data.displayName,
 				status: "active",
-				templateId: data.templateId ?? null,
 				maxSizeMb: 100,
 				expiredAt,
+				...(data.templateId?.trim() && { templateId: data.templateId }),
 			})
 			.returning();
 
 		if (!row) {
 			throw new Error("Failed to create sandbox");
+		}
+
+		try {
+			if (data.engine === "postgresql") {
+				const pgPool = createPgAdminPool(data.region);
+				try {
+					await pgPool.query(`CREATE DATABASE "${dbName}"`);
+					await pgPool.query(
+						`CREATE USER "${dbUser}" WITH PASSWORD '${dbPassword}'`,
+					);
+					await pgPool.query(
+						`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${dbUser}"`,
+					);
+					await pgPool.query(
+						`ALTER USER "${dbUser}" NOSUPERUSER NOCREATEDB NOCREATEROLE`,
+					);
+					await pgPool.query(
+						`ALTER USER "${dbUser}" SET statement_timeout = '30s'`,
+					);
+					await pgPool.query(
+						`GRANT CONNECT ON DATABASE "${dbName}" TO "${dbUser}"`,
+					);
+					await pgPool.query(
+						`GRANT ALL PRIVILEGES ON SCHEMA public TO "${dbUser}"`,
+					);
+				} finally {
+					await pgPool.end();
+				}
+			} else {
+				const mysqlPool = createMysqlAdminPool(data.region, data.engine);
+				try {
+					await mysqlPool.query(`CREATE DATABASE \`${dbName}\``);
+					await mysqlPool.query(`CREATE USER ?@'%' IDENTIFIED BY ?`, [
+						dbUser,
+						dbPassword,
+					]);
+					await mysqlPool.query(
+						`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES ON ${dbName}.* TO ?@'%'`,
+						[dbUser],
+					);
+					await mysqlPool.query(`FLUSH PRIVILEGES`);
+				} finally {
+					await mysqlPool.end();
+				}
+			}
+		} catch (dbError) {
+			await db.delete(sandboxes).where(eq(sandboxes.id, row.id));
+			const msg = dbError instanceof Error ? dbError.message : "Unknown error";
+			throw new Error(`Failed to provision database: ${msg}`);
 		}
 
 		return toSandboxDetail(row);
@@ -203,16 +281,61 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 		const user = await getCurrentUser();
 
 		const [row] = await db
-			.update(sandboxes)
-			.set({ status: "expired", updatedAt: new Date() })
+			.select()
+			.from(sandboxes)
 			.where(
 				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
-			)
-			.returning();
+			);
 
 		if (!row) {
 			throw new Error("Sandbox not found");
 		}
+
+		// Mark as destroying immediately
+		await db
+			.update(sandboxes)
+			.set({ status: "destroying", updatedAt: new Date() })
+			.where(eq(sandboxes.id, data.sandboxId));
+
+		try {
+			if (row.engine === "postgresql") {
+				const pgPool = createPgAdminPool(row.region);
+				try {
+					await pgPool.query(
+						`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1`,
+						[row.dbName],
+					);
+					await pgPool.query(`DROP DATABASE IF EXISTS "${row.dbName}"`);
+					await pgPool.query(`DROP USER IF EXISTS "${row.dbUser}"`);
+				} finally {
+					await pgPool.end();
+				}
+			} else {
+				const mysqlPool = createMysqlAdminPool(
+					row.region,
+					row.engine as "mysql" | "mariadb",
+				);
+				try {
+					await mysqlPool.query(
+						`REVOKE ALL PRIVILEGES, GRANT OPTION FROM ?@'%'`,
+						[row.dbUser],
+					);
+					await mysqlPool.query(`DROP USER IF EXISTS ?@'%'`, [row.dbUser]);
+					await mysqlPool.query(`DROP DATABASE IF EXISTS \`${row.dbName}\``);
+				} finally {
+					await mysqlPool.end();
+				}
+			}
+		} catch (cleanupError) {
+			const msg =
+				cleanupError instanceof Error ? cleanupError.message : "Unknown error";
+			throw new Error(`Failed to cleanup database: ${msg}`);
+		}
+
+		await db
+			.update(sandboxes)
+			.set({ status: "expired", updatedAt: new Date() })
+			.where(eq(sandboxes.id, data.sandboxId));
 	});
 
 export const $getSandboxTables = createServerFn({ method: "GET" })

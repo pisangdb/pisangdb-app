@@ -12,7 +12,9 @@ export const createSandboxSchema = z.object({
 		z.literal(72),
 		z.literal(168),
 	]),
-	templateId: z.string().uuid().optional(),
+	// templateId can be: undefined (not sent), empty string (serialized undefined), or a valid UUID
+	// Accept all three, normalize to undefined on the server side
+	templateId: z.string().optional(),
 });
 
 export const extendSandboxSchema = z.object({

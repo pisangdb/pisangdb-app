@@ -55,6 +55,26 @@ async function getCurrentUser() {
 	return session.user;
 }
 
+/**
+ * Resolves sandbox connection host/port for the current environment.
+ * In development (SANDBOX_HOST=localhost), overrides the stored host with
+ * localhost and uses local engine ports (5432 for PostgreSQL, 3306 for MySQL/MariaDB).
+ * In production, uses the stored host/port from the database.
+ */
+function getSandboxConnection(
+	engine: string,
+	storedHost: string,
+	storedPort: number,
+): { host: string; port: number } {
+	const devHost = process.env.SANDBOX_HOST ?? storedHost;
+	if (devHost !== "localhost") {
+		return { host: devHost, port: storedPort };
+	}
+	// In development with localhost, use local ports
+	const devPort = engine === "postgresql" ? 5432 : 3306;
+	return { host: devHost, port: devPort };
+}
+
 export const $executeQuery = createServerFn({ method: "POST" })
 	.inputValidator(executeQuerySchema)
 	.handler(async ({ data }): Promise<QueryResult> => {
@@ -78,14 +98,20 @@ export const $executeQuery = createServerFn({ method: "POST" })
 
 		checkForbiddenCommands(data.query);
 
+		const { host, port } = getSandboxConnection(
+			sandbox.engine,
+			sandbox.host,
+			sandbox.port,
+		);
+
 		const start = Date.now();
 		let pool: Pool | mysql.Pool | undefined;
 
 		try {
 			if (sandbox.engine === "postgresql") {
 				pool = new Pool({
-					host: sandbox.host,
-					port: sandbox.port,
+					host,
+					port,
 					database: sandbox.dbName,
 					user: sandbox.dbUser,
 					password: sandbox.dbPassword,
@@ -113,8 +139,8 @@ export const $executeQuery = createServerFn({ method: "POST" })
 			}
 
 			pool = mysql.createPool({
-				host: sandbox.host,
-				port: sandbox.port,
+				host,
+				port,
 				database: sandbox.dbName,
 				user: sandbox.dbUser,
 				password: sandbox.dbPassword,
