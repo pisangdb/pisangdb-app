@@ -54,12 +54,13 @@ export function generateDbPassword(): string {
 }
 
 export async function provisionPostgreSQL(
-	pool: Pool,
+	pool: AdminPool,
 	dbName: string,
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
-	const client = await pool.connect();
+	const pgPool = pool as Pool;
+	const client = await pgPool.connect();
 	try {
 		await client.query(`CREATE DATABASE "${dbName}"`);
 		await client.query(`CREATE USER "${dbUser}" WITH PASSWORD $1`, [
@@ -81,11 +82,12 @@ export async function provisionPostgreSQL(
 }
 
 export async function deprovisionPostgreSQL(
-	pool: Pool,
+	pool: AdminPool,
 	dbName: string,
 	dbUser: string,
 ): Promise<void> {
-	const client = await pool.connect();
+	const pgPool = pool as Pool;
+	const client = await pgPool.connect();
 	try {
 		await client.query(
 			`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND usename = $2`,
@@ -99,34 +101,38 @@ export async function deprovisionPostgreSQL(
 }
 
 export async function provisionMySQL(
-	pool: MySqlPool,
+	pool: AdminPool,
 	dbName: string,
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
-	await pool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-	await pool.query(`CREATE USER '${dbUser}'@'%' IDENTIFIED BY ?`, [dbPassword]);
-	await pool.query(
+	const mysqlPool = pool as MySqlPool;
+	await mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+	await mysqlPool.query(`CREATE USER '${dbUser}'@'%' IDENTIFIED BY ?`, [
+		dbPassword,
+	]);
+	await mysqlPool.query(
 		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES ON \`${dbName}\`.* TO '${dbUser}'@'%'`,
 	);
-	await pool.query("FLUSH PRIVILEGES");
+	await mysqlPool.query("FLUSH PRIVILEGES");
 }
 
 export async function deprovisionMySQL(
-	pool: MySqlPool,
+	pool: AdminPool,
 	dbName: string,
 	dbUser: string,
 ): Promise<void> {
-	const [rows] = await pool.query("SHOW PROCESSLIST");
+	const mysqlPool = pool as MySqlPool;
+	const [rows] = await mysqlPool.query("SHOW PROCESSLIST");
 	const processes = rows as { Id: number; User: string }[];
 	for (const proc of processes) {
 		if (proc.User === dbUser) {
-			await pool.query(`KILL ${proc.Id}`);
+			await mysqlPool.query(`KILL ${proc.Id}`);
 		}
 	}
-	await pool.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
-	await pool.query(`DROP USER IF EXISTS '${dbUser}'@'%'`);
-	await pool.query("FLUSH PRIVILEGES");
+	await mysqlPool.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
+	await mysqlPool.query(`DROP USER IF EXISTS '${dbUser}'@'%'`);
+	await mysqlPool.query("FLUSH PRIVILEGES");
 }
 
 export const ENGINE_PORTS: Record<DbEngine, number> = {

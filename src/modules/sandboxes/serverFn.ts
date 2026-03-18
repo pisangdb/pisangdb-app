@@ -188,9 +188,9 @@ export const $createSandbox = createServerFn({ method: "POST" })
 
 		try {
 			if (input.engine === "postgresql") {
-				await provisionPostgreSQL(adminPool as any, dbName, dbUser, dbPassword);
+				await provisionPostgreSQL(adminPool, dbName, dbUser, dbPassword);
 			} else {
-				await provisionMySQL(adminPool as any, dbName, dbUser, dbPassword);
+				await provisionMySQL(adminPool, dbName, dbUser, dbPassword);
 			}
 		} catch (err) {
 			console.error("Failed to provision database:", err);
@@ -329,10 +329,10 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 				const { deprovisionPostgreSQL } = await import(
 					"#/lib/sandbox-provisioning"
 				);
-				await deprovisionPostgreSQL(adminPool as any, row.dbName, row.dbUser);
+				await deprovisionPostgreSQL(adminPool, row.dbName, row.dbUser);
 			} else {
 				const { deprovisionMySQL } = await import("#/lib/sandbox-provisioning");
-				await deprovisionMySQL(adminPool as any, row.dbName, row.dbUser);
+				await deprovisionMySQL(adminPool, row.dbName, row.dbUser);
 			}
 		} catch (err) {
 			console.error("Failed to deprovision database:", err);
