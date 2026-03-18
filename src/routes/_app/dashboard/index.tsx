@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/dashboard/")({
 	component: DashboardHome,
@@ -8,8 +9,6 @@ import {
 	ActivityIcon,
 	BotIcon,
 	CircleCheckIcon,
-	ClockIcon,
-	CopyIcon,
 	DatabaseIcon,
 	PlusIcon,
 	RefreshCcwIcon,
@@ -18,6 +17,7 @@ import {
 	ZapIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { TtlCountdown } from "#/components/ttl-countdown";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -28,64 +28,39 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Skeleton } from "#/components/ui/skeleton";
+import {
+	useDeleteSandbox,
+	useExtendSandbox,
+	useSandboxes,
+} from "#/lib/hooks/useSandboxes";
+import type { SandboxStatus } from "#/lib/types";
+import { $getDashboardStats } from "#/modules/sandboxes/serverFn";
 
 const MAX_ACTIVE_SANDBOXES = 5;
-type DashboardState = "loading" | "error" | "success";
-const dashboardState: DashboardState = "success";
 
-type SandboxStatus = "active" | "expiring" | "expired" | "destroying";
+const ENGINE_EMOJI: Record<string, string> = {
+	postgresql: "🐘",
+	mysql: "🐬",
+	mariadb: "🦭",
+};
 
-const recentSandboxes: {
-	id: string;
-	name: string;
-	engine: string;
-	engineEmoji: string;
-	region: string;
-	status: SandboxStatus;
-	ttl: string;
-	createdAt: string;
-	connectionUrl: string;
-}[] = [
-	{
-		id: "sb_a1b2x8",
-		name: "pisang_a1b2_myapp_x8k2",
-		engine: "PostgreSQL 16",
-		engineEmoji: "🐘",
-		region: "🇮🇩 Indonesia",
-		status: "active",
-		ttl: "5h left",
-		createdAt: "2h ago",
-		connectionUrl:
-			"postgresql://sb_a1b2x8:***@id.pisangdb.com:5432/pisang_a1b2_myapp_x8k2",
-	},
-	{
-		id: "sb_c3d4y9",
-		name: "pisang_c3d4_testing_z7j1",
-		engine: "MySQL 8",
-		engineEmoji: "🐬",
-		region: "🇮🇩 Indonesia",
-		status: "expiring",
-		ttl: "18m left",
-		createdAt: "6h ago",
-		connectionUrl:
-			"mysql://sb_c3d4y9:***@id.pisangdb.com:3306/pisang_c3d4_testing_z7j1",
-	},
-	{
-		id: "sb_e5f6z1",
-		name: "pisang_e5f6_bootcamp_q2w3",
-		engine: "MariaDB 11",
-		engineEmoji: "🦭",
-		region: "🇮🇩 Indonesia",
-		status: "expired",
-		ttl: "Expired",
-		createdAt: "1d ago",
-		connectionUrl:
-			"mysql://sb_e5f6z1:***@id.pisangdb.com:3307/pisang_e5f6_bootcamp_q2w3",
-	},
-];
+const ENGINE_LABEL: Record<string, string> = {
+	postgresql: "PostgreSQL 16",
+	mysql: "MySQL 8",
+	mariadb: "MariaDB 11",
+};
+
+const REGION_LABEL: Record<string, string> = {
+	id: "🇮🇩 Indonesia",
+	sg: "🇸🇬 Singapore",
+	us: "🇺🇸 US",
+	eu: "🇪🇺 EU",
+};
+
+type LocalStatus = "active" | "expiring" | "expired" | "destroying";
 
 const statusConfig: Record<
-	SandboxStatus,
+	LocalStatus,
 	{
 		label: string;
 		variant: "default" | "secondary" | "destructive" | "outline";
@@ -140,50 +115,19 @@ const quickActions = [
 	},
 ];
 
-const activeCount = recentSandboxes.filter(
-	(sb) => sb.status === "active",
-).length;
-const expiringCount = recentSandboxes.filter(
-	(sb) => sb.status === "expiring",
-).length;
-const totalCreated = recentSandboxes.length + 11; // dummy: 11 historical
-const autoCleaned = totalCreated - activeCount - expiringCount;
-const aiQueries = 8;
-
-const stats = [
-	{
-		label: "Active Sandboxes",
-		value: String(activeCount),
-		sub: `of ${MAX_ACTIVE_SANDBOXES} max`,
-		icon: <DatabaseIcon className="size-4" />,
-		accent: "text-primary",
-		bg: "bg-primary/10",
-	},
-	{
-		label: "Total Created",
-		value: String(totalCreated),
-		sub: "all time",
-		icon: <ActivityIcon className="size-4" />,
-		accent: "text-muted-foreground",
-		bg: "bg-muted",
-	},
-	{
-		label: "Auto-cleaned",
-		value: String(autoCleaned),
-		sub: "zero effort",
-		icon: <CircleCheckIcon className="size-4" />,
-		accent: "text-muted-foreground",
-		bg: "bg-muted",
-	},
-	{
-		label: "AI Queries",
-		value: String(aiQueries),
-		sub: "this month",
-		icon: <BotIcon className="size-4" />,
-		accent: "text-muted-foreground",
-		bg: "bg-muted",
-	},
-];
+function computeLocalStatus(
+	status: SandboxStatus,
+	expiredAt: string,
+): LocalStatus {
+	if (status === "expired" || status === "destroying") {
+		return status;
+	}
+	const msLeft = new Date(expiredAt).getTime() - Date.now();
+	if (msLeft < 30 * 60 * 1000) {
+		return "expiring";
+	}
+	return "active";
+}
 
 function DashboardSkeleton() {
 	return (
@@ -227,56 +171,79 @@ function DashboardSkeleton() {
 }
 
 export function DashboardHome() {
+	const router = useRouter();
 	const [copiedId, setCopiedId] = useState<string | null>(null);
-	const [pendingAction, setPendingAction] = useState<{
-		id: string;
-		type: "extend" | "delete";
-	} | null>(null);
-	const [actionResult, setActionResult] = useState<{
-		id: string;
-		message: string;
-	} | null>(null);
+
+	const { data: stats, isPending: statsPending } = useQuery({
+		queryKey: ["dashboard-stats"],
+		queryFn: () => $getDashboardStats(),
+	});
+
+	const { data: sandboxes = [], isPending: sandboxesPending } = useSandboxes();
+	const extendSandbox = useExtendSandbox();
+	const deleteSandbox = useDeleteSandbox();
+
+	const isLoading = statsPending || sandboxesPending;
 
 	const onCopyConnection = async (id: string, connectionUrl: string) => {
 		if (typeof navigator === "undefined" || !navigator.clipboard) {
-			setActionResult({ id, message: "Clipboard not available" });
-			setTimeout(() => {
-				setActionResult((current) => (current?.id === id ? null : current));
-			}, 1500);
 			return;
 		}
 
 		await navigator.clipboard.writeText(connectionUrl);
 		setCopiedId(id);
-		setActionResult({ id, message: "Connection copied" });
 		setTimeout(() => {
 			setCopiedId((current) => (current === id ? null : current));
-			setActionResult((current) => (current?.id === id ? null : current));
 		}, 1200);
 	};
 
-	const onMockAction = async (id: string, type: "extend" | "delete") => {
-		setPendingAction({ id, type });
-		setActionResult(null);
-
-		await new Promise((resolve) => {
-			setTimeout(resolve, 800);
+	const handleExtend = async (id: string) => {
+		await extendSandbox.mutateAsync({
+			sandboxId: id,
+			additionalHours: 1,
 		});
-
-		setPendingAction((current) => {
-			if (!current || current.id !== id || current.type !== type)
-				return current;
-			return null;
-		});
-		setActionResult({
-			id,
-			message:
-				type === "extend" ? "Extend request queued" : "Delete request queued",
-		});
-		setTimeout(() => {
-			setActionResult((current) => (current?.id === id ? null : current));
-		}, 1600);
+		void router.invalidate();
 	};
+
+	const handleDelete = async (id: string) => {
+		await deleteSandbox.mutateAsync(id);
+		void router.invalidate();
+	};
+
+	const statsData = [
+		{
+			label: "Active Sandboxes",
+			value: String(stats?.activeSandboxes ?? 0),
+			sub: `of ${MAX_ACTIVE_SANDBOXES} max`,
+			icon: <DatabaseIcon className="size-4" />,
+			accent: "text-primary",
+			bg: "bg-primary/10",
+		},
+		{
+			label: "Total Created",
+			value: String(stats?.totalCreated ?? 0),
+			sub: "all time",
+			icon: <ActivityIcon className="size-4" />,
+			accent: "text-muted-foreground",
+			bg: "bg-muted",
+		},
+		{
+			label: "Auto-cleaned",
+			value: String(stats?.autoCleaned ?? 0),
+			sub: "zero effort",
+			icon: <CircleCheckIcon className="size-4" />,
+			accent: "text-muted-foreground",
+			bg: "bg-muted",
+		},
+		{
+			label: "AI Queries",
+			value: String(stats?.aiQueriesThisMonth ?? 0),
+			sub: "this month",
+			icon: <BotIcon className="size-4" />,
+			accent: "text-muted-foreground",
+			bg: "bg-muted",
+		},
+	];
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -295,9 +262,9 @@ export function DashboardHome() {
 				</Button>
 			</div>
 
-			{dashboardState === "loading" ? <DashboardSkeleton /> : null}
+			{isLoading ? <DashboardSkeleton /> : null}
 
-			{dashboardState === "error" ? (
+			{!isLoading && stats == null ? (
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-base">
@@ -308,7 +275,14 @@ export function DashboardHome() {
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
-						<Button variant="outline" size="sm" className="gap-1.5">
+						<Button
+							variant="outline"
+							size="sm"
+							className="gap-1.5"
+							onClick={() => {
+								void router.invalidate();
+							}}
+						>
 							<RefreshCcwIcon className="size-4" />
 							Retry
 						</Button>
@@ -316,10 +290,10 @@ export function DashboardHome() {
 				</Card>
 			) : null}
 
-			{dashboardState === "success" ? (
+			{!isLoading && stats != null ? (
 				<>
 					<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-						{stats.map((stat) => (
+						{statsData.map((stat) => (
 							<Card key={stat.label} className="gap-3">
 								<CardHeader className="flex flex-row items-center justify-between pb-0">
 									<CardDescription className="text-xs font-medium">
@@ -388,7 +362,7 @@ export function DashboardHome() {
 								</Button>
 							</CardHeader>
 							<CardContent className="flex flex-col gap-2">
-								{recentSandboxes.length === 0 ? (
+								{sandboxes.length === 0 ? (
 									<div className="rounded-lg border border-dashed p-6 text-center">
 										<p className="text-sm font-medium">No sandbox yet</p>
 										<p className="mt-1 text-xs text-muted-foreground">
@@ -399,21 +373,29 @@ export function DashboardHome() {
 										</Button>
 									</div>
 								) : (
-									recentSandboxes.map((sb) => {
-										const status = statusConfig[sb.status];
+									sandboxes.map((sb) => {
+										const localStatus = computeLocalStatus(
+											sb.status,
+											sb.expiredAt,
+										);
+										const status = statusConfig[localStatus];
+										const createdAgo = formatTimeAgo(new Date(sb.createdAt));
+										const isPending =
+											extendSandbox.isPending || deleteSandbox.isPending;
 										return (
 											<div
 												key={sb.id}
 												className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40 ${
-													sb.status === "expired" || sb.status === "destroying"
+													localStatus === "expired" ||
+													localStatus === "destroying"
 														? "opacity-50 grayscale"
-														: sb.status === "expiring"
+														: localStatus === "expiring"
 															? "opacity-70"
 															: ""
 												}`}
 											>
 												<div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-lg">
-													{sb.engineEmoji}
+													{ENGINE_EMOJI[sb.engine] ?? "🗄️"}
 												</div>
 
 												<div className="min-w-0 flex-1">
@@ -422,14 +404,14 @@ export function DashboardHome() {
 														params={{ id: sb.id }}
 														className="truncate font-mono text-sm font-medium hover:underline"
 													>
-														{sb.name}
+														{sb.displayName}
 													</Link>
 													<div className="flex items-center gap-2 text-xs text-muted-foreground">
-														<span>{sb.engine}</span>
+														<span>{ENGINE_LABEL[sb.engine]}</span>
 														<span>·</span>
-														<span>{sb.region}</span>
+														<span>{REGION_LABEL[sb.region]}</span>
 														<span>·</span>
-														<span>Created {sb.createdAt}</span>
+														<span>Created {createdAgo}</span>
 													</div>
 												</div>
 
@@ -440,10 +422,10 @@ export function DashboardHome() {
 													>
 														{status.label}
 													</Badge>
-													<div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-														<ClockIcon className="size-3" />
-														{sb.ttl}
-													</div>
+													<TtlCountdown
+														expiredAt={sb.expiredAt}
+														status={sb.status}
+													/>
 													<div className="mt-1 flex items-center gap-1">
 														<Button
 															variant="outline"
@@ -452,23 +434,47 @@ export function DashboardHome() {
 															onClick={() => {
 																void onCopyConnection(sb.id, sb.connectionUrl);
 															}}
-															disabled={pendingAction?.id === sb.id}
-															title="Copy connection URL"
+															disabled={isPending}
+															aria-label="Copy connection URL"
 														>
-															<CopyIcon className="size-3" />
+															<svg
+																xmlns="http://www.w3.org/2000/svg"
+																viewBox="0 0 24 24"
+																fill="none"
+																stroke="currentColor"
+																strokeWidth="2"
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																className="size-3"
+															>
+																<title>Copy</title>
+																<rect
+																	width="14"
+																	height="14"
+																	x="8"
+																	y="8"
+																	rx="2"
+																	ry="2"
+																/>
+																<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+															</svg>
 														</Button>
 														<Button
 															variant="outline"
 															size="icon"
 															className="size-6"
 															onClick={() => {
-																void onMockAction(sb.id, "extend");
+																void handleExtend(sb.id);
 															}}
-															disabled={sb.status !== "active"}
-															title="Extend sandbox"
+															disabled={
+																isPending ||
+																localStatus === "expired" ||
+																localStatus === "destroying"
+															}
+															title="Extend sandbox (+1h)"
 														>
 															<RefreshCcwIcon
-																className={`size-3 ${pendingAction?.id === sb.id && pendingAction.type === "extend" ? "animate-spin" : ""}`}
+																className={`size-3 ${extendSandbox.isPending ? "animate-spin" : ""}`}
 															/>
 														</Button>
 														<Button
@@ -476,13 +482,12 @@ export function DashboardHome() {
 															size="icon"
 															className="size-6"
 															onClick={() => {
-																void onMockAction(sb.id, "delete");
+																void handleDelete(sb.id);
 															}}
-															disabled={sb.status === "expired"}
+															disabled={isPending || localStatus === "expired"}
 															title="Delete sandbox"
 														>
-															{pendingAction?.id === sb.id &&
-															pendingAction.type === "delete" ? (
+															{deleteSandbox.isPending ? (
 																<RefreshCcwIcon className="size-3 animate-spin" />
 															) : (
 																<Trash2Icon className="size-3" />
@@ -492,11 +497,6 @@ export function DashboardHome() {
 													{copiedId === sb.id ? (
 														<p className="text-[10px] text-muted-foreground">
 															Copied
-														</p>
-													) : null}
-													{actionResult?.id === sb.id ? (
-														<p className="text-[10px] text-muted-foreground">
-															{actionResult.message}
 														</p>
 													) : null}
 												</div>
@@ -511,4 +511,15 @@ export function DashboardHome() {
 			) : null}
 		</div>
 	);
+}
+
+function formatTimeAgo(date: Date): string {
+	const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+	if (seconds < 60) return "just now";
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}m ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ago`;
+	const days = Math.floor(hours / 24);
+	return `${days}d ago`;
 }

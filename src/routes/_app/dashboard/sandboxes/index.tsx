@@ -258,12 +258,16 @@ function SandboxesPage() {
 													>
 														{sandbox.displayName}
 													</Link>
-													<Badge
-														variant={statusCfg.variant}
-														className="text-[10px]"
-													>
-														{statusCfg.label}
-													</Badge>
+													{displayStatus === "destroying" ? (
+														<RefreshCcwIcon className="size-3.5 animate-spin text-muted-foreground" />
+													) : (
+														<Badge
+															variant={statusCfg.variant}
+															className="text-[10px]"
+														>
+															{statusCfg.label}
+														</Badge>
+													)}
 												</div>
 												<p className="text-xs text-muted-foreground">
 													{ENGINE_LABEL[sandbox.engine] ?? sandbox.engine} ·{" "}
@@ -290,7 +294,7 @@ function SandboxesPage() {
 												onClick={() => {
 													void handleCopy(sandbox.id, sandbox.connectionUrl);
 												}}
-												disabled={isPending}
+												disabled={sandbox.status === "destroying" || isPending}
 												title="Copy connection string"
 											>
 												<CopyIcon className="size-3.5" />

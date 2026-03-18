@@ -129,11 +129,10 @@ function SandboxesPage() {
 		}, 1200);
 	};
 
-	const handleExtend = (id: string, duration: string) => {
+	const handleExtend = (id: string, _duration: string) => {
 		setExtendMenuId(null);
 		setExtendedId(id);
 		setTimeout(() => setExtendedId((cur) => (cur === id ? null : cur)), 2000);
-		console.log(`Extend sandbox ${id} by ${duration}`);
 	};
 
 	return (

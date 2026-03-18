@@ -1,8 +1,13 @@
+import { randomBytes } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { and, eq, sql } from "drizzle-orm";
+
+import { db } from "#/db";
+import { sandboxes } from "#/db/schema";
+import { auth } from "#/lib/auth";
 import type {
-	CreateSandboxInput,
 	DashboardStats,
-	ExtendSandboxInput,
 	SandboxDetail,
 	SandboxListItem,
 	SandboxTable,
@@ -13,127 +18,201 @@ import {
 	sandboxIdSchema,
 } from "./schema";
 
-const MOCK_SANDBOXES: SandboxDetail[] = [
-	{
-		id: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-		displayName: "test-migration",
-		engine: "postgresql",
-		region: "id",
-		status: "active",
-		host: "id.pisangdb.com",
-		port: 5432,
-		dbName: "pisang_a1b2_test-migration_k8m2n4",
-		dbUser: "sb_a1b2x8",
-		dbPassword: "mock_password_32chars_xxxxxxxx",
-		connectionUrl:
-			"postgresql://sb_a1b2x8:mock_password_32chars_xxxxxxxx@id.pisangdb.com:5432/pisang_a1b2_test-migration_k8m2n4",
-		sizeMb: 12,
-		maxSizeMb: 100,
-		createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-		expiredAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
-	},
-	{
-		id: "9b1deb4d-3eb7-4c81-aceb-7e3b5d1f2a3c",
-		displayName: "ecommerce-dev",
-		engine: "mysql",
-		region: "id",
-		status: "active",
-		host: "id.pisangdb.com",
-		port: 3306,
-		dbName: "pisang_c3d4_ecommerce-dev_z7j1n3",
-		dbUser: "sb_c3d4y9",
-		dbPassword: "mock_password_32chars_yyyyyyyy",
-		connectionUrl:
-			"mysql://sb_c3d4y9:mock_password_32chars_yyyyyyyy@id.pisangdb.com:3306/pisang_c3d4_ecommerce-dev_z7j1n3",
-		sizeMb: 45,
-		maxSizeMb: 100,
-		createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-		expiredAt: new Date(Date.now() + 19 * 60 * 60 * 1000).toISOString(),
-	},
-];
+async function getCurrentUser() {
+	const request = getRequest();
+	const session = await auth.api.getSession({ headers: request.headers });
+	if (!session?.user) {
+		throw new Error("Unauthorized");
+	}
+	return session.user;
+}
+
+function toSandboxDetail(row: typeof sandboxes.$inferSelect): SandboxDetail {
+	return {
+		id: row.id,
+		displayName: row.displayName,
+		engine: row.engine as SandboxDetail["engine"],
+		region: row.region as SandboxDetail["region"],
+		status: row.status as SandboxDetail["status"],
+		host: row.host,
+		port: row.port,
+		dbName: row.dbName,
+		dbUser: row.dbUser,
+		dbPassword: row.dbPassword,
+		connectionUrl: row.connectionUrl,
+		sizeMb: 0,
+		maxSizeMb: row.maxSizeMb,
+		createdAt: row.createdAt.toISOString(),
+		expiredAt: row.expiredAt.toISOString(),
+	};
+}
 
 export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<DashboardStats> => {
+		const user = await getCurrentUser();
+
+		const [activeRow] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.userId, user.id), eq(sandboxes.status, "active")),
+			);
+
+		const [totalRow] = await db
+			.select({ count: sql<number>`count(*)` })
+			.from(sandboxes)
+			.where(eq(sandboxes.userId, user.id));
+
 		return {
-			activeSandboxes: 2,
-			totalCreated: 14,
-			autoCleaned: 12,
-			aiQueriesThisMonth: 8,
+			activeSandboxes: Number(activeRow?.count ?? 0),
+			totalCreated: Number(totalRow?.count ?? 0),
+			autoCleaned: 0,
+			aiQueriesThisMonth: 0,
 		};
 	},
 );
 
 export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 	async (): Promise<SandboxListItem[]> => {
-		return MOCK_SANDBOXES.map(({ dbPassword: _pw, ...item }) => item);
+		const user = await getCurrentUser();
+
+		const rows = await db
+			.select()
+			.from(sandboxes)
+			.where(and(eq(sandboxes.userId, user.id), eq(sandboxes.status, "active")))
+			.orderBy(sql`${sandboxes.createdAt} DESC`);
+
+		return rows.map((row) => {
+			const detail = toSandboxDetail(row);
+			const { dbPassword: _pw, ...rest } = detail;
+			return rest as SandboxListItem;
+		});
 	},
 );
 
 export const $getSandboxById = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
-		const found = MOCK_SANDBOXES.find((s) => s.id === data.sandboxId);
-		if (!found) throw new Error("Sandbox not found");
-		return found;
+		const user = await getCurrentUser();
+
+		const [row] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			);
+
+		if (!row) {
+			throw new Error("Sandbox not found");
+		}
+
+		return toSandboxDetail(row);
 	});
 
 export const $createSandbox = createServerFn({ method: "POST" })
 	.inputValidator(createSandboxSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
-		const input = data as CreateSandboxInput;
+		const user = await getCurrentUser();
+
 		const port =
-			input.engine === "postgresql"
+			data.engine === "postgresql"
 				? 5432
-				: input.engine === "mysql"
+				: data.engine === "mysql"
 					? 3306
 					: 3307;
+
 		const now = new Date();
 		const expiredAt = new Date(
-			now.getTime() + input.retentionHours * 60 * 60 * 1000,
+			now.getTime() + data.retentionHours * 60 * 60 * 1000,
 		);
-		const mockSuffix = Math.random().toString(36).slice(2, 8);
-		const dbName = `pisang_mock_${input.displayName}_${mockSuffix}`;
-		const dbUser = `sb_${Math.random().toString(36).slice(2, 10)}`;
-		const dbPassword = "mock_password_32chars_zzzzzzzz";
-		const proto = input.engine === "postgresql" ? "postgresql" : "mysql";
-		const connectionUrl = `${proto}://${dbUser}:${dbPassword}@${input.region}.pisangdb.com:${port}/${dbName}`;
 
-		return {
-			id: crypto.randomUUID(),
-			displayName: input.displayName,
-			engine: input.engine,
-			region: input.region,
-			status: "active",
-			host: `${input.region}.pisangdb.com`,
-			port,
-			dbName,
-			dbUser,
-			dbPassword,
-			connectionUrl,
-			sizeMb: 0,
-			maxSizeMb: 100,
-			createdAt: now.toISOString(),
-			expiredAt: expiredAt.toISOString(),
-		};
+		const shortId = randomBytes(2).toString("hex");
+		const suffix = randomBytes(3).toString("hex");
+		const slug = data.displayName
+			.replace(/[^a-zA-Z0-9]/g, "-")
+			.toLowerCase()
+			.slice(0, 15);
+		const dbName = `pisang_${shortId}_${slug}_${suffix}`;
+		const dbUser = `sb_${shortId}`;
+		const dbPassword = randomBytes(16).toString("hex");
+		const proto = data.engine === "postgresql" ? "postgresql" : "mysql";
+		const host = `${data.region}.pisangdb.com`;
+		const connectionUrl = `${proto}://${dbUser}:${dbPassword}@${host}:${port}/${dbName}`;
+
+		const [row] = await db
+			.insert(sandboxes)
+			.values({
+				userId: user.id,
+				engine: data.engine,
+				region: data.region,
+				dbName,
+				dbUser,
+				dbPassword,
+				connectionUrl,
+				host,
+				port,
+				displayName: data.displayName,
+				status: "active",
+				templateId: data.templateId ?? null,
+				maxSizeMb: 100,
+				expiredAt,
+			})
+			.returning();
+
+		if (!row) {
+			throw new Error("Failed to create sandbox");
+		}
+
+		return toSandboxDetail(row);
 	});
 
 export const $extendSandbox = createServerFn({ method: "POST" })
 	.inputValidator(extendSandboxSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
-		const input = data as ExtendSandboxInput;
-		const found = MOCK_SANDBOXES.find((s) => s.id === input.sandboxId);
-		if (!found) throw new Error("Sandbox not found");
-		const newExpiry = new Date(
-			new Date(found.expiredAt).getTime() +
-				input.additionalHours * 60 * 60 * 1000,
+		const user = await getCurrentUser();
+
+		const [existing] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			);
+
+		if (!existing) {
+			throw new Error("Sandbox not found");
+		}
+
+		const newExpiredAt = new Date(
+			existing.expiredAt.getTime() + data.additionalHours * 60 * 60 * 1000,
 		);
-		return { ...found, expiredAt: newExpiry.toISOString() };
+
+		const [row] = await db
+			.update(sandboxes)
+			.set({ expiredAt: newExpiredAt, updatedAt: new Date() })
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			)
+			.returning();
+
+		return toSandboxDetail(row);
 	});
 
 export const $deleteSandbox = createServerFn({ method: "POST" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<void> => {
-		console.log(`[mock] deleting sandbox ${data.sandboxId}`);
+		const user = await getCurrentUser();
+
+		const [row] = await db
+			.update(sandboxes)
+			.set({ status: "expired", updatedAt: new Date() })
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			)
+			.returning();
+
+		if (!row) {
+			throw new Error("Sandbox not found");
+		}
 	});
 
 export const $getSandboxTables = createServerFn({ method: "GET" })

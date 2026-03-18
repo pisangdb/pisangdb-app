@@ -5,7 +5,9 @@ import {
 	redirect,
 	useMatches,
 } from "@tanstack/react-router";
+import { AlertTriangleIcon } from "lucide-react";
 import { AppSidebar } from "#/components/app-sidebar";
+import { ErrorBoundary } from "#/components/error-boundary";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -14,6 +16,14 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "#/components/ui/breadcrumb";
+import { Button } from "#/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "#/components/ui/card";
 import { Separator } from "#/components/ui/separator";
 import {
 	SidebarInset,
@@ -41,11 +51,9 @@ export const Route = createFileRoute("/_app")({
 			}
 			return { user };
 		} catch (error) {
-			// If error is a redirect, re-throw it
 			if (error instanceof Error && "status" in error) {
 				throw error;
 			}
-			// Otherwise redirect to login
 			throw redirect({
 				to: "/login",
 				replace: true,
@@ -53,6 +61,7 @@ export const Route = createFileRoute("/_app")({
 		}
 	},
 	component: AppLayout,
+	errorComponent: DashboardError,
 });
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -68,7 +77,6 @@ const ROUTE_LABELS: Record<string, string> = {
 
 function getRouteLabel(pathname: string): string | undefined {
 	if (ROUTE_LABELS[pathname]) return ROUTE_LABELS[pathname];
-	// Handle /dashboard/sandboxes/:id
 	const sandboxDetailMatch = /^\/dashboard\/sandboxes\/([^/]+)$/.exec(pathname);
 	if (sandboxDetailMatch) return sandboxDetailMatch[1];
 	return undefined;
@@ -132,9 +140,53 @@ function AppLayout() {
 							</Breadcrumb>
 						</div>
 					</header>
-					<Outlet />
+					<ErrorBoundary>
+						<Outlet />
+					</ErrorBoundary>
 				</SidebarInset>
 			</SidebarProvider>
 		</TooltipProvider>
+	);
+}
+
+function DashboardError({ error }: { error: unknown }) {
+	const isAuth =
+		error instanceof Error &&
+		(error.message.toLowerCase().includes("unauthorized") ||
+			error.message.toLowerCase().includes("not authenticated") ||
+			error.message.toLowerCase().includes("auth"));
+
+	return (
+		<Card className="m-4">
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2 text-base">
+					<AlertTriangleIcon className="size-4 text-destructive" />
+					Something went wrong
+				</CardTitle>
+				<CardDescription>
+					{isAuth
+						? "Your session may have expired. Try logging in again."
+						: "An unexpected error occurred loading this page."}
+				</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<p className="mb-4 text-sm text-muted-foreground">
+					{error instanceof Error ? error.message : String(error)}
+				</p>
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => {
+						if (isAuth) {
+							window.location.href = "/login";
+						} else {
+							window.location.href = "/dashboard";
+						}
+					}}
+				>
+					{isAuth ? "Log in again" : "Go to Dashboard"}
+				</Button>
+			</CardContent>
+		</Card>
 	);
 }

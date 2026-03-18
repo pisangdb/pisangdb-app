@@ -13,7 +13,7 @@ import {
 	TableIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -24,6 +24,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Skeleton } from "#/components/ui/skeleton";
 import type {
 	AiGenerateResult,
 	QueryHistoryItem,
@@ -55,6 +56,7 @@ export const Route = createFileRoute("/_app/dashboard/sandboxes/$id")({
 	},
 	head: () => ({ meta: [{ title: "Sandbox Detail — PisangDB" }] }),
 	component: SandboxDetailPage,
+	pendingComponent: SandboxDetailSkeleton,
 });
 
 const ENGINE_EMOJI: Record<string, string> = {
@@ -76,6 +78,62 @@ const REGION_LABELS: Record<string, string> = {
 };
 
 type Tab = "info" | "console" | "ai" | "tables" | "history";
+function SandboxDetailSkeleton() {
+	return (
+		<div className="flex flex-col gap-6 p-4 md:p-6">
+			<div className="flex items-start justify-between gap-4">
+				<div className="flex items-center gap-3">
+					<Skeleton className="size-8 shrink-0 rounded-md" />
+					<div className="space-y-1.5">
+						<div className="flex items-center gap-2">
+							<Skeleton className="h-5 w-40" />
+							<Skeleton className="h-4 w-12 rounded-full" />
+						</div>
+						<Skeleton className="h-4 w-64" />
+					</div>
+				</div>
+				<div className="flex gap-1.5">
+					<Skeleton className="h-8 w-20 rounded-md" />
+					<Skeleton className="h-8 w-20 rounded-md" />
+				</div>
+			</div>
+			<Skeleton className="h-10 w-full rounded-lg" />
+			<div className="grid gap-4 lg:grid-cols-2">
+				<Card>
+					<CardHeader>
+						<Skeleton className="h-5 w-24" />
+					</CardHeader>
+					<CardContent className="space-y-3">
+						{[1, 2, 3, 4].map((i) => (
+							<Skeleton key={i} className="h-9 w-full rounded-md" />
+						))}
+						<Skeleton className="h-20 w-full rounded-md" />
+					</CardContent>
+				</Card>
+				<div className="flex flex-col gap-4">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-5 w-32" />
+						</CardHeader>
+						<CardContent className="space-y-2">
+							{[1, 2, 3, 4, 5].map((i) => (
+								<Skeleton key={i} className="h-5 w-full" />
+							))}
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-5 w-24" />
+						</CardHeader>
+						<CardContent>
+							<Skeleton className="h-2 w-full rounded-full" />
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
 	{ key: "info", label: "Info", icon: <DatabaseIcon className="size-3.5" /> },
@@ -131,6 +189,16 @@ function SandboxDetailPage() {
 	const [deleting, setDeleting] = useState(false);
 
 	const ttl = formatTtl(sandbox.expiredAt);
+
+	// Auto-redirect when sandbox is being destroyed
+	useEffect(() => {
+		if (sandbox.status === "destroying") {
+			const timeout = setTimeout(() => {
+				void navigate({ to: "/dashboard/sandboxes" });
+			}, 5000);
+			return () => clearTimeout(timeout);
+		}
+	}, [sandbox.status, navigate]);
 
 	const handleExtend = async (duration: 1 | 6 | 12 | 24) => {
 		setExtendOpen(false);
@@ -620,7 +688,7 @@ function AiTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 		try {
 			const result = await $aiGenerate({
-				data: { sandboxId: sandbox.id, prompt, mode: "schema" },
+				data: { sandboxId: sandbox.id, prompt },
 			});
 			setGenerated(result);
 			setGeneratedSql(result.sqlGenerated);
