@@ -125,6 +125,7 @@ export function SignupForm({
 	};
 
 	const handleGoogleSignUp = () => {
+		// Use signIn.social with proper error handling
 		signIn
 			.social({
 				provider: "google",
@@ -132,7 +133,8 @@ export function SignupForm({
 			})
 			.catch((error) => {
 				console.error("Google OAuth error:", error);
-				window.location.href = `/api/auth/signin/google?callbackURL=${encodeURIComponent(`${window.location.origin}/dashboard`)}`;
+				// Fallback to direct OAuth initiation
+				window.location.href = `/api/auth/signin/google?callbackURL=${encodeURIComponent(window.location.origin + "/dashboard")}`;
 			});
 	};
 
