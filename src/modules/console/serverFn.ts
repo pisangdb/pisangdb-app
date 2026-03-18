@@ -199,51 +199,19 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 			.orderBy(desc(queryHistory.createdAt))
 			.limit(50);
 
-		if (history.length > 0) {
-			return history.map((h) => ({
-				id: h.id,
-				query: h.query,
-				status: h.status as "success" | "error",
-				executionTimeMs: h.executionTimeMs,
-				rowsAffected: h.rowsAffected,
-				errorMessage: h.errorMessage,
-				createdAt: h.createdAt.toISOString(),
-			}));
+		if (history.length === 0) {
+			return [];
 		}
 
-		if (isMockSandbox) {
-			return [
-				{
-					id: crypto.randomUUID(),
-					query: "SELECT * FROM users LIMIT 10;",
-					status: "success" as const,
-					executionTimeMs: 12,
-					rowsAffected: 10,
-					errorMessage: null,
-					createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-				},
-				{
-					id: crypto.randomUUID(),
-					query: "CREATE TABLE products (id SERIAL PRIMARY KEY, name TEXT);",
-					status: "success" as const,
-					executionTimeMs: 34,
-					rowsAffected: 0,
-					errorMessage: null,
-					createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-				},
-				{
-					id: crypto.randomUUID(),
-					query: "SELECT * FROM non_existent_table;",
-					status: "error" as const,
-					executionTimeMs: 5,
-					rowsAffected: null,
-					errorMessage: 'relation "non_existent_table" does not exist',
-					createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-				},
-			];
-		}
-
-		return [];
+		return history.map((h) => ({
+			id: h.id,
+			query: h.query,
+			status: h.status as "success" | "error",
+			executionTimeMs: h.executionTimeMs,
+			rowsAffected: h.rowsAffected,
+			errorMessage: h.errorMessage,
+			createdAt: h.createdAt.toISOString(),
+		}));
 	});
 
 export const $aiGenerate = createServerFn({ method: "POST" })
