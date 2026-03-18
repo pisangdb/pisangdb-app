@@ -397,12 +397,8 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			const basePgUrl = pgUrl.replace(/\/[^/]*(\?|$)/, `/${sandbox.dbName}$1`);
 			const sandboxPool = new Pool({ connectionString: basePgUrl });
 			try {
-				const result = await sandboxPool.query<{
-					tablename: string;
-					n_live_tup: number;
-					pg_total_relation_size: bigint;
-				}>`
-					SELECT
+				const result = await sandboxPool.query(
+					`SELECT
 						c.relname AS tablename,
 						COALESCE(s.n_live_tup, 0)::integer AS n_live_tup,
 						pg_total_relation_size(c.oid) AS pg_total_relation_size
@@ -413,8 +409,8 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 						AND c.relkind = 'r'
 						AND c.relname NOT LIKE 'pg_%'
 						AND c.relname NOT LIKE 'sql_%'
-					ORDER BY c.relname
-				`;
+					ORDER BY c.relname`,
+				);
 				// pg returns frozen row objects — strip with JSON round-trip for safe serialization
 				const plainResult = JSON.parse(JSON.stringify(result.rows)) as Array<{
 					tablename: string;

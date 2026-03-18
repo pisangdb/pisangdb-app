@@ -189,7 +189,11 @@ function SqlConsolePage() {
 								<Trash2Icon className="size-4" />
 								Clear
 							</Button>
-							<Badge variant="outline">⌘ + Enter</Badge>
+							<Badge variant="outline">
+								{navigator.platform?.includes("Mac")
+									? "⌘ + Enter"
+									: "Ctrl + Enter"}
+							</Badge>
 						</div>
 
 						{queryError && (
