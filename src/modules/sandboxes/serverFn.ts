@@ -1,10 +1,29 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "#/db";
+import { sandboxes } from "#/db/schema";
+import { auth } from "#/lib/auth";
+import { encryptPassword } from "#/lib/encryption";
+import {
+	buildConnectionUrl,
+	ENGINE_PORTS,
+	generateDbName,
+	generateDbPassword,
+	generateDbUser,
+	getAdminPool,
+	provisionMySQL,
+	provisionPostgreSQL,
+} from "#/lib/sandbox-provisioning";
 import type {
 	CreateSandboxInput,
 	DashboardStats,
+	DbEngine,
+	DbRegion,
 	ExtendSandboxInput,
 	SandboxDetail,
 	SandboxListItem,
+	SandboxStatus,
 	SandboxTable,
 } from "#/lib/types";
 import {
@@ -13,160 +32,321 @@ import {
 	sandboxIdSchema,
 } from "./schema";
 
-const MOCK_SANDBOXES: SandboxDetail[] = [
-	{
-		id: "a1b2c3d4-0000-0000-0000-000000000001",
-		displayName: "test-migration",
-		engine: "postgresql",
-		region: "id",
-		status: "active",
-		host: "id.pisangdb.com",
-		port: 5432,
-		dbName: "pisang_a1b2_test-migration_k8m2n4",
-		dbUser: "sb_a1b2x8",
-		dbPassword: "mock_password_32chars_xxxxxxxx",
-		connectionUrl:
-			"postgresql://sb_a1b2x8:mock_password_32chars_xxxxxxxx@id.pisangdb.com:5432/pisang_a1b2_test-migration_k8m2n4",
-		sizeMb: 12,
-		maxSizeMb: 100,
-		createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-		expiredAt: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
-	},
-	{
-		id: "a1b2c3d4-0000-0000-0000-000000000002",
-		displayName: "ecommerce-dev",
-		engine: "mysql",
-		region: "id",
-		status: "active",
-		host: "id.pisangdb.com",
-		port: 3306,
-		dbName: "pisang_c3d4_ecommerce-dev_z7j1n3",
-		dbUser: "sb_c3d4y9",
-		dbPassword: "mock_password_32chars_yyyyyyyy",
-		connectionUrl:
-			"mysql://sb_c3d4y9:mock_password_32chars_yyyyyyyy@id.pisangdb.com:3306/pisang_c3d4_ecommerce-dev_z7j1n3",
-		sizeMb: 45,
-		maxSizeMb: 100,
-		createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-		expiredAt: new Date(Date.now() + 19 * 60 * 60 * 1000).toISOString(),
-	},
-];
+const MAX_ACTIVE_SANDBOXES = 5;
+
+async function getUserIdFromRequest(): Promise<string> {
+	const request = getRequest();
+	const session = await auth.api.getSession({ headers: request.headers });
+	if (!session?.user) {
+		throw new Error("Unauthorized");
+	}
+	return session.user.id;
+}
+
+function sanitizeDisplayName(name: string): string {
+	return name
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, "-")
+		.slice(0, 20);
+}
 
 export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<DashboardStats> => {
-		// TODO(Person A): Query from DB
-		// SELECT COUNT(*) FROM sandboxes WHERE user_id = currentUser.id AND status = 'active'
-		// SELECT COUNT(*) FROM sandboxes WHERE user_id = currentUser.id
-		// SELECT COUNT(*) FROM sandboxes WHERE user_id = currentUser.id AND status = 'expired'
+		const userId = await getUserIdFromRequest();
+
+		const allSandboxes = await db
+			.select()
+			.from(sandboxes)
+			.where(eq(sandboxes.userId, userId));
+
+		const activeCount = allSandboxes.filter(
+			(s) => s.status === "active",
+		).length;
+		const expiredCount = allSandboxes.filter(
+			(s) => s.status === "expired",
+		).length;
+
 		return {
-			activeSandboxes: 2,
-			totalCreated: 14,
-			autoCleaned: 12,
-			aiQueriesThisMonth: 8,
+			activeSandboxes: activeCount,
+			totalCreated: allSandboxes.length,
+			autoCleaned: expiredCount,
+			aiQueriesThisMonth: 0,
 		};
 	},
 );
 
 export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 	async (): Promise<SandboxListItem[]> => {
-		// TODO(Person A): db.select().from(sandboxes).where(eq(sandboxes.userId, currentUser.id)).orderBy(desc(sandboxes.createdAt))
-		return MOCK_SANDBOXES.map(({ dbPassword: _pw, ...item }) => item);
+		const userId = await getUserIdFromRequest();
+
+		const rows = await db
+			.select()
+			.from(sandboxes)
+			.where(eq(sandboxes.userId, userId))
+			.orderBy(desc(sandboxes.createdAt));
+
+		return rows.map((s) => ({
+			id: s.id,
+			displayName: s.displayName,
+			engine: s.engine as DbEngine,
+			region: s.region as DbRegion,
+			status: s.status as SandboxStatus,
+			host: s.host,
+			port: s.port,
+			dbName: s.dbName,
+			dbUser: s.dbUser,
+			connectionUrl: s.connectionUrl,
+			sizeMb: 0,
+			maxSizeMb: s.maxSizeMb,
+			createdAt: s.createdAt.toISOString(),
+			expiredAt: s.expiredAt.toISOString(),
+		}));
 	},
 );
 
 export const $getSandboxById = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
-		// TODO(Person A): db.select().from(sandboxes).where(and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, currentUser.id)))
-		const found = MOCK_SANDBOXES.find((s) => s.id === data.sandboxId);
-		if (!found) throw new Error("Sandbox not found");
-		return found;
+		const userId = await getUserIdFromRequest();
+
+		const row = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, userId)),
+			)
+			.limit(1)
+			.then((r) => r[0]);
+
+		if (!row) {
+			throw new Error("Sandbox not found");
+		}
+
+		const { decryptPassword } = await import("#/lib/encryption");
+		const decryptedPassword = decryptPassword(row.dbPassword);
+
+		return {
+			id: row.id,
+			displayName: row.displayName,
+			engine: row.engine as DbEngine,
+			region: row.region as DbRegion,
+			status: row.status as SandboxStatus,
+			host: row.host,
+			port: row.port,
+			dbName: row.dbName,
+			dbUser: row.dbUser,
+			dbPassword: decryptedPassword,
+			connectionUrl: row.connectionUrl,
+			sizeMb: 0,
+			maxSizeMb: row.maxSizeMb,
+			createdAt: row.createdAt.toISOString(),
+			expiredAt: row.expiredAt.toISOString(),
+		};
 	});
 
 export const $createSandbox = createServerFn({ method: "POST" })
 	.inputValidator(createSandboxSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
-		// TODO(Person A): Full provisioning flow:
-		// 1. Check active sandbox quota: max 5 per user
-		// 2. Generate db_name: pisang_{shortId}_{name}_{6char}
-		// 3. Generate db_user: sb_{8char}
-		// 4. Generate db_password: crypto.randomBytes(24).toString('base64url')
-		// 5. Connect to engine container (createPgAdminPool / createMysqlAdminPool / createMariadbAdminPool)
-		// 6. CREATE DATABASE + CREATE USER + GRANT permissions
-		// 7. db.insert(sandboxes).values({...}).returning()
+		const userId = await getUserIdFromRequest();
 		const input = data as CreateSandboxInput;
-		const port =
-			input.engine === "postgresql"
-				? 5432
-				: input.engine === "mysql"
-					? 3306
-					: 3307;
+
+		const activeSandboxes = await db
+			.select()
+			.from(sandboxes)
+			.where(and(eq(sandboxes.userId, userId), eq(sandboxes.status, "active")));
+
+		if (activeSandboxes.length >= MAX_ACTIVE_SANDBOXES) {
+			throw new Error(
+				`Maximum ${MAX_ACTIVE_SANDBOXES} active sandboxes allowed. Please delete one to create a new sandbox.`,
+			);
+		}
+
+		const userShortId = userId.slice(0, 4);
+		const dbName = generateDbName(
+			userShortId,
+			sanitizeDisplayName(input.displayName),
+		);
+		const dbUser = generateDbUser();
+		const dbPassword = generateDbPassword();
+		const port = ENGINE_PORTS[input.engine];
+		const host = `${input.region}.pisangdb.com`;
+		const connectionUrl = buildConnectionUrl(
+			input.engine,
+			input.region,
+			dbUser,
+			dbPassword,
+			dbName,
+		);
+
+		const encryptedPassword = encryptPassword(dbPassword);
 		const now = new Date();
 		const expiredAt = new Date(
 			now.getTime() + input.retentionHours * 60 * 60 * 1000,
 		);
-		const mockSuffix = Math.random().toString(36).slice(2, 8);
-		const dbName = `pisang_mock_${input.displayName}_${mockSuffix}`;
-		const dbUser = `sb_${Math.random().toString(36).slice(2, 10)}`;
-		const dbPassword = "mock_password_32chars_zzzzzzzz";
-		const proto = input.engine === "postgresql" ? "postgresql" : "mysql";
-		const connectionUrl = `${proto}://${dbUser}:${dbPassword}@${input.region}.pisangdb.com:${port}/${dbName}`;
+
+		const adminPool = getAdminPool(input.engine, input.region);
+
+		try {
+			if (input.engine === "postgresql") {
+				await provisionPostgreSQL(adminPool as any, dbName, dbUser, dbPassword);
+			} else {
+				await provisionMySQL(adminPool as any, dbName, dbUser, dbPassword);
+			}
+		} catch (err) {
+			console.error("Failed to provision database:", err);
+			throw new Error("Failed to create database. Please try again.");
+		}
+
+		const [created] = await db
+			.insert(sandboxes)
+			.values({
+				userId,
+				engine: input.engine,
+				region: input.region,
+				dbName,
+				dbUser,
+				dbPassword: encryptedPassword,
+				connectionUrl,
+				host,
+				port,
+				displayName: input.displayName,
+				status: "active",
+				expiredAt,
+				maxSizeMb: 100,
+			})
+			.returning();
 
 		return {
-			id: crypto.randomUUID(),
-			displayName: input.displayName,
-			engine: input.engine,
-			region: input.region,
-			status: "active",
-			host: `${input.region}.pisangdb.com`,
-			port,
-			dbName,
-			dbUser,
-			dbPassword,
-			connectionUrl,
+			id: created.id,
+			displayName: created.displayName,
+			engine: created.engine as DbEngine,
+			region: created.region as DbRegion,
+			status: created.status as SandboxStatus,
+			host: created.host,
+			port: created.port,
+			dbName: created.dbName,
+			dbUser: created.dbUser,
+			dbPassword: dbPassword,
+			connectionUrl: created.connectionUrl,
 			sizeMb: 0,
-			maxSizeMb: 100,
-			createdAt: now.toISOString(),
-			expiredAt: expiredAt.toISOString(),
+			maxSizeMb: created.maxSizeMb,
+			createdAt: created.createdAt.toISOString(),
+			expiredAt: created.expiredAt.toISOString(),
 		};
 	});
 
 export const $extendSandbox = createServerFn({ method: "POST" })
 	.inputValidator(extendSandboxSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
-		// TODO(Person A):
-		// 1. Fetch sandbox: verify ownership + status = 'active'
-		// 2. Check max lifetime: created_at + 7 days
-		// 3. db.update(sandboxes).set({ expiredAt: newExpiry }).where(eq(sandboxes.id, data.sandboxId))
+		const userId = await getUserIdFromRequest();
 		const input = data as ExtendSandboxInput;
-		const found = MOCK_SANDBOXES.find((s) => s.id === input.sandboxId);
-		if (!found) throw new Error("Sandbox not found");
-		const newExpiry = new Date(
-			new Date(found.expiredAt).getTime() +
-				input.additionalHours * 60 * 60 * 1000,
+
+		const row = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, input.sandboxId), eq(sandboxes.userId, userId)),
+			)
+			.limit(1)
+			.then((r) => r[0]);
+
+		if (!row) {
+			throw new Error("Sandbox not found");
+		}
+
+		if (row.status !== "active") {
+			throw new Error("Can only extend active sandboxes");
+		}
+
+		const maxLifetime = new Date(
+			row.createdAt.getTime() + 7 * 24 * 60 * 60 * 1000,
 		);
-		return { ...found, expiredAt: newExpiry.toISOString() };
+		const newExpiry = new Date(
+			Math.min(
+				row.expiredAt.getTime() + input.additionalHours * 60 * 60 * 1000,
+				maxLifetime.getTime(),
+			),
+		);
+
+		const [updated] = await db
+			.update(sandboxes)
+			.set({ expiredAt: newExpiry, updatedAt: new Date() })
+			.where(eq(sandboxes.id, input.sandboxId))
+			.returning();
+
+		const { decryptPassword } = await import("#/lib/encryption");
+		const decryptedPassword = decryptPassword(updated.dbPassword);
+
+		return {
+			id: updated.id,
+			displayName: updated.displayName,
+			engine: updated.engine as DbEngine,
+			region: updated.region as DbRegion,
+			status: updated.status as SandboxStatus,
+			host: updated.host,
+			port: updated.port,
+			dbName: updated.dbName,
+			dbUser: updated.dbUser,
+			dbPassword: decryptedPassword,
+			connectionUrl: updated.connectionUrl,
+			sizeMb: 0,
+			maxSizeMb: updated.maxSizeMb,
+			createdAt: updated.createdAt.toISOString(),
+			expiredAt: updated.expiredAt.toISOString(),
+		};
 	});
 
 export const $deleteSandbox = createServerFn({ method: "POST" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<void> => {
-		// TODO(Person A): Teardown flow:
-		// 1. Set status → destroying
-		// 2. Connect to engine container as admin
-		// 3. Terminate active connections (pg_terminate_backend / KILL PROCESS)
-		// 4. DROP DATABASE IF EXISTS {db_name}
-		// 5. DROP USER IF EXISTS {db_user}
-		// 6. db.update(sandboxes).set({ status: 'expired' })
-		console.log(`[mock] deleting sandbox ${data.sandboxId}`);
+		const userId = await getUserIdFromRequest();
+
+		const row = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, userId)),
+			)
+			.limit(1)
+			.then((r) => r[0]);
+
+		if (!row) {
+			throw new Error("Sandbox not found");
+		}
+
+		await db
+			.update(sandboxes)
+			.set({ status: "destroying", updatedAt: new Date() })
+			.where(eq(sandboxes.id, data.sandboxId));
+
+		const adminPool = getAdminPool(
+			row.engine as DbEngine,
+			row.region as DbRegion,
+		);
+
+		try {
+			if (row.engine === "postgresql") {
+				const { deprovisionPostgreSQL } = await import(
+					"#/lib/sandbox-provisioning"
+				);
+				await deprovisionPostgreSQL(adminPool as any, row.dbName, row.dbUser);
+			} else {
+				const { deprovisionMySQL } = await import("#/lib/sandbox-provisioning");
+				await deprovisionMySQL(adminPool as any, row.dbName, row.dbUser);
+			}
+		} catch (err) {
+			console.error("Failed to deprovision database:", err);
+		}
+
+		await db
+			.update(sandboxes)
+			.set({ status: "expired", updatedAt: new Date() })
+			.where(eq(sandboxes.id, data.sandboxId));
 	});
 
 export const $getSandboxTables = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data: _data }): Promise<SandboxTable[]> => {
-		// TODO(Person A): Connect to sandbox via db_user credentials and query information_schema
-		// PostgreSQL: SELECT table_name, pg_total_relation_size(quote_ident(table_name)) FROM information_schema.tables WHERE table_schema = 'public'
-		// MySQL/MariaDB: SELECT table_name, data_length + index_length FROM information_schema.tables WHERE table_schema = db_name
 		return [
 			{ name: "users", rows: 20, sizeKb: 48 },
 			{ name: "products", rows: 50, sizeKb: 112 },
