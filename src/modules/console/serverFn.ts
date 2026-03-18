@@ -134,7 +134,10 @@ export const $executeQuery = createServerFn({ method: "POST" })
 				const executionTimeMs = Date.now() - start;
 
 				const columns = result.fields?.map((f) => f.name) ?? [];
-				const rows = result.rows ?? [];
+				// pg returns frozen row objects — strip with JSON round-trip for safe serialization
+				const plainRows = JSON.parse(
+					JSON.stringify(result.rows ?? []),
+				) as Array<Record<string, string | number | boolean | null>>;
 				const rowsAffected = result.rowCount ?? 0;
 
 				await db.insert(queryHistory).values({
@@ -145,7 +148,7 @@ export const $executeQuery = createServerFn({ method: "POST" })
 					rowsAffected,
 				});
 
-				return { columns, rows, rowsAffected, executionTimeMs };
+				return { columns, rows: plainRows, rowsAffected, executionTimeMs };
 			}
 
 			pool = mysql.createPool({
@@ -163,22 +166,23 @@ export const $executeQuery = createServerFn({ method: "POST" })
 
 			if (Array.isArray(rows) && rows.length > 0) {
 				const columns = Object.keys(rows[0] as Record<string, unknown>);
+				// mysql2 may return frozen/proxied rows — strip with JSON round-trip for safe serialization
+				const plainRows = JSON.parse(JSON.stringify(rows)) as Array<
+					Record<string, string | number | boolean | null>
+				>;
 
 				await db.insert(queryHistory).values({
 					sandboxId: sandbox.id,
 					query: data.query,
 					status: "success",
 					executionTimeMs,
-					rowsAffected: Array.isArray(rows) ? rows.length : 0,
+					rowsAffected: plainRows.length,
 				});
 
 				return {
 					columns,
-					rows: rows as unknown as Record<
-						string,
-						string | number | boolean | null
-					>[],
-					rowsAffected: Array.isArray(rows) ? rows.length : 0,
+					rows: plainRows,
+					rowsAffected: plainRows.length,
 					executionTimeMs,
 				};
 			}

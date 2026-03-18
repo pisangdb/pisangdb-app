@@ -38,6 +38,7 @@ function SqlConsolePage() {
 	const { sandboxes } = Route.useLoaderData();
 	const [selectedSandboxId, setSelectedSandboxId] = useState<string>("");
 	const [historyQueryId, setHistoryQueryId] = useState<string>("");
+	const [resetKey, setResetKey] = useState(0);
 	const [selectedEngine, setSelectedEngine] = useState<
 		"postgresql" | "mysql" | "mariadb"
 	>("postgresql");
@@ -54,6 +55,7 @@ function SqlConsolePage() {
 	const handleSandboxChange = async (sandboxId: string) => {
 		setSelectedSandboxId(sandboxId);
 		setHistoryQueryId("");
+		setResetKey((k) => k + 1);
 		setQueryResult(null);
 		setQueryError(null);
 
@@ -104,12 +106,19 @@ function SqlConsolePage() {
 		setQuery("SELECT 1 as test;");
 		setQueryResult(null);
 		setQueryError(null);
+		setResetKey((k) => k + 1);
 	};
 
 	const handleHistoryClick = (q: string, id: string) => {
 		setHistoryQueryId(id);
 		setQuery(q);
 	};
+
+	const isSelectQuery = queryResult && queryResult.columns.length > 0;
+	const isMutation =
+		queryResult &&
+		queryResult.columns.length === 0 &&
+		queryResult.rowsAffected > 0;
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -151,7 +160,7 @@ function SqlConsolePage() {
 						</div>
 
 						<SqlEditor
-							key={`${selectedSandboxId}-${historyQueryId}`}
+							key={`${selectedSandboxId}-${historyQueryId}-${resetKey}-${isLoading}`}
 							value={query}
 							onChange={setQuery}
 							onSubmit={handleRun}
@@ -180,7 +189,7 @@ function SqlConsolePage() {
 								<Trash2Icon className="size-4" />
 								Clear
 							</Button>
-							<Badge variant="outline">Ctrl + Enter</Badge>
+							<Badge variant="outline">⌘ + Enter</Badge>
 						</div>
 
 						{queryError && (
@@ -191,47 +200,79 @@ function SqlConsolePage() {
 
 						{queryResult ? (
 							<div className="overflow-x-auto rounded-md border">
-								<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-									<span>{queryResult.rows.length} row(s)</span>
-									<span>•</span>
-									<span>{queryResult.executionTimeMs} ms</span>
-								</div>
-								{queryResult.rows.length > 0 ? (
-									<table className="w-full min-w-96 text-sm">
-										<thead className="bg-muted/50 text-left">
-											<tr>
-												{queryResult.columns.map((col) => (
-													<th key={col} className="px-3 py-2 font-medium">
-														{col}
-													</th>
-												))}
-											</tr>
-										</thead>
-										<tbody>
-											{queryResult.rows.map((row) => (
-												<tr key={JSON.stringify(row)} className="border-t">
-													{queryResult.columns.map((col) => (
-														<td
-															key={col}
-															className="px-3 py-2 font-mono text-xs"
-														>
-															{row[col] === null ? (
-																<span className="text-muted-foreground">
-																	NULL
-																</span>
-															) : (
-																String(row[col])
-															)}
-														</td>
-													))}
-												</tr>
-											))}
-										</tbody>
-									</table>
+								{isMutation ? (
+									<>
+										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+											<span>{queryResult.rowsAffected} row(s) affected</span>
+											<span>•</span>
+											<span>{queryResult.executionTimeMs} ms</span>
+										</div>
+										<div className="p-4 text-sm text-muted-foreground">
+											Query executed successfully.
+										</div>
+									</>
+								) : isSelectQuery ? (
+									<>
+										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+											<span>{queryResult.rows.length} row(s)</span>
+											<span>•</span>
+											<span>{queryResult.executionTimeMs} ms</span>
+										</div>
+										{queryResult.rows.length > 0 ? (
+											<table className="w-full min-w-96 text-sm">
+												<thead className="bg-muted/50 text-left">
+													<tr>
+														{queryResult.columns.map((col) => (
+															<th key={col} className="px-3 py-2 font-medium">
+																{col}
+															</th>
+														))}
+													</tr>
+												</thead>
+												<tbody>
+													{queryResult.rows.map((row) => {
+														const rowId = crypto.randomUUID();
+														return (
+															<tr key={rowId} className="border-t">
+																{queryResult.columns.map((col) => {
+																	const raw = row[col];
+																	return (
+																		<td
+																			key={col}
+																			className="px-3 py-2 font-mono text-xs"
+																		>
+																			{raw === null || raw === undefined ? (
+																				<span className="text-muted-foreground">
+																					NULL
+																				</span>
+																			) : (
+																				String(raw)
+																			)}
+																		</td>
+																	);
+																})}
+															</tr>
+														);
+													})}
+												</tbody>
+											</table>
+										) : (
+											<div className="p-4 text-sm text-muted-foreground">
+												Query executed successfully. No rows returned.
+											</div>
+										)}
+									</>
 								) : (
-									<div className="p-4 text-sm text-muted-foreground">
-										Query executed successfully. No rows returned.
-									</div>
+									<>
+										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+											<span>{queryResult.rows.length} row(s)</span>
+											<span>•</span>
+											<span>{queryResult.executionTimeMs} ms</span>
+										</div>
+										<div className="p-4 text-sm text-muted-foreground">
+											Query executed successfully.
+										</div>
+									</>
 								)}
 							</div>
 						) : !queryError ? (
@@ -272,12 +313,15 @@ function SqlConsolePage() {
 										className="w-full cursor-pointer rounded-md border p-2 text-left hover:bg-muted/50"
 										onClick={() => handleHistoryClick(item.query, item.id)}
 									>
-										<p className="line-clamp-1 text-xs font-mono">
+										<p className="line-clamp-1 font-mono text-xs">
 											{item.query}
 										</p>
 										<p className="mt-1 text-[11px] text-muted-foreground">
-											{item.status.toUpperCase()} • {item.executionTimeMs}ms •{" "}
-											{new Date(item.createdAt).toLocaleTimeString()}
+											{item.status.toUpperCase()} •{" "}
+											{item.rowsAffected !== null
+												? `${item.rowsAffected} affected`
+												: `${item.executionTimeMs ?? 0}ms`}
+											• {new Date(item.createdAt).toLocaleTimeString()}
 										</p>
 									</button>
 								))

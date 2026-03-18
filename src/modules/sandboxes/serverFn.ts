@@ -376,10 +376,105 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 
 export const $getSandboxTables = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
-	.handler(async ({ data: _data }): Promise<SandboxTable[]> => {
-		return [
-			{ name: "users", rows: 20, sizeKb: 48 },
-			{ name: "products", rows: 50, sizeKb: 112 },
-			{ name: "orders", rows: 15, sizeKb: 32 },
-		];
+	.handler(async ({ data }): Promise<SandboxTable[]> => {
+		const user = await getCurrentUser();
+
+		const [sandbox] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			);
+
+		if (!sandbox) {
+			throw new Error("Sandbox not found");
+		}
+
+		if (sandbox.engine === "postgresql") {
+			const pgUrl =
+				process.env[`POSTGRES_SANDBOX_URL_${sandbox.region.toUpperCase()}`] ??
+				"";
+			const basePgUrl = pgUrl.replace(/\/[^/]*(\?|$)/, `/${sandbox.dbName}$1`);
+			const sandboxPool = new Pool({ connectionString: basePgUrl });
+			try {
+				const result = await sandboxPool.query<{
+					tablename: string;
+					n_live_tup: number;
+					pg_total_relation_size: bigint;
+				}>`
+					SELECT
+						c.relname AS tablename,
+						COALESCE(s.n_live_tup, 0)::integer AS n_live_tup,
+						pg_total_relation_size(c.oid) AS pg_total_relation_size
+					FROM pg_class c
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+					LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
+					WHERE n.nspname = 'public'
+						AND c.relkind = 'r'
+						AND c.relname NOT LIKE 'pg_%'
+						AND c.relname NOT LIKE 'sql_%'
+					ORDER BY c.relname
+				`;
+				// pg returns frozen row objects — strip with JSON round-trip for safe serialization
+				const plainResult = JSON.parse(JSON.stringify(result.rows)) as Array<{
+					tablename: string;
+					n_live_tup: number;
+					pg_total_relation_size: number;
+				}>;
+				return plainResult.map((row) => ({
+					name: row.tablename,
+					rows: row.n_live_tup,
+					sizeKb: row.pg_total_relation_size / 1024,
+				}));
+			} finally {
+				await sandboxPool.end();
+			}
+		}
+
+		// MySQL / MariaDB — connect directly to the sandbox database
+		const mysqlUrlEnvKey =
+			sandbox.engine === "mariadb"
+				? `MARIADB_SANDBOX_URL_${sandbox.region.toUpperCase()}`
+				: `MYSQL_SANDBOX_URL_${sandbox.region.toUpperCase()}`;
+		const mysqlUrl = process.env[mysqlUrlEnvKey] ?? "";
+		const sandboxUrl = mysqlUrl.replace(
+			/\/[^/]*(\?|$)/,
+			`/${sandbox.dbName}$1`,
+		);
+		const directPool = mysql.createPool(sandboxUrl);
+		try {
+			const [tables] = await directPool.query<
+				Array<{
+					TABLE_NAME: string;
+					TABLE_ROWS: number;
+					Data_length: bigint;
+					Index_length: bigint;
+				}>
+			>(
+				`SELECT
+					TABLE_NAME,
+					TABLE_ROWS,
+					Data_length,
+					Index_length
+				FROM information_schema.tables
+				WHERE table_schema = ?
+					AND table_type = 'BASE TABLE'
+				ORDER BY TABLE_NAME`,
+				[sandbox.dbName],
+			);
+			// mysql2 may return frozen/proxied rows — strip with JSON round-trip for safe serialization
+			const plainTables = JSON.parse(JSON.stringify(tables)) as Array<{
+				TABLE_NAME: string;
+				TABLE_ROWS: number;
+				Data_length: number;
+				Index_length: number;
+			}>;
+			return plainTables.map((row) => ({
+				name: row.TABLE_NAME,
+				rows: row.TABLE_ROWS ?? 0,
+				sizeKb: (row.Data_length + row.Index_length) / 1024,
+			}));
+		} finally {
+			await directPool.end();
+		}
 	});

@@ -48,10 +48,31 @@ import {
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/$id")({
 	loader: async ({ params }) => {
-		const sandbox = await $getSandboxById({ data: { sandboxId: params.id } });
-		const tables = await $getSandboxTables({ data: { sandboxId: params.id } });
-		const history = await $getQueryHistory({ data: { sandboxId: params.id } });
-		const aiLogs = await $getAiLogs({ data: { sandboxId: params.id } });
+		const sandboxId = params.id;
+
+		// Run all data fetches in parallel — each wrapped individually so one failure
+		// doesn't crash the entire page loader
+		const [sandboxResult, tablesResult, historyResult, aiLogsResult] =
+			await Promise.allSettled([
+				$getSandboxById({ data: { sandboxId } }),
+				$getSandboxTables({ data: { sandboxId } }),
+				$getQueryHistory({ data: { sandboxId } }),
+				$getAiLogs({ data: { sandboxId } }),
+			]);
+
+		const sandbox =
+			sandboxResult.status === "fulfilled" ? sandboxResult.value : null;
+		const tables =
+			tablesResult.status === "fulfilled" ? tablesResult.value : [];
+		const history =
+			historyResult.status === "fulfilled" ? historyResult.value : [];
+		const aiLogs =
+			aiLogsResult.status === "fulfilled" ? aiLogsResult.value : [];
+
+		if (!sandbox) {
+			throw new Error("Sandbox not found or access denied");
+		}
+
 		return { sandbox, tables, history, aiLogs };
 	},
 	head: () => ({ meta: [{ title: "Sandbox Detail — PisangDB" }] }),
