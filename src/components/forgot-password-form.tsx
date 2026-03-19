@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "#/components/ui/button";
 import {
 	Field,
@@ -10,20 +11,59 @@ import {
 import { Input } from "#/components/ui/input";
 import { cn } from "#/lib/utils";
 
+const validateEmail = (email: string): boolean => {
+	const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+	return regex.test(email);
+};
+
 export function ForgotPasswordForm({
 	className,
 	...props
 }: React.ComponentProps<"div">) {
 	const [isLoading, setIsLoading] = useState(false);
 	const [sent, setSent] = useState(false);
+	const [email, setEmail] = useState("");
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
+
+		// Client-side validation
+		if (!email) {
+			toast.error("Please enter your email");
+			return;
+		}
+
+		if (!validateEmail(email)) {
+			toast.error("Please enter a valid email address");
+			return;
+		}
+
 		setIsLoading(true);
-		setTimeout(() => {
-			setIsLoading(false);
+
+		try {
+			const response = await fetch("/api/auth/forget-password", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ email }),
+			});
+
+			if (!response.ok) {
+				const error = await response.json();
+				toast.error(
+					error.message || "Failed to send reset email. Please try again.",
+				);
+				setIsLoading(false);
+				return;
+			}
+
 			setSent(true);
-		}, 1200);
+			toast.success("Reset link sent to your email");
+			setIsLoading(false);
+		} catch (error) {
+			console.error("Password reset error:", error);
+			toast.error("An error occurred. Please try again.");
+			setIsLoading(false);
+		}
 	};
 
 	return (
@@ -34,8 +74,11 @@ export function ForgotPasswordForm({
 						<FieldLabel htmlFor="email">Account email</FieldLabel>
 						<Input
 							id="email"
+							name="email"
 							type="email"
 							placeholder="you@example.com"
+							value={email}
+							onChange={(e) => setEmail(e.target.value)}
 							required
 							disabled={sent}
 						/>
