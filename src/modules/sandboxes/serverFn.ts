@@ -576,9 +576,11 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			let tables: SandboxTable[] = [];
 
 			if (sandbox.engine === "postgresql") {
+				// Use SANDBOX_HOST override for local development (same as $executeQuery)
+				const host = process.env.SANDBOX_HOST ?? sandbox.host;
 				// Connect directly to the sandbox database using sandbox credentials
 				const sandboxPool = new Pool({
-					host: sandbox.host,
+					host,
 					port: sandbox.port,
 					database: sandbox.dbName,
 					user: sandbox.dbUser,
