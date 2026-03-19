@@ -11,7 +11,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
-import { Skeleton } from "#/components/ui/skeleton";
 import { useSandboxes } from "#/lib/hooks/useSandboxes";
 import type {
 	QueryHistoryItem,
@@ -148,7 +147,9 @@ function SqlConsolePage() {
 								disabled={sandboxesLoading || undefined}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
 							>
-								<option value="">{sandboxesLoading ? "Loading..." : "Select a sandbox"}</option>
+								<option value="">
+									{sandboxesLoading ? "Loading..." : "Select a sandbox"}
+								</option>
 								{activeSandboxes.map((sandbox) => (
 									<option key={sandbox.id} value={sandbox.id}>
 										{sandbox.displayName} ({ENGINE_LABELS[sandbox.engine]})
