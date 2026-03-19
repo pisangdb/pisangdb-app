@@ -5,7 +5,6 @@ services:
   app:
     build: .
     restart: unless-stopped
-    container_name: pisang-app
     ports:
       - "3000:3000"
     depends_on:
@@ -49,7 +48,6 @@ services:
   postgres-app:
     image: postgres:16-alpine
     restart: unless-stopped
-    container_name: pisang-postgres-app
     environment:
       POSTGRES_DB: pisangdb
       POSTGRES_USER: pisang
@@ -78,7 +76,6 @@ services:
   postgres-sandbox:
     image: postgres:16-alpine
     restart: unless-stopped
-    container_name: pisang-postgres-sandbox
     environment:
       POSTGRES_USER: pisang
       POSTGRES_PASSWORD: ${PG_SANDBOX_PASSWORD}
@@ -113,7 +110,6 @@ services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
-    container_name: pisang-mysql
     command: >
       --default-authentication-plugin=mysql_native_password
       --skip-name-resolve
@@ -156,7 +152,6 @@ services:
   mariadb:
     image: mariadb:11.4
     restart: unless-stopped
-    container_name: pisang-mariadb
     command: >
       --skip-name-resolve
       --skip-show-database
@@ -182,25 +177,6 @@ services:
         reservations:
           memory: 200M
 
-  adminer:
-    image: adminer:latest
-    restart: unless-stopped
-    container_name: pisang-adminer
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres-app
-      - postgres-sandbox
-      - mysql
-      - mariadb
-    deploy:
-      resources:
-        limits:
-          cpus: "0.25"
-          memory: 256M
-        reservations:
-          memory: 128M
-
   # ─────────────────────────────────────────────────────────────
   # Caddy — Reverse Proxy + HTTPS otomatis
   # Hanya handle pisangdb.com (HTTP/HTTPS)
@@ -209,7 +185,6 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    container_name: pisang-caddy
     ports:
       - "80:80"
       - "443:443"

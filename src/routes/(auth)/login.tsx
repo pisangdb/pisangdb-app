@@ -1,16 +1,9 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { AuthBrandingPanel } from "#/components/auth-branding-panel";
 import { LoginForm } from "#/components/login-form";
 import { Logo } from "#/components/logo";
-import { $getMe } from "#/modules/auth/serverFn";
 
 export const Route = createFileRoute("/(auth)/login")({
-	beforeLoad: async () => {
-		const user = await $getMe();
-		if (user) {
-			throw redirect({ to: "/dashboard" });
-		}
-	},
 	head: () => ({ meta: [{ title: "Sign In — PisangDB" }] }),
 	component: LoginPage,
 });
