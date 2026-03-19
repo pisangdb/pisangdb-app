@@ -23,6 +23,7 @@ export function useSandboxes() {
 		queryKey: SANDBOXES_QUERY_KEY,
 		queryFn: () => $getSandboxes(),
 		refetchInterval: 30_000,
+		staleTime: 0,
 	});
 }
 

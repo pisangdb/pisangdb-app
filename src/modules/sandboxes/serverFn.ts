@@ -213,7 +213,7 @@ async function provisionPostgresql(
 	const escapedPassword = dbPassword.replace(/'/g, "''");
 
 	await pool.query(
-		`CREATE USER ${safeUser} WITH PASSWORD '${escapedPassword}' NOSUPERUSER NOCREATEROLE NOCREATEDB NOLOGIN`,
+		`CREATE USER ${safeUser} WITH PASSWORD '${escapedPassword}' NOSUPERUSER NOCREATEROLE NOCREATEDB LOGIN`,
 	);
 	await pool.query(`CREATE DATABASE ${safeDbName} OWNER ${safeUser}`);
 	await pool.query(`GRANT CONNECT ON DATABASE ${safeDbName} TO ${safeUser}`);
@@ -435,9 +435,31 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 			throw new Error("Sandbox not found");
 		}
 
+		// Mark as destroying first
 		await db
 			.update(sandboxes)
 			.set({ status: "destroying", updatedAt: new Date() })
+			.where(eq(sandboxes.id, data.sandboxId));
+
+		// Actually deprovision the database
+		const cleanupPool =
+			sandbox.engine === "postgresql"
+				? createPgAdminPool(sandbox.region)
+				: sandbox.engine === "mysql"
+					? createMysqlAdminPool(sandbox.region)
+					: createMariadbAdminPool(sandbox.region);
+
+		await cleanupPartialSandbox(
+			sandbox.engine,
+			cleanupPool as Pool | MySqlPool | null,
+			sandbox.dbName,
+			sandbox.dbUser,
+		);
+
+		// Mark as expired after successful cleanup
+		await db
+			.update(sandboxes)
+			.set({ status: "expired", updatedAt: new Date() })
 			.where(eq(sandboxes.id, data.sandboxId));
 	});
 
@@ -466,7 +488,59 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			throw new Error("Sandbox not found");
 		}
 
-		throw new Error(
-			"Get sandbox tables not yet implemented - requires connecting to sandbox DB",
-		);
+		// Connect to the sandbox database to get tables
+		try {
+			let tables: SandboxTable[] = [];
+
+			if (sandbox.engine === "postgresql") {
+				const pool = createPgAdminPool(sandbox.region);
+				// Query information_schema for tables
+				const result = await pool.query<{
+					table_name: string;
+					table_rows: string;
+					total_bytes: string;
+				}>(
+					`SELECT
+						c.relname AS table_name,
+						COALESCE(s.n_live_tup, 0)::text AS table_rows,
+						pg_total_relation_length(c.oid)::text AS total_bytes
+					FROM pg_class c
+					LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+					LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
+					WHERE c.relkind = 'r'
+						AND n.nspname = 'public'
+						AND NOT c.relname LIKE 'pisang_%'
+					ORDER BY c.relname`,
+				);
+				tables = result.rows.map((row) => ({
+					name: row.table_name,
+					rows: parseInt(row.table_rows, 10) || 0,
+					sizeKb: Math.round(parseInt(row.total_bytes, 10) / 1024) || 0,
+				}));
+				await pool.end();
+			} else {
+				// MySQL or MariaDB
+				const pool =
+					sandbox.engine === "mysql"
+						? createMysqlAdminPool(sandbox.region)
+						: createMariadbAdminPool(sandbox.region);
+				const [result] = (await pool.query(
+					`SHOW TABLE STATUS FROM \`${sandbox.dbName}\``,
+				)) as [Record<string, number | string>[], unknown];
+				tables = result.map((row) => ({
+					name: row["Tables_in_db"] as string,
+					rows: (row["Rows"] as number) || 0,
+					sizeKb:
+						Math.round(
+							parseInt((row["Data_length"] as string) || "0", 10) / 1024,
+						) || 0,
+				}));
+				await pool.end();
+			}
+
+			return tables;
+		} catch {
+			// If we can't connect to the sandbox DB (e.g., it's empty or not accessible), return empty
+			return [];
+		}
 	});

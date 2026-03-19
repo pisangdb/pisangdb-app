@@ -11,19 +11,16 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Skeleton } from "#/components/ui/skeleton";
+import { useSandboxes } from "#/lib/hooks/useSandboxes";
 import type {
 	QueryHistoryItem,
 	QueryResult,
 	SandboxListItem,
 } from "#/lib/types";
 import { $executeQuery, $getQueryHistory } from "#/modules/console/serverFn";
-import { $getSandboxes } from "#/modules/sandboxes/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/console")({
-	loader: async () => {
-		const sandboxes = await $getSandboxes();
-		return { sandboxes };
-	},
 	head: () => ({ meta: [{ title: "SQL Console — PisangDB" }] }),
 	component: SqlConsolePage,
 });
@@ -35,7 +32,7 @@ const ENGINE_LABELS: Record<string, string> = {
 };
 
 function SqlConsolePage() {
-	const { sandboxes } = Route.useLoaderData();
+	const { data: sandboxes = [], isPending: sandboxesLoading } = useSandboxes();
 	const [selectedSandboxId, setSelectedSandboxId] = useState<string>("");
 	const [historyQueryId, setHistoryQueryId] = useState<string>("");
 	const [resetKey, setResetKey] = useState(0);
@@ -48,7 +45,7 @@ function SqlConsolePage() {
 	const [history, setHistory] = useState<QueryHistoryItem[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 
-	const activeSandboxes = sandboxes.filter(
+	const activeSandboxes = (sandboxes ?? []).filter(
 		(s: SandboxListItem) => s.status === "active",
 	) as SandboxListItem[];
 
@@ -148,9 +145,10 @@ function SqlConsolePage() {
 								onChange={(event) => {
 									handleSandboxChange(event.target.value);
 								}}
+								disabled={sandboxesLoading || undefined}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
 							>
-								<option value="">Select a sandbox</option>
+								<option value="">{sandboxesLoading ? "Loading..." : "Select a sandbox"}</option>
 								{activeSandboxes.map((sandbox) => (
 									<option key={sandbox.id} value={sandbox.id}>
 										{sandbox.displayName} ({ENGINE_LABELS[sandbox.engine]})

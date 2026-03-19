@@ -4,7 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 import mysql from "mysql2/promise";
 import { Pool } from "pg";
 import { db } from "#/db";
-import { queryHistory, sandboxes } from "#/db/schema";
+import { aiLogs, queryHistory, sandboxes } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import type {
 	AiGenerateResult,
@@ -54,6 +54,37 @@ async function getCurrentUser() {
 	return session.user;
 }
 
+function getSandboxPort(engine: string, region: string): number {
+	const regionKey = region.toUpperCase();
+	if (engine === "postgresql") {
+		const url = process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ?? "";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 5432;
+	}
+	if (engine === "mysql") {
+		const url = process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ?? "";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 3306;
+	}
+	const envUrl = process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ?? "";
+	const match = envUrl.match(/:(\d+)(?:\/|$)/);
+	if (match) return parseInt(match[1], 10);
+	return 3307;
+}
+
+function getSandboxConnection(
+	engine: string,
+	region: string,
+	storedHost: string,
+): { host: string; port: number } {
+	// Override host for development - allows connecting to local sandbox containers
+	const devHost = process.env.SANDBOX_HOST ?? storedHost;
+	const port = getSandboxPort(engine, region);
+	return { host: devHost, port };
+}
+
 export const $executeQuery = createServerFn({ method: "POST" })
 	.inputValidator(executeQuerySchema)
 	.handler(async ({ data }): Promise<QueryResult> => {
@@ -80,11 +111,18 @@ export const $executeQuery = createServerFn({ method: "POST" })
 		const start = Date.now();
 		let pool: Pool | mysql.Pool | undefined;
 
+		// Use dev host/port override for local development
+		const { host, port } = getSandboxConnection(
+			sandbox.engine,
+			sandbox.region,
+			sandbox.host,
+		);
+
 		try {
 			if (sandbox.engine === "postgresql") {
 				pool = new Pool({
-					host: sandbox.host,
-					port: sandbox.port,
+					host,
+					port,
 					database: sandbox.dbName,
 					user: sandbox.dbUser,
 					password: sandbox.dbPassword,
@@ -112,14 +150,16 @@ export const $executeQuery = createServerFn({ method: "POST" })
 			}
 
 			pool = mysql.createPool({
-				host: sandbox.host,
-				port: sandbox.port,
+				host,
+				port,
 				database: sandbox.dbName,
 				user: sandbox.dbUser,
 				password: sandbox.dbPassword,
 				waitForConnections: true,
 				connectionLimit: 5,
 			});
+
+			await pool.query("SET SESSION MAX_EXECUTION_TIME=30000");
 
 			const [rows] = await pool.query(data.query);
 			const executionTimeMs = Date.now() - start;
@@ -231,6 +271,45 @@ export const $aiExecute = createServerFn({ method: "POST" })
 
 export const $getAiLogs = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
-	.handler(async ({ data: _data }): Promise<AiLogItem[]> => {
-		throw new Error("AI Logs not yet implemented - Gemini API not configured");
+	.handler(async ({ data }): Promise<AiLogItem[]> => {
+		// Return empty array if AI is not configured - graceful degradation
+		// so the sandbox detail page can still load
+		const user = await getCurrentUser();
+
+		// Verify sandbox belongs to this user
+		const [sandbox] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			);
+
+		if (!sandbox) {
+			throw new Error("Sandbox not found");
+		}
+
+		// Check if AI is configured
+		const apiKey = process.env.GEMINI_API_KEY;
+		if (!apiKey) {
+			// Return empty array if no API key - graceful degradation
+			return [];
+		}
+
+		// Fetch AI logs for this sandbox
+		const logs = await db
+			.select()
+			.from(aiLogs)
+			.where(eq(aiLogs.sandboxId, data.sandboxId))
+			.orderBy(desc(aiLogs.createdAt))
+			.limit(50);
+
+		return logs.map((row) => ({
+			id: row.id,
+			prompt: row.prompt,
+			response: row.response,
+			sqlGenerated: row.sqlGenerated,
+			executed: row.executed,
+			tokensUsed: row.tokensUsed,
+			createdAt: row.createdAt.toISOString(),
+		}));
 	});
