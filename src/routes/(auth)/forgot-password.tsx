@@ -1,16 +1,9 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { AuthBrandingPanel } from "#/components/auth-branding-panel";
 import { ForgotPasswordForm } from "#/components/forgot-password-form";
 import { Logo } from "#/components/logo";
-import { $getMe } from "#/modules/auth/serverFn";
 
 export const Route = createFileRoute("/(auth)/forgot-password")({
-	beforeLoad: async () => {
-		const user = await $getMe();
-		if (user) {
-			throw redirect({ to: "/dashboard" });
-		}
-	},
 	head: () => ({ meta: [{ title: "Forgot Password — PisangDB" }] }),
 	component: ForgotPasswordPage,
 });

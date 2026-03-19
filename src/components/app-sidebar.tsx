@@ -1,4 +1,4 @@
-import { Link, useRouteContext } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
 	BotIcon,
 	DatabaseIcon,
@@ -21,7 +21,12 @@ import {
 	SidebarMenuItem,
 } from "#/components/ui/sidebar";
 
-const navData = {
+const data = {
+	user: {
+		name: "Rio Pratama",
+		email: "rio@example.com",
+		avatar: "",
+	},
 	navMain: [
 		{
 			title: "Dashboard",
@@ -62,13 +67,6 @@ const navData = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-	const context = useRouteContext({ from: "/_app" });
-	const user = context?.user || {
-		name: "User",
-		email: "user@example.com",
-		image: null,
-	};
-
 	return (
 		<Sidebar collapsible="icon" {...props}>
 			<SidebarHeader>
@@ -95,17 +93,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 				</SidebarMenu>
 			</SidebarHeader>
 			<SidebarContent>
-				<NavMain items={navData.navMain} />
+				<NavMain items={data.navMain} />
 				<NavUsage active={2} />
 			</SidebarContent>
 			<SidebarFooter>
-				<NavUser
-					user={{
-						name: user.name || "User",
-						email: user.email || "user@example.com",
-						avatar: user.image || "",
-					}}
-				/>
+				<NavUser user={data.user} />
 			</SidebarFooter>
 		</Sidebar>
 	);

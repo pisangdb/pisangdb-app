@@ -1,16 +1,9 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { AuthBrandingPanel } from "#/components/auth-branding-panel";
 import { Logo } from "#/components/logo";
 import { SignupForm } from "#/components/signup-form";
-import { $getMe } from "#/modules/auth/serverFn";
 
 export const Route = createFileRoute("/(auth)/register")({
-	beforeLoad: async () => {
-		const user = await $getMe();
-		if (user) {
-			throw redirect({ to: "/dashboard" });
-		}
-	},
 	head: () => ({ meta: [{ title: "Create Account — PisangDB" }] }),
 	component: SignupPage,
 });
