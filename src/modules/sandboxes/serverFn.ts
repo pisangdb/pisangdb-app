@@ -617,11 +617,32 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					WHERE schemaname = 'public'
 					ORDER BY tablename`,
 				);
-				tables = result.rows.map((row) => ({
-					name: row.tablename,
-					rows: 0,
-					sizeKb: 0,
-				}));
+
+				// Get row counts and sizes using COUNT(*) and pg_table_size
+				for (const row of result.rows) {
+					const tableName = row.tablename;
+					// Use COUNT(*) for accurate row count - pg_stat_user_tables may not have stats for new tables
+					// Use pg_table_size with proper regclass cast for size
+					const countResult = await sandboxPool.query<{
+						row_count: bigint;
+						size_kb: bigint;
+					}>(
+						`SELECT
+							(SELECT count(*) FROM "${tableName}") as row_count,
+							coalesce(pg_table_size($1::regclass), 0) as size_kb
+						`,
+						[tableName],
+					);
+					const rowCount = Number(countResult.rows[0]?.row_count ?? 0);
+					const sizeKb = Math.round(
+						Number(countResult.rows[0]?.size_kb ?? 0) / 1024,
+					);
+					tables.push({
+						name: tableName,
+						rows: rowCount,
+						sizeKb,
+					});
+				}
 				await sandboxPool.end();
 			} else {
 				// MySQL or MariaDB
