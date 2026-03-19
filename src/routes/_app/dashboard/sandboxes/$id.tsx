@@ -283,7 +283,9 @@ function SandboxDetailPage() {
 			</div>
 
 			{activeTab === "info" && <InfoTab sandbox={sandbox} />}
-			{activeTab === "console" && <ConsoleTab sandbox={sandbox} />}
+			{activeTab === "console" && (
+				<ConsoleTab sandbox={sandbox} router={router} />
+			)}
 			{activeTab === "ai" && <AiTab sandbox={sandbox} />}
 			{activeTab === "tables" && (
 				<TablesTab tables={tables} dbName={sandbox.dbName} />
@@ -479,7 +481,17 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 	);
 }
 
-function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
+function ConsoleTab({
+	sandbox,
+	router,
+}: {
+	sandbox: SandboxDetail;
+	router: ReturnType<typeof useRouter>;
+}) {
+	const isMac =
+		typeof navigator !== "undefined" &&
+		/Mac|iPod|iPhone|iPad/.test(navigator.platform);
+	const modKey = isMac ? "⌘" : "Ctrl";
 	const [query, setQuery] = useState("SELECT 1 as test;");
 	const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
 	const [queryError, setQueryError] = useState<string | null>(null);
@@ -497,6 +509,8 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 				data: { sandboxId: sandbox.id, query },
 			});
 			setQueryResult(result);
+			// Refresh history and tables after successful query
+			await router.invalidate();
 		} catch (error) {
 			setQueryError(error instanceof Error ? error.message : "Query failed");
 		} finally {
@@ -564,7 +578,7 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 					>
 						Clear
 					</Button>
-					<Badge variant="outline">Ctrl + Enter</Badge>
+					<Badge variant="outline">{modKey} + Enter</Badge>
 				</div>
 
 				{queryError && (
@@ -802,6 +816,24 @@ function TablesTab({
 }
 
 function HistoryTab({ history }: { history: QueryHistoryItem[] }) {
+	const isDdlQuery = (q: string): boolean => {
+		const ddlKeywords = /^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME)\s+/i;
+		return ddlKeywords.test(q.trim());
+	};
+
+	const getHistoryStatus = (item: QueryHistoryItem): string => {
+		if (item.status === "error") return "ERROR";
+		if (isDdlQuery(item.query)) {
+			return item.rowsAffected !== null
+				? `${item.rowsAffected} row(s) affected`
+				: "SUCCESS";
+		}
+		if (item.rowsAffected !== null && item.rowsAffected > 0) {
+			return `${item.rowsAffected} row(s)`;
+		}
+		return "SUCCESS";
+	};
+
 	return (
 		<Card>
 			<CardHeader>
@@ -827,7 +859,7 @@ function HistoryTab({ history }: { history: QueryHistoryItem[] }) {
 												: "text-destructive"
 										}
 									>
-										{item.status.toUpperCase()}
+										{getHistoryStatus(item)}
 									</span>
 									{" · "}
 									{item.executionTimeMs} ms ·{" "}
