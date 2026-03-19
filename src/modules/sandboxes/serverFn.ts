@@ -571,17 +571,39 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			throw new Error("Sandbox not found");
 		}
 
+		// Get port from env var - same logic as $executeQuery uses
+		const getSandboxPort = (engine: string, region: string): number => {
+			const regionKey = region.toUpperCase();
+			if (engine === "postgresql") {
+				const url = process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ?? "";
+				const match = url.match(/:(\d+)(?:\/|$)/);
+				if (match) return parseInt(match[1], 10);
+				return 5432;
+			}
+			if (engine === "mysql") {
+				const url = process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ?? "";
+				const match = url.match(/:(\d+)(?:\/|$)/);
+				if (match) return parseInt(match[1], 10);
+				return 3306;
+			}
+			const envUrl = process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ?? "";
+			const envMatch = envUrl.match(/:(\d+)(?:\/|$)/);
+			if (envMatch) return parseInt(envMatch[1], 10);
+			return 3307;
+		};
+
 		// Connect to the sandbox database to get tables
 		try {
 			let tables: SandboxTable[] = [];
 
 			if (sandbox.engine === "postgresql") {
-				// Use SANDBOX_HOST override for local development (same as $executeQuery)
+				// Use SANDBOX_HOST and SANDBOX_PORT env vars - same as $executeQuery
 				const host = process.env.SANDBOX_HOST ?? sandbox.host;
+				const port = getSandboxPort(sandbox.engine, sandbox.region);
 				// Connect directly to the sandbox database using sandbox credentials
 				const sandboxPool = new Pool({
 					host,
-					port: sandbox.port,
+					port,
 					database: sandbox.dbName,
 					user: sandbox.dbUser,
 					password: sandbox.dbPassword,
