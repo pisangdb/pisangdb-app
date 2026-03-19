@@ -4,7 +4,7 @@ import {
 	defaultHighlightStyle,
 	syntaxHighlighting,
 } from "@codemirror/language";
-import { Compartment, EditorState } from "@codemirror/state";
+import { EditorState } from "@codemirror/state";
 import {
 	EditorView,
 	highlightActiveLineGutter,
@@ -32,10 +32,6 @@ const defaultTheme = EditorView.theme({
 	".cm-content": {
 		fontFamily: "var(--font-mono)",
 		padding: "8px 0",
-		caretColor: "var(--primary)",
-	},
-	".cm-cursor": {
-		borderLeft: "2px solid var(--primary)",
 	},
 	".cm-line": {
 		padding: "0 8px",
@@ -48,13 +44,13 @@ const defaultTheme = EditorView.theme({
 	".cm-activeLineGutter": {
 		backgroundColor: "var(--accent)",
 	},
+	"&.cm-focused .cm-cursor": {
+		borderLeftColor: "var(--foreground)",
+	},
 	"&.cm-focused .cm-selectionBackground, ::selection": {
 		backgroundColor: "var(--accent)",
 	},
 });
-
-// Compartment instance for read-only toggle — module-level so same instance persists
-const editableCompartment = new Compartment();
 
 export function SqlEditor({
 	value,
@@ -69,8 +65,8 @@ export function SqlEditor({
 	const viewRef = useRef<EditorView | null>(null);
 	const onChangeRef = useRef(onChange);
 	const onSubmitRef = useRef(onSubmit);
+	const valueRef = useRef(value);
 
-	// Keep refs current
 	useEffect(() => {
 		onChangeRef.current = onChange;
 	}, [onChange]);
@@ -79,44 +75,63 @@ export function SqlEditor({
 		onSubmitRef.current = onSubmit;
 	}, [onSubmit]);
 
-	// Create editor once when engine or placeholderText changes
-	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional re-mount on engine/placeholderText; value synced separately
+	useEffect(() => {
+		valueRef.current = value;
+	}, [value]);
+
+	useEffect(() => {
+		if (!viewRef.current) return;
+		const currentValue = viewRef.current.state.doc.toString();
+		if (value !== currentValue) {
+			viewRef.current.dispatch({
+				changes: {
+					from: 0,
+					to: currentValue.length,
+					insert: value,
+				},
+			});
+		}
+	}, [value]);
+
 	useEffect(() => {
 		if (!editorRef.current) return;
 
 		const dialect =
 			engine === "mysql" || engine === "mariadb" ? MySQL : PostgreSQL;
 
-		// Remove Mod-Enter from defaultKeymap to avoid precedence conflict
-		const filteredDefaultKeymap = defaultKeymap.filter(
-			(kb) => !kb.key?.includes("Mod-Enter"),
-		);
+		const submitKeyBinding = onSubmitRef.current
+			? {
+					key: "Mod-Enter",
+					run: () => {
+						onSubmitRef.current?.();
+						return true;
+					},
+				}
+			: null;
 
-		const submitKeyBinding = {
-			key: "Mod-Enter",
-			run: (view: EditorView) => {
-				if (!view.hasFocus) view.focus();
-				onSubmitRef.current?.();
-				return true;
-			},
-		};
+		const keymapExtensions = submitKeyBinding
+			? keymap.of([...defaultKeymap, submitKeyBinding])
+			: keymap.of(defaultKeymap);
 
 		const state = EditorState.create({
-			doc: value,
+			doc: valueRef.current,
 			extensions: [
 				lineNumbers(),
 				highlightActiveLineGutter(),
 				sql({ dialect }),
 				syntaxHighlighting(defaultHighlightStyle),
 				defaultTheme,
-				keymap.of([...filteredDefaultKeymap, submitKeyBinding]),
-				placeholder(placeholderText),
-				editableCompartment.of(EditorView.editable.of(!disabled)),
+				keymapExtensions,
 				EditorView.updateListener.of((update) => {
 					if (update.docChanged) {
-						onChangeRef.current(update.state.doc.toString());
+						const newValue = update.state.doc.toString();
+						valueRef.current = newValue;
+						onChangeRef.current(newValue);
 					}
 				}),
+				EditorView.editable.of(!disabled),
+				EditorState.readOnly.of(disabled),
+				placeholder(placeholderText),
 			],
 		});
 
@@ -131,27 +146,7 @@ export function SqlEditor({
 			view.destroy();
 			viewRef.current = null;
 		};
-	}, [engine, placeholderText]);
-
-	// Sync external value changes (e.g. "Clear" button)
-	useEffect(() => {
-		if (!viewRef.current) return;
-		const view = viewRef.current;
-		if (view.state.doc.toString() === value) return;
-		view.dispatch({
-			changes: { from: 0, to: view.state.doc.length, insert: value },
-		});
-	}, [value]);
-
-	// Toggle read-only mode via compartment (no re-mount needed)
-	useEffect(() => {
-		if (!viewRef.current) return;
-		viewRef.current.dispatch({
-			effects: editableCompartment.reconfigure(
-				disabled ? EditorView.editable.of(false) : EditorView.editable.of(true),
-			),
-		});
-	}, [disabled]);
+	}, [engine, disabled, placeholderText]);
 
 	return (
 		<div

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PlayIcon, ShieldIcon, Trash2Icon } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -74,7 +74,7 @@ function SqlConsolePage() {
 		}
 	};
 
-	const handleRun = async () => {
+	const handleRun = useCallback(async () => {
 		if (!selectedSandboxId || !query.trim()) return;
 
 		setIsLoading(true);
@@ -99,7 +99,7 @@ function SqlConsolePage() {
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, [selectedSandboxId, query]);
 
 	const handleClear = () => {
 		setHistoryQueryId("");

@@ -13,7 +13,7 @@ import {
 	TableIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -24,7 +24,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
-import { Skeleton } from "#/components/ui/skeleton";
 import type {
 	AiGenerateResult,
 	QueryHistoryItem,
@@ -48,36 +47,14 @@ import {
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/$id")({
 	loader: async ({ params }) => {
-		const sandboxId = params.id;
-
-		// Run all data fetches in parallel — each wrapped individually so one failure
-		// doesn't crash the entire page loader
-		const [sandboxResult, tablesResult, historyResult, aiLogsResult] =
-			await Promise.allSettled([
-				$getSandboxById({ data: { sandboxId } }),
-				$getSandboxTables({ data: { sandboxId } }),
-				$getQueryHistory({ data: { sandboxId } }),
-				$getAiLogs({ data: { sandboxId } }),
-			]);
-
-		const sandbox =
-			sandboxResult.status === "fulfilled" ? sandboxResult.value : null;
-		const tables =
-			tablesResult.status === "fulfilled" ? tablesResult.value : [];
-		const history =
-			historyResult.status === "fulfilled" ? historyResult.value : [];
-		const aiLogs =
-			aiLogsResult.status === "fulfilled" ? aiLogsResult.value : [];
-
-		if (!sandbox) {
-			throw new Error("Sandbox not found or access denied");
-		}
-
+		const sandbox = await $getSandboxById({ data: { sandboxId: params.id } });
+		const tables = await $getSandboxTables({ data: { sandboxId: params.id } });
+		const history = await $getQueryHistory({ data: { sandboxId: params.id } });
+		const aiLogs = await $getAiLogs({ data: { sandboxId: params.id } });
 		return { sandbox, tables, history, aiLogs };
 	},
 	head: () => ({ meta: [{ title: "Sandbox Detail — PisangDB" }] }),
 	component: SandboxDetailPage,
-	pendingComponent: SandboxDetailSkeleton,
 });
 
 const ENGINE_EMOJI: Record<string, string> = {
@@ -99,62 +76,6 @@ const REGION_LABELS: Record<string, string> = {
 };
 
 type Tab = "info" | "console" | "ai" | "tables" | "history";
-function SandboxDetailSkeleton() {
-	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div className="flex items-start justify-between gap-4">
-				<div className="flex items-center gap-3">
-					<Skeleton className="size-8 shrink-0 rounded-md" />
-					<div className="space-y-1.5">
-						<div className="flex items-center gap-2">
-							<Skeleton className="h-5 w-40" />
-							<Skeleton className="h-4 w-12 rounded-full" />
-						</div>
-						<Skeleton className="h-4 w-64" />
-					</div>
-				</div>
-				<div className="flex gap-1.5">
-					<Skeleton className="h-8 w-20 rounded-md" />
-					<Skeleton className="h-8 w-20 rounded-md" />
-				</div>
-			</div>
-			<Skeleton className="h-10 w-full rounded-lg" />
-			<div className="grid gap-4 lg:grid-cols-2">
-				<Card>
-					<CardHeader>
-						<Skeleton className="h-5 w-24" />
-					</CardHeader>
-					<CardContent className="space-y-3">
-						{[1, 2, 3, 4].map((i) => (
-							<Skeleton key={i} className="h-9 w-full rounded-md" />
-						))}
-						<Skeleton className="h-20 w-full rounded-md" />
-					</CardContent>
-				</Card>
-				<div className="flex flex-col gap-4">
-					<Card>
-						<CardHeader>
-							<Skeleton className="h-5 w-32" />
-						</CardHeader>
-						<CardContent className="space-y-2">
-							{[1, 2, 3, 4, 5].map((i) => (
-								<Skeleton key={i} className="h-5 w-full" />
-							))}
-						</CardContent>
-					</Card>
-					<Card>
-						<CardHeader>
-							<Skeleton className="h-5 w-24" />
-						</CardHeader>
-						<CardContent>
-							<Skeleton className="h-2 w-full rounded-full" />
-						</CardContent>
-					</Card>
-				</div>
-			</div>
-		</div>
-	);
-}
 
 const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
 	{ key: "info", label: "Info", icon: <DatabaseIcon className="size-3.5" /> },
@@ -210,16 +131,6 @@ function SandboxDetailPage() {
 	const [deleting, setDeleting] = useState(false);
 
 	const ttl = formatTtl(sandbox.expiredAt);
-
-	// Auto-redirect when sandbox is being destroyed
-	useEffect(() => {
-		if (sandbox.status === "destroying") {
-			const timeout = setTimeout(() => {
-				void navigate({ to: "/dashboard/sandboxes" });
-			}, 5000);
-			return () => clearTimeout(timeout);
-		}
-	}, [sandbox.status, navigate]);
 
 	const handleExtend = async (duration: 1 | 6 | 12 | 24) => {
 		setExtendOpen(false);
@@ -592,12 +503,6 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 		}
 	};
 
-	const isSelectQuery = queryResult && queryResult.columns.length > 0;
-	const isMutation =
-		queryResult &&
-		queryResult.columns.length === 0 &&
-		queryResult.rowsAffected >= 0;
-
 	return (
 		<Card>
 			<CardHeader>
@@ -609,7 +514,6 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 			</CardHeader>
 			<CardContent className="space-y-3">
 				<SqlEditor
-					key={sandbox.id}
 					value={query}
 					onChange={setQuery}
 					onSubmit={handleRun}
@@ -638,9 +542,7 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 					>
 						Clear
 					</Button>
-					<Badge variant="outline">
-						{navigator.platform?.includes("Mac") ? "⌘ + Enter" : "Ctrl + Enter"}
-					</Badge>
+					<Badge variant="outline">Ctrl + Enter</Badge>
 				</div>
 
 				{queryError && (
@@ -651,18 +553,12 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 				{queryResult ? (
 					<div className="overflow-x-auto rounded-md border">
-						{isMutation ? (
-							<>
-								<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-									<span>{queryResult.rowsAffected} row(s) affected</span>
-									<span>•</span>
-									<span>{queryResult.executionTimeMs} ms</span>
-								</div>
-								<div className="p-4 text-sm text-muted-foreground">
-									Query executed successfully.
-								</div>
-							</>
-						) : isSelectQuery ? (
+						<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+							<span>{queryResult.rows.length} row(s)</span>
+							<span>•</span>
+							<span>{queryResult.executionTimeMs} ms</span>
+						</div>
+						{queryResult.rows.length > 0 ? (
 							<table className="w-full min-w-96 text-sm">
 								<thead className="bg-muted/50 text-left">
 									<tr>
@@ -674,30 +570,19 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 									</tr>
 								</thead>
 								<tbody>
-									{queryResult.rows.map((row) => {
-										const rowId = crypto.randomUUID();
-										return (
-											<tr key={rowId} className="border-t">
-												{queryResult.columns.map((col) => {
-													const raw = row[col];
-													return (
-														<td
-															key={col}
-															className="px-3 py-2 font-mono text-xs"
-														>
-															{raw === null || raw === undefined ? (
-																<span className="text-muted-foreground">
-																	NULL
-																</span>
-															) : (
-																String(raw)
-															)}
-														</td>
-													);
-												})}
-											</tr>
-										);
-									})}
+									{queryResult.rows.map((row) => (
+										<tr key={Object.values(row).join("-")} className="border-t">
+											{queryResult.columns.map((col) => (
+												<td key={col} className="px-3 py-2 font-mono text-xs">
+													{row[col] === null ? (
+														<span className="text-muted-foreground">NULL</span>
+													) : (
+														String(row[col])
+													)}
+												</td>
+											))}
+										</tr>
+									))}
 								</tbody>
 							</table>
 						) : (
@@ -735,7 +620,7 @@ function AiTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 		try {
 			const result = await $aiGenerate({
-				data: { sandboxId: sandbox.id, prompt, engine: sandbox.engine },
+				data: { sandboxId: sandbox.id, prompt },
 			});
 			setGenerated(result);
 			setGeneratedSql(result.sqlGenerated);
