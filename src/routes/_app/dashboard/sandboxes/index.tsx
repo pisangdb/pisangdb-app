@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
-	Clock3Icon,
 	CopyIcon,
 	PlusIcon,
 	RefreshCcwIcon,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { TtlCountdown } from "#/components/ttl-countdown";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import {
 } from "#/components/ui/card";
 import { Skeleton } from "#/components/ui/skeleton";
 import { useSandboxes } from "#/lib/hooks/useSandboxes";
+import { computeSandboxUiStatus } from "#/lib/types";
 import { $deleteSandbox, $extendSandbox } from "#/modules/sandboxes/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/")({
@@ -46,37 +47,17 @@ const REGION_LABEL: Record<string, string> = {
 
 type DisplayStatus = "active" | "expiring" | "expired" | "destroying";
 
-function getDisplayStatus(
-	expiredAt: string,
-	status: "active" | "destroying" | "expired",
-): DisplayStatus {
-	if (status !== "active") return status;
-	const msLeft = new Date(expiredAt).getTime() - Date.now();
-	if (msLeft <= 30 * 60 * 1000) return "expiring";
-	return "active";
-}
-
-function formatTtl(expiredAt: string): string {
-	const ms = new Date(expiredAt).getTime() - Date.now();
-	if (ms <= 0) return "Expired";
-	const h = Math.floor(ms / 3_600_000);
-	const m = Math.floor((ms % 3_600_000) / 60_000);
-	if (h > 24) return `${Math.floor(h / 24)}d left`;
-	if (h > 0) return `${h}h ${m}m left`;
-	return `${m}m left`;
-}
-
 const statusMap: Record<
 	DisplayStatus,
 	{
 		label: string;
-		variant: "default" | "outline" | "secondary" | "destructive";
+		variant: "default" | "secondary" | "destructive";
 	}
 > = {
-	active: { label: "Active", variant: "default" },
-	expiring: { label: "Expiring Soon", variant: "outline" },
-	destroying: { label: "Destroying", variant: "secondary" },
-	expired: { label: "Expired", variant: "destructive" },
+	active: { label: "🟢 Active", variant: "default" },
+	expiring: { label: "🟡 Expiring Soon", variant: "secondary" },
+	destroying: { label: "🔴 Destroying", variant: "destructive" },
+	expired: { label: "🔴 Expired", variant: "destructive" },
 };
 
 function SandboxesPage() {
@@ -227,12 +208,11 @@ function SandboxesPage() {
 						</div>
 					) : (
 						sandboxes.map((sandbox) => {
-							const displayStatus = getDisplayStatus(
-								sandbox.expiredAt,
+							const uiStatus = computeSandboxUiStatus(
 								sandbox.status,
+								sandbox.expiredAt,
 							);
-							const statusCfg = statusMap[displayStatus];
-							const ttl = formatTtl(sandbox.expiredAt);
+							const statusCfg = statusMap[uiStatus];
 							const isRowPending = actionPending?.id === sandbox.id;
 							return (
 								<div key={sandbox.id} className="rounded-lg border p-3 sm:p-4">
@@ -250,7 +230,7 @@ function SandboxesPage() {
 													>
 														{sandbox.displayName}
 													</Link>
-													{displayStatus === "destroying" ? (
+													{uiStatus === "destroying" ? (
 														<RefreshCcwIcon className="size-3.5 animate-spin text-muted-foreground" />
 													) : (
 														<Badge
@@ -267,12 +247,13 @@ function SandboxesPage() {
 													Created{" "}
 													{new Date(sandbox.createdAt).toLocaleDateString()}
 												</p>
-												<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-													<Clock3Icon className="size-3.5" />
-													<span>{ttl}</span>
-													<span>•</span>
-													<span>
-														{sandbox.sizeMb} MB / {sandbox.maxSizeMb} MB
+												<div className="mt-1 flex items-center gap-2">
+													<TtlCountdown
+														expiredAt={sandbox.expiredAt}
+														status={sandbox.status}
+													/>
+													<span className="text-xs text-muted-foreground">
+														• {sandbox.sizeMb} MB / {sandbox.maxSizeMb} MB
 													</span>
 												</div>
 											</div>

@@ -246,7 +246,7 @@ function NewSandboxPage() {
 
 						<Button
 							className="w-full sm:w-auto"
-							disabled={createSandbox.isPending}
+							disabled={!name.trim() || createSandbox.isPending}
 							onClick={handleCreate}
 						>
 							{createSandbox.isPending ? "Creating..." : "Create Sandbox 🍌"}
