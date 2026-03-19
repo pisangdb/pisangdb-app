@@ -126,7 +126,11 @@ function formatDate(iso: string): string {
 }
 
 function SandboxDetailPage() {
-	const { sandbox, tables, history: initialHistory } = Route.useLoaderData();
+	const {
+		sandbox,
+		tables: initialTables,
+		history: initialHistory,
+	} = Route.useLoaderData();
 	const navigate = useNavigate();
 	const router = useRouter();
 	const extendSandbox = useExtendSandbox();
@@ -134,6 +138,8 @@ function SandboxDetailPage() {
 	const [activeTab, setActiveTab] = useState<Tab>("info");
 	const [extendOpen, setExtendOpen] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
+	const [tables, setTables] = useState(initialTables);
+	const [history, setHistory] = useState(initialHistory);
 
 	const ttl = formatTtl(sandbox.expiredAt);
 
@@ -283,12 +289,18 @@ function SandboxDetailPage() {
 			</div>
 
 			{activeTab === "info" && <InfoTab sandbox={sandbox} />}
-			{activeTab === "console" && <ConsoleTab sandbox={sandbox} />}
+			{activeTab === "console" && (
+				<ConsoleTab
+					sandbox={sandbox}
+					setHistory={setHistory}
+					setTables={setTables}
+				/>
+			)}
 			{activeTab === "ai" && <AiTab sandbox={sandbox} />}
 			{activeTab === "tables" && (
 				<TablesTab tables={tables} dbName={sandbox.dbName} />
 			)}
-			{activeTab === "history" && <HistoryTab history={initialHistory} />}
+			{activeTab === "history" && <HistoryTab history={history} />}
 		</div>
 	);
 }
@@ -479,7 +491,19 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 	);
 }
 
-function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
+function ConsoleTab({
+	sandbox,
+	setHistory,
+	setTables,
+}: {
+	sandbox: SandboxDetail;
+	setHistory: React.Dispatch<React.SetStateAction<QueryHistoryItem[]>>;
+	setTables: React.Dispatch<React.SetStateAction<SandboxTable[]>>;
+}) {
+	const isMac =
+		typeof navigator !== "undefined" &&
+		/Mac|iPod|iPhone|iPad/.test(navigator.platform);
+	const modKey = isMac ? "⌘" : "Ctrl";
 	const [query, setQuery] = useState("SELECT 1 as test;");
 	const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
 	const [queryError, setQueryError] = useState<string | null>(null);
@@ -497,11 +521,42 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 				data: { sandboxId: sandbox.id, query },
 			});
 			setQueryResult(result);
+
+			// Fetch fresh history and tables after successful query
+			const [newHistory, newTables] = await Promise.all([
+				$getQueryHistory({ data: { sandboxId: sandbox.id } }),
+				$getSandboxTables({ data: { sandboxId: sandbox.id } }),
+			]);
+			setHistory(newHistory);
+			setTables(newTables);
 		} catch (error) {
 			setQueryError(error instanceof Error ? error.message : "Query failed");
 		} finally {
 			setIsLoading(false);
 		}
+	};
+
+	const isMutationQuery = (q: string): boolean => {
+		// DDL and DML statements that affect rows
+		const mutationKeywords =
+			/^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME|INSERT|UPDATE|DELETE)\s+/i;
+		return mutationKeywords.test(q.trim());
+	};
+
+	const getQueryStatusMessage = (
+		q: string,
+		rowsLength: number,
+		rowsAffected: number,
+	): string => {
+		if (isMutationQuery(q)) {
+			return rowsAffected >= 0
+				? `${rowsAffected} row(s) affected`
+				: "Query executed successfully";
+		}
+		if (rowsLength > 0) {
+			return `${rowsLength} row(s)`;
+		}
+		return "Query executed successfully. No rows returned.";
 	};
 
 	return (
@@ -543,7 +598,7 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 					>
 						Clear
 					</Button>
-					<Badge variant="outline">Ctrl + Enter</Badge>
+					<Badge variant="outline">{modKey} + Enter</Badge>
 				</div>
 
 				{queryError && (
@@ -555,7 +610,13 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 				{queryResult ? (
 					<div className="overflow-x-auto rounded-md border">
 						<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-							<span>{queryResult.rows.length} row(s)</span>
+							<span>
+								{getQueryStatusMessage(
+									query,
+									queryResult.rows.length,
+									queryResult.rowsAffected,
+								)}
+							</span>
 							<span>•</span>
 							<span>{queryResult.executionTimeMs} ms</span>
 						</div>
@@ -775,6 +836,26 @@ function TablesTab({
 }
 
 function HistoryTab({ history }: { history: QueryHistoryItem[] }) {
+	const isMutationQuery = (q: string): boolean => {
+		// DDL and DML statements that affect rows
+		const mutationKeywords =
+			/^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME|INSERT|UPDATE|DELETE)\s+/i;
+		return mutationKeywords.test(q.trim());
+	};
+
+	const getHistoryStatus = (item: QueryHistoryItem): string => {
+		if (item.status === "error") return "ERROR";
+		if (isMutationQuery(item.query)) {
+			return item.rowsAffected !== null
+				? `${item.rowsAffected} row(s) affected`
+				: "SUCCESS";
+		}
+		if (item.rowsAffected !== null && item.rowsAffected > 0) {
+			return `${item.rowsAffected} row(s)`;
+		}
+		return "SUCCESS";
+	};
+
 	return (
 		<Card>
 			<CardHeader>
@@ -800,7 +881,7 @@ function HistoryTab({ history }: { history: QueryHistoryItem[] }) {
 												: "text-destructive"
 										}
 									>
-										{item.status.toUpperCase()}
+										{getHistoryStatus(item)}
 									</span>
 									{" · "}
 									{item.executionTimeMs} ms ·{" "}

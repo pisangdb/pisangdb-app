@@ -103,6 +103,7 @@ export function SqlEditor({
 			? {
 					key: "Mod-Enter",
 					run: () => {
+						console.log("[SqlEditor] Mod-Enter pressed, calling onSubmit");
 						onSubmitRef.current?.();
 						return true;
 					},
@@ -142,7 +143,20 @@ export function SqlEditor({
 
 		viewRef.current = view;
 
+		// Also add a document-level keydown listener as fallback
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+				e.preventDefault();
+				console.log(
+					"[SqlEditor] Ctrl/Meta+Enter detected via document listener",
+				);
+				onSubmitRef.current?.();
+			}
+		};
+		document.addEventListener("keydown", handleKeyDown);
+
 		return () => {
+			document.removeEventListener("keydown", handleKeyDown);
 			view.destroy();
 			viewRef.current = null;
 		};

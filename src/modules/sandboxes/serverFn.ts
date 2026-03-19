@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, desc, eq, ne } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
-import type { Pool } from "pg";
+import { Pool } from "pg";
 import {
 	createMariadbAdminPool,
 	createMysqlAdminPool,
@@ -571,36 +571,79 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			throw new Error("Sandbox not found");
 		}
 
+		// Get port from env var - same logic as $executeQuery uses
+		const getSandboxPort = (engine: string, region: string): number => {
+			const regionKey = region.toUpperCase();
+			if (engine === "postgresql") {
+				const url = process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ?? "";
+				const match = url.match(/:(\d+)(?:\/|$)/);
+				if (match) return parseInt(match[1], 10);
+				return 5432;
+			}
+			if (engine === "mysql") {
+				const url = process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ?? "";
+				const match = url.match(/:(\d+)(?:\/|$)/);
+				if (match) return parseInt(match[1], 10);
+				return 3306;
+			}
+			const envUrl = process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ?? "";
+			const envMatch = envUrl.match(/:(\d+)(?:\/|$)/);
+			if (envMatch) return parseInt(envMatch[1], 10);
+			return 3307;
+		};
+
 		// Connect to the sandbox database to get tables
 		try {
 			let tables: SandboxTable[] = [];
 
 			if (sandbox.engine === "postgresql") {
-				const pool = createPgAdminPool(sandbox.region);
-				// Query information_schema for tables
-				const result = await pool.query<{
-					table_name: string;
-					table_rows: string;
-					total_bytes: string;
+				// Use SANDBOX_HOST and SANDBOX_PORT env vars - same as $executeQuery
+				const host = process.env.SANDBOX_HOST ?? sandbox.host;
+				const port = getSandboxPort(sandbox.engine, sandbox.region);
+				// Connect directly to the sandbox database using sandbox credentials
+				const sandboxPool = new Pool({
+					host,
+					port,
+					database: sandbox.dbName,
+					user: sandbox.dbUser,
+					password: sandbox.dbPassword,
+					max: 5,
+				});
+				const result = await sandboxPool.query<{
+					tablename: string;
 				}>(
-					`SELECT
-						c.relname AS table_name,
-						COALESCE(s.n_live_tup, 0)::text AS table_rows,
-						pg_total_relation_length(c.oid)::text AS total_bytes
-					FROM pg_class c
-					LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
-					LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
-					WHERE c.relkind = 'r'
-						AND n.nspname = 'public'
-						AND NOT c.relname LIKE 'pisang_%'
-					ORDER BY c.relname`,
+					`SELECT tablename
+					FROM pg_catalog.pg_tables
+					WHERE schemaname = 'public'
+					ORDER BY tablename`,
 				);
-				tables = result.rows.map((row) => ({
-					name: row.table_name,
-					rows: parseInt(row.table_rows, 10) || 0,
-					sizeKb: Math.round(parseInt(row.total_bytes, 10) / 1024) || 0,
-				}));
-				await pool.end();
+
+				// Get row counts and sizes using COUNT(*) and pg_table_size
+				for (const row of result.rows) {
+					const tableName = row.tablename;
+					// Use COUNT(*) for accurate row count - pg_stat_user_tables may not have stats for new tables
+					// Use pg_table_size with proper regclass cast for size
+					const countResult = await sandboxPool.query<{
+						row_count: bigint;
+						size_kb: bigint;
+					}>(
+						`SELECT
+							(SELECT count(*) FROM "${tableName}") as row_count,
+							coalesce(pg_table_size($1::regclass), 0) as size_kb
+						`,
+						[tableName],
+					);
+					const rowCount = Number(countResult.rows[0]?.row_count ?? 0);
+					const sizeKb = Math.round(
+						Number(countResult.rows[0]?.size_kb ?? 0) / 1024,
+					);
+					tables.push({
+						name: tableName,
+						rows: rowCount,
+						sizeKb,
+					});
+				}
+				await sandboxPool.end();
 			} else {
 				// MySQL or MariaDB
 				const pool =
