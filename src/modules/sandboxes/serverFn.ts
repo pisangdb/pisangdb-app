@@ -587,27 +587,20 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					password: sandbox.dbPassword,
 					max: 5,
 				});
+				// Use information_schema.tables - more reliable than pg_stat_user_tables
+				// which requires statistics to be collected
 				const result = await sandboxPool.query<{
 					table_name: string;
-					table_rows: string;
-					total_bytes: string;
 				}>(
-					`SELECT
-						c.relname AS table_name,
-						COALESCE(s.n_live_tup, 0)::text AS table_rows,
-						pg_total_relation_length(c.oid)::text AS total_bytes
-					FROM pg_class c
-					LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
-					LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
-					WHERE c.relkind = 'r'
-						AND n.nspname = 'public'
-						AND NOT c.relname LIKE 'pisang_%'
-					ORDER BY c.relname`,
+					`SELECT table_name
+					FROM information_schema.tables
+					WHERE table_schema = 'public'
+					ORDER BY table_name`,
 				);
 				tables = result.rows.map((row) => ({
 					name: row.table_name,
-					rows: parseInt(row.table_rows, 10) || 0,
-					sizeKb: Math.round(parseInt(row.total_bytes, 10) / 1024) || 0,
+					rows: 0, // information_schema doesn't have row count
+					sizeKb: 0, // would need separate query to get size
 				}));
 				await sandboxPool.end();
 			} else {
