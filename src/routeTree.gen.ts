@@ -13,11 +13,15 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AppDashboardRouteImport } from './routes/_app/dashboard'
+import { Route as authResetPasswordRouteImport } from './routes/(auth)/reset-password'
 import { Route as authRegisterRouteImport } from './routes/(auth)/register'
 import { Route as authLoginRouteImport } from './routes/(auth)/login'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AppDashboardIndexRouteImport } from './routes/_app/dashboard/index'
+import { Route as ApiAuthResetPasswordRouteImport } from './routes/api/auth/reset-password'
+import { Route as ApiAuthForgetPasswordRouteImport } from './routes/api/auth/forget-password'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AppDashboardSettingsRouteImport } from './routes/_app/dashboard/settings'
 import { Route as AppDashboardSandboxesRouteImport } from './routes/_app/dashboard/sandboxes'
@@ -25,6 +29,7 @@ import { Route as AppDashboardHelpRouteImport } from './routes/_app/dashboard/he
 import { Route as AppDashboardConsoleRouteImport } from './routes/_app/dashboard/console'
 import { Route as AppDashboardAiSeederRouteImport } from './routes/_app/dashboard/ai-seeder'
 import { Route as AppDashboardAccountRouteImport } from './routes/_app/dashboard/account'
+import { Route as AppDashboardSandboxesIndexRouteImport } from './routes/_app/dashboard/sandboxes/index'
 import { Route as AppDashboardSandboxesNewRouteImport } from './routes/_app/dashboard/sandboxes/new'
 import { Route as AppDashboardSandboxesIdRouteImport } from './routes/_app/dashboard/sandboxes/$id'
 
@@ -47,10 +52,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AppRoute,
+} as any)
+const authResetPasswordRoute = authResetPasswordRouteImport.update({
+  id: '/(auth)/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const authRegisterRoute = authRegisterRouteImport.update({
   id: '/(auth)/register',
@@ -71,6 +86,16 @@ const AppDashboardIndexRoute = AppDashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppDashboardRoute,
+} as any)
+const ApiAuthResetPasswordRoute = ApiAuthResetPasswordRouteImport.update({
+  id: '/api/auth/reset-password',
+  path: '/api/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthForgetPasswordRoute = ApiAuthForgetPasswordRouteImport.update({
+  id: '/api/auth/forget-password',
+  path: '/api/auth/forget-password',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -107,6 +132,12 @@ const AppDashboardAccountRoute = AppDashboardAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => AppDashboardRoute,
 } as any)
+const AppDashboardSandboxesIndexRoute =
+  AppDashboardSandboxesIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppDashboardSandboxesRoute,
+  } as any)
 const AppDashboardSandboxesNewRoute =
   AppDashboardSandboxesNewRouteImport.update({
     id: '/new',
@@ -126,7 +157,9 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
+  '/reset-password': typeof authResetPasswordRoute
   '/dashboard': typeof AppDashboardRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/dashboard/account': typeof AppDashboardAccountRoute
   '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/dashboard/console': typeof AppDashboardConsoleRoute
@@ -134,9 +167,12 @@ export interface FileRoutesByFullPath {
   '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/forget-password': typeof ApiAuthForgetPasswordRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/dashboard/': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/dashboard/sandboxes/': typeof AppDashboardSandboxesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -145,16 +181,20 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof authForgotPasswordRoute
   '/login': typeof authLoginRoute
   '/register': typeof authRegisterRoute
+  '/reset-password': typeof authResetPasswordRoute
+  '/api/health': typeof ApiHealthRoute
   '/dashboard/account': typeof AppDashboardAccountRoute
   '/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/dashboard/console': typeof AppDashboardConsoleRoute
   '/dashboard/help': typeof AppDashboardHelpRoute
-  '/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/forget-password': typeof ApiAuthForgetPasswordRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/dashboard': typeof AppDashboardIndexRoute
   '/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/dashboard/sandboxes': typeof AppDashboardSandboxesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -165,7 +205,9 @@ export interface FileRoutesById {
   '/(auth)/forgot-password': typeof authForgotPasswordRoute
   '/(auth)/login': typeof authLoginRoute
   '/(auth)/register': typeof authRegisterRoute
+  '/(auth)/reset-password': typeof authResetPasswordRoute
   '/_app/dashboard': typeof AppDashboardRouteWithChildren
+  '/api/health': typeof ApiHealthRoute
   '/_app/dashboard/account': typeof AppDashboardAccountRoute
   '/_app/dashboard/ai-seeder': typeof AppDashboardAiSeederRoute
   '/_app/dashboard/console': typeof AppDashboardConsoleRoute
@@ -173,9 +215,12 @@ export interface FileRoutesById {
   '/_app/dashboard/sandboxes': typeof AppDashboardSandboxesRouteWithChildren
   '/_app/dashboard/settings': typeof AppDashboardSettingsRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/forget-password': typeof ApiAuthForgetPasswordRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/_app/dashboard/': typeof AppDashboardIndexRoute
   '/_app/dashboard/sandboxes/$id': typeof AppDashboardSandboxesIdRoute
   '/_app/dashboard/sandboxes/new': typeof AppDashboardSandboxesNewRoute
+  '/_app/dashboard/sandboxes/': typeof AppDashboardSandboxesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -186,7 +231,9 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/register'
+    | '/reset-password'
     | '/dashboard'
+    | '/api/health'
     | '/dashboard/account'
     | '/dashboard/ai-seeder'
     | '/dashboard/console'
@@ -194,9 +241,12 @@ export interface FileRouteTypes {
     | '/dashboard/sandboxes'
     | '/dashboard/settings'
     | '/api/auth/$'
+    | '/api/auth/forget-password'
+    | '/api/auth/reset-password'
     | '/dashboard/'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
+    | '/dashboard/sandboxes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -205,16 +255,20 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/login'
     | '/register'
+    | '/reset-password'
+    | '/api/health'
     | '/dashboard/account'
     | '/dashboard/ai-seeder'
     | '/dashboard/console'
     | '/dashboard/help'
-    | '/dashboard/sandboxes'
     | '/dashboard/settings'
     | '/api/auth/$'
+    | '/api/auth/forget-password'
+    | '/api/auth/reset-password'
     | '/dashboard'
     | '/dashboard/sandboxes/$id'
     | '/dashboard/sandboxes/new'
+    | '/dashboard/sandboxes'
   id:
     | '__root__'
     | '/'
@@ -224,7 +278,9 @@ export interface FileRouteTypes {
     | '/(auth)/forgot-password'
     | '/(auth)/login'
     | '/(auth)/register'
+    | '/(auth)/reset-password'
     | '/_app/dashboard'
+    | '/api/health'
     | '/_app/dashboard/account'
     | '/_app/dashboard/ai-seeder'
     | '/_app/dashboard/console'
@@ -232,9 +288,12 @@ export interface FileRouteTypes {
     | '/_app/dashboard/sandboxes'
     | '/_app/dashboard/settings'
     | '/api/auth/$'
+    | '/api/auth/forget-password'
+    | '/api/auth/reset-password'
     | '/_app/dashboard/'
     | '/_app/dashboard/sandboxes/$id'
     | '/_app/dashboard/sandboxes/new'
+    | '/_app/dashboard/sandboxes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -245,7 +304,11 @@ export interface RootRouteChildren {
   authForgotPasswordRoute: typeof authForgotPasswordRoute
   authLoginRoute: typeof authLoginRoute
   authRegisterRoute: typeof authRegisterRoute
+  authResetPasswordRoute: typeof authResetPasswordRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiAuthForgetPasswordRoute: typeof ApiAuthForgetPasswordRoute
+  ApiAuthResetPasswordRoute: typeof ApiAuthResetPasswordRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -278,12 +341,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/dashboard': {
       id: '/_app/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/(auth)/reset-password': {
+      id: '/(auth)/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof authResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/(auth)/register': {
       id: '/(auth)/register'
@@ -312,6 +389,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/'
       preLoaderRoute: typeof AppDashboardIndexRouteImport
       parentRoute: typeof AppDashboardRoute
+    }
+    '/api/auth/reset-password': {
+      id: '/api/auth/reset-password'
+      path: '/api/auth/reset-password'
+      fullPath: '/api/auth/reset-password'
+      preLoaderRoute: typeof ApiAuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/forget-password': {
+      id: '/api/auth/forget-password'
+      path: '/api/auth/forget-password'
+      fullPath: '/api/auth/forget-password'
+      preLoaderRoute: typeof ApiAuthForgetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -362,6 +453,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardAccountRouteImport
       parentRoute: typeof AppDashboardRoute
     }
+    '/_app/dashboard/sandboxes/': {
+      id: '/_app/dashboard/sandboxes/'
+      path: '/'
+      fullPath: '/dashboard/sandboxes/'
+      preLoaderRoute: typeof AppDashboardSandboxesIndexRouteImport
+      parentRoute: typeof AppDashboardSandboxesRoute
+    }
     '/_app/dashboard/sandboxes/new': {
       id: '/_app/dashboard/sandboxes/new'
       path: '/new'
@@ -382,11 +480,13 @@ declare module '@tanstack/react-router' {
 interface AppDashboardSandboxesRouteChildren {
   AppDashboardSandboxesIdRoute: typeof AppDashboardSandboxesIdRoute
   AppDashboardSandboxesNewRoute: typeof AppDashboardSandboxesNewRoute
+  AppDashboardSandboxesIndexRoute: typeof AppDashboardSandboxesIndexRoute
 }
 
 const AppDashboardSandboxesRouteChildren: AppDashboardSandboxesRouteChildren = {
   AppDashboardSandboxesIdRoute: AppDashboardSandboxesIdRoute,
   AppDashboardSandboxesNewRoute: AppDashboardSandboxesNewRoute,
+  AppDashboardSandboxesIndexRoute: AppDashboardSandboxesIndexRoute,
 }
 
 const AppDashboardSandboxesRouteWithChildren =
@@ -436,7 +536,11 @@ const rootRouteChildren: RootRouteChildren = {
   authForgotPasswordRoute: authForgotPasswordRoute,
   authLoginRoute: authLoginRoute,
   authRegisterRoute: authRegisterRoute,
+  authResetPasswordRoute: authResetPasswordRoute,
+  ApiHealthRoute: ApiHealthRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiAuthForgetPasswordRoute: ApiAuthForgetPasswordRoute,
+  ApiAuthResetPasswordRoute: ApiAuthResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

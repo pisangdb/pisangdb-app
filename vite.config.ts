@@ -15,6 +15,11 @@ const config = defineConfig({
 		tanstackStart(),
 		viteReact(),
 	],
+	optimizeDeps: {
+		// Pre-bundle drizzle-orm so it's available when @better-auth/drizzle-adapter
+		// imports it as an optional peer dependency during build
+		include: ["drizzle-orm"],
+	},
 });
 
 export default config;
