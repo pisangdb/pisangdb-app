@@ -117,14 +117,21 @@ function NewSandboxPage() {
 	}, [engine, name, region, selectedEngine.port]);
 
 	const copyEnv = async () => {
-		if (typeof navigator === "undefined" || !navigator.clipboard) return;
-		await navigator.clipboard.writeText(
-			`DATABASE_URL=${generated.connectionUrl}`,
-		);
-		setCopied(true);
-		setTimeout(() => {
-			setCopied(false);
-		}, 1200);
+		if (typeof navigator === "undefined" || !navigator.clipboard) {
+			toast.error("Clipboard not available");
+			return;
+		}
+		try {
+			await navigator.clipboard.writeText(
+				`DATABASE_URL=${generated.connectionUrl}`,
+			);
+			setCopied(true);
+			setTimeout(() => {
+				setCopied(false);
+			}, 1200);
+		} catch {
+			toast.error("Failed to copy to clipboard");
+		}
 	};
 
 	return (
