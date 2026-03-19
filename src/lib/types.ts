@@ -115,6 +115,7 @@ export interface ExecuteQueryInput {
 export interface AiGenerateInput {
 	sandboxId: string;
 	prompt: string;
+	engine: "postgresql" | "mysql" | "mariadb";
 }
 
 export interface AiGenerateResult {

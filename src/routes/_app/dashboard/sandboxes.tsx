@@ -10,8 +10,7 @@ function SandboxesLayout() {
 
 	useEffect(() => {
 		if (window.location.pathname === "/dashboard/sandboxes") {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			navigate({ to: "/dashboard/sandboxes/" as any });
+			void navigate("/dashboard/sandboxes/");
 		}
 	}, [navigate]);
 

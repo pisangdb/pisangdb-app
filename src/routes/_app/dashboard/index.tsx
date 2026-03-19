@@ -25,9 +25,14 @@ import { computeSandboxUiStatus } from "#/lib/types";
 
 export const Route = createFileRoute("/_app/dashboard/")({
 	loader: async () => {
-		const { $getSandboxes } = await import("#/modules/sandboxes/serverFn");
-		const sandboxes = await $getSandboxes();
-		return { sandboxes };
+		const { $getSandboxes, $getDashboardStats } = await import(
+			"#/modules/sandboxes/serverFn"
+		);
+		const [sandboxes, stats] = await Promise.all([
+			$getSandboxes(),
+			$getDashboardStats(),
+		]);
+		return { sandboxes, stats };
 	},
 	pendingComponent: DashboardSkeleton,
 	component: DashboardHome,
@@ -123,19 +128,19 @@ const statusConfig: Record<
 	}
 > = {
 	active: {
-		label: "Active",
+		label: "🟢 Active",
 		variant: "default",
 	},
 	expiring: {
-		label: "Expiring Soon",
+		label: "🟡 Expiring Soon",
 		variant: "outline",
 	},
 	expired: {
-		label: "Expired",
+		label: "🔴 Expired",
 		variant: "destructive",
 	},
 	destroying: {
-		label: "Destroying",
+		label: "🔴 Destroying",
 		variant: "secondary",
 	},
 };
@@ -232,23 +237,17 @@ function formatCreatedAgo(createdAt: string): string {
 }
 
 export function DashboardHome() {
-	const { sandboxes } = Route.useLoaderData();
+	const { sandboxes, stats } = Route.useLoaderData();
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 	const [actionResult, setActionResult] = useState<{
 		id: string;
 		message: string;
 	} | null>(null);
 
-	const activeSandboxes = sandboxes.filter((s) => s.status === "active");
-	const totalCreated = sandboxes.length;
-	const autoCleaned = sandboxes.filter(
-		(s) => s.status === "expired" || s.status === "destroying",
-	).length;
-
-	const stats = [
+	const statsCards = [
 		{
 			label: "Active Sandboxes",
-			value: String(activeSandboxes.length),
+			value: String(stats.activeSandboxes),
 			sub: `of ${MAX_ACTIVE_SANDBOXES} max`,
 			icon: <DatabaseIcon className="size-4" />,
 			accent: "text-primary",
@@ -256,7 +255,7 @@ export function DashboardHome() {
 		},
 		{
 			label: "Total Created",
-			value: String(totalCreated),
+			value: String(stats.totalCreated),
 			sub: "all time",
 			icon: <ActivityIcon className="size-4" />,
 			accent: "text-muted-foreground",
@@ -264,7 +263,7 @@ export function DashboardHome() {
 		},
 		{
 			label: "Auto-cleaned",
-			value: String(autoCleaned),
+			value: String(stats.autoCleaned),
 			sub: "zero effort",
 			icon: <CircleCheckIcon className="size-4" />,
 			accent: "text-muted-foreground",
@@ -272,7 +271,7 @@ export function DashboardHome() {
 		},
 		{
 			label: "AI Queries",
-			value: "0",
+			value: String(stats.aiQueriesThisMonth),
 			sub: "this month",
 			icon: <BotIcon className="size-4" />,
 			accent: "text-muted-foreground",
@@ -324,7 +323,7 @@ export function DashboardHome() {
 			</div>
 
 			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				{stats.map((stat) => (
+				{statsCards.map((stat) => (
 					<Card key={stat.label} className="gap-3">
 						<CardHeader className="flex flex-row items-center justify-between pb-0">
 							<CardDescription className="text-xs font-medium">

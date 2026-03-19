@@ -10,8 +10,7 @@ function DashboardLayout() {
 
 	useEffect(() => {
 		if (window.location.pathname === "/dashboard") {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			navigate({ to: "/dashboard/" as any });
+			void navigate("/dashboard/");
 		}
 	}, [navigate]);
 

@@ -1,5 +1,5 @@
 import type { Pool as MySqlPool } from "mysql2/promise";
-import type { Pool } from "pg";
+import { Pool } from "pg";
 import {
 	createMariadbAdminPool,
 	createMysqlAdminPool,
@@ -85,18 +85,138 @@ export async function deprovisionPostgreSQL(
 	pool: AdminPool,
 	dbName: string,
 	dbUser: string,
+	region: string,
 ): Promise<void> {
 	const pgPool = pool as Pool;
+
+	// Step 1: Terminate all connections to this database
+	// This MUST be executed from postgres database (where pg_stat_activity lives)
 	const client = await pgPool.connect();
 	try {
 		await client.query(
-			`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND usename = $2`,
+			`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1::name AND usename = $2::name AND pid <> pg_backend_pid()`,
 			[dbName, dbUser],
 		);
-		await client.query(`DROP DATABASE IF EXISTS "${dbName}"`);
-		await client.query(`DROP USER IF EXISTS "${dbUser}"`);
 	} finally {
 		client.release();
+	}
+
+	// Step 2: Clean up user objects within the target database.
+	// Reconstruct a connection string to the target database (same host/creds as admin,
+	// just with the target db name instead of "postgres").
+	const adminUrl =
+		process.env[`POSTGRES_SANDBOX_URL_${region.toUpperCase()}`] ??
+		process.env.POSTGRES_SANDBOX_URL_ID;
+	if (!adminUrl) {
+		throw new Error(
+			`Neither POSTGRES_SANDBOX_URL_${region.toUpperCase()} nor POSTGRES_SANDBOX_URL_ID is set`,
+		);
+	}
+
+	const targetDbUrl = adminUrl.replace(/\/postgres(\?.*)?$/, `/${dbName}$1`);
+	let targetDbPool: Pool | null = null;
+
+	try {
+		targetDbPool = new Pool({ connectionString: targetDbUrl });
+		const targetClient = await targetDbPool.connect();
+		try {
+			await targetClient
+				.query(
+					`ALTER DEFAULT PRIVILEGES FOR USER "${dbUser}" IN SCHEMA public REVOKE ALL ON TABLES FROM "${dbUser}"`,
+				)
+				.catch(() => {
+					/* ignore */
+				});
+			await targetClient
+				.query(
+					`ALTER DEFAULT PRIVILEGES FOR USER "${dbUser}" IN SCHEMA public REVOKE ALL ON SEQUENCES FROM "${dbUser}"`,
+				)
+				.catch(() => {
+					/* ignore */
+				});
+			await targetClient
+				.query(
+					`ALTER DEFAULT PRIVILEGES FOR USER "${dbUser}" IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM "${dbUser}"`,
+				)
+				.catch(() => {
+					/* ignore */
+				});
+			await targetClient
+				.query(`REASSIGN OWNED BY "${dbUser}" TO postgres`)
+				.catch(() => {
+					/* ignore */
+				});
+			await targetClient
+				.query(`DROP OWNED BY "${dbUser}" CASCADE`)
+				.catch(() => {
+					/* ignore */
+				});
+		} finally {
+			targetClient.release();
+		}
+	} catch (error) {
+		// If the database doesn't exist (code 3D000), skip Step 2 entirely —
+		// DROP DATABASE IF EXISTS in Step 3 handles it safely.
+		const isNotFound =
+			error instanceof Error &&
+			"code" in error &&
+			(error as { code: string }).code === "3D000";
+		if (!isNotFound) {
+			throw error;
+		}
+		/* otherwise, database already gone — proceed to Step 3 */
+	} finally {
+		if (targetDbPool) await targetDbPool.end();
+	}
+
+	// Step 3: Drop the database (now that all objects and privileges are cleaned)
+	const dropDbClient = await pgPool.connect();
+	try {
+		await dropDbClient
+			.query(`DROP DATABASE IF EXISTS "${dbName}"`)
+			.catch(() => {
+				/* ignore — already gone */
+			});
+	} finally {
+		dropDbClient.release();
+	}
+
+	// Step 4: Drop the user from postgres system catalog
+	const adminClient = await pgPool.connect();
+	try {
+		await adminClient
+			.query(
+				`REVOKE ALL PRIVILEGES ON DATABASE "${dbName}" FROM "${dbUser}" CASCADE`,
+			)
+			.catch(() => {
+				/* ignore */
+			});
+		await adminClient
+			.query(
+				`ALTER DEFAULT PRIVILEGES FOR USER "${dbUser}" IN SCHEMA public REVOKE ALL ON TABLES FROM "${dbUser}"`,
+			)
+			.catch(() => {
+				/* ignore */
+			});
+		await adminClient
+			.query(
+				`ALTER DEFAULT PRIVILEGES FOR USER "${dbUser}" IN SCHEMA public REVOKE ALL ON SEQUENCES FROM "${dbUser}"`,
+			)
+			.catch(() => {
+				/* ignore */
+			});
+		await adminClient
+			.query(
+				`ALTER DEFAULT PRIVILEGES FOR USER "${dbUser}" IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM "${dbUser}"`,
+			)
+			.catch(() => {
+				/* ignore */
+			});
+		await adminClient.query(`DROP USER IF EXISTS "${dbUser}"`).catch(() => {
+			/* ignore — already gone */
+		});
+	} finally {
+		adminClient.release();
 	}
 }
 
@@ -123,12 +243,16 @@ export async function deprovisionMySQL(
 	dbUser: string,
 ): Promise<void> {
 	const mysqlPool = pool as MySqlPool;
-	const [rows] = await mysqlPool.query("SHOW PROCESSLIST");
-	const processes = rows as { Id: number; User: string }[];
-	for (const proc of processes) {
-		if (proc.User === dbUser) {
-			await mysqlPool.query(`KILL ${proc.Id}`);
+	try {
+		const [rows] = await mysqlPool.query("SHOW PROCESSLIST");
+		const processes = rows as { Id: number; User: string }[];
+		for (const proc of processes) {
+			if (proc.User === dbUser) {
+				await mysqlPool.query(`KILL ${proc.Id}`);
+			}
 		}
+	} catch {
+		/* ignore — process list may fail if no permissions */
 	}
 	await mysqlPool.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
 	await mysqlPool.query(`DROP USER IF EXISTS '${dbUser}'@'%'`);
@@ -140,15 +264,17 @@ export async function deprovisionMariaDB(
 	dbName: string,
 	dbUser: string,
 ): Promise<void> {
-	// MariaDB uses the same protocol as MySQL, so we can reuse mysql2
-	// But we need to use the correct syntax for MariaDB
 	const mysqlPool = pool as MySqlPool;
-	const [rows] = await mysqlPool.query("SHOW PROCESSLIST");
-	const processes = rows as { Id: number; User: string }[];
-	for (const proc of processes) {
-		if (proc.User === dbUser) {
-			await mysqlPool.query(`KILL ${proc.Id}`);
+	try {
+		const [rows] = await mysqlPool.query("SHOW PROCESSLIST");
+		const processes = rows as { Id: number; User: string }[];
+		for (const proc of processes) {
+			if (proc.User === dbUser) {
+				await mysqlPool.query(`KILL ${proc.Id}`);
+			}
 		}
+	} catch {
+		/* ignore — process list may fail if no permissions */
 	}
 	await mysqlPool.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
 	await mysqlPool.query(`DROP USER IF EXISTS '${dbUser}'@'%'`);
