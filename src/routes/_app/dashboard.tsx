@@ -10,7 +10,7 @@ function DashboardLayout() {
 
 	useEffect(() => {
 		if (window.location.pathname === "/dashboard") {
-			void navigate("/dashboard/");
+			void navigate({ to: "/dashboard" });
 		}
 	}, [navigate]);
 
