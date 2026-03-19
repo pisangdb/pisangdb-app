@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, desc, eq, ne } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
-import type { Pool } from "pg";
+import { Pool } from "pg";
 import {
 	createMariadbAdminPool,
 	createMysqlAdminPool,
@@ -576,9 +576,16 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			let tables: SandboxTable[] = [];
 
 			if (sandbox.engine === "postgresql") {
-				const pool = createPgAdminPool(sandbox.region);
-				// Query information_schema for tables
-				const result = await pool.query<{
+				// Connect directly to the sandbox database using sandbox credentials
+				const sandboxPool = new Pool({
+					host: sandbox.host,
+					port: sandbox.port,
+					database: sandbox.dbName,
+					user: sandbox.dbUser,
+					password: sandbox.dbPassword,
+					max: 5,
+				});
+				const result = await sandboxPool.query<{
 					table_name: string;
 					table_rows: string;
 					total_bytes: string;
@@ -600,7 +607,7 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					rows: parseInt(row.table_rows, 10) || 0,
 					sizeKb: Math.round(parseInt(row.total_bytes, 10) / 1024) || 0,
 				}));
-				await pool.end();
+				await sandboxPool.end();
 			} else {
 				// MySQL or MariaDB
 				const pool =
