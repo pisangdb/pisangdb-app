@@ -504,6 +504,27 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 		}
 	};
 
+	const isDdlQuery = (q: string): boolean => {
+		const ddlKeywords = /^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME)\s+/i;
+		return ddlKeywords.test(q.trim());
+	};
+
+	const getQueryStatusMessage = (
+		q: string,
+		rowsLength: number,
+		rowsAffected: number,
+	): string => {
+		if (isDdlQuery(q)) {
+			return rowsAffected >= 0
+				? `${rowsAffected} row(s) affected`
+				: "Query executed successfully";
+		}
+		if (rowsLength > 0) {
+			return `${rowsLength} row(s)`;
+		}
+		return "Query executed successfully. No rows returned.";
+	};
+
 	return (
 		<Card>
 			<CardHeader>
@@ -555,7 +576,13 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 				{queryResult ? (
 					<div className="overflow-x-auto rounded-md border">
 						<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-							<span>{queryResult.rows.length} row(s)</span>
+							<span>
+								{getQueryStatusMessage(
+									query,
+									queryResult.rows.length,
+									queryResult.rowsAffected,
+								)}
+							</span>
 							<span>•</span>
 							<span>{queryResult.executionTimeMs} ms</span>
 						</div>
