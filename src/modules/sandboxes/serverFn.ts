@@ -609,18 +609,6 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					password: sandbox.dbPassword,
 					max: 5,
 				});
-				// DEBUG: log connection details
-				console.log("[TABLES DEBUG] Connecting to:", {
-					host,
-					port: sandbox.port,
-					database: sandbox.dbName,
-					user: sandbox.dbUser,
-				});
-				// Use information_schema.tables - more reliable than pg_stat_user_tables
-				// which requires statistics to be collected
-				console.log(
-					"[TABLES DEBUG] About to query for tables in schema 'public'",
-				);
 				const result = await sandboxPool.query<{
 					tablename: string;
 				}>(
@@ -629,11 +617,10 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					WHERE schemaname = 'public'
 					ORDER BY tablename`,
 				);
-				console.log("[TABLES DEBUG] Query result:", result.rows);
 				tables = result.rows.map((row) => ({
 					name: row.tablename,
-					rows: 0, // pg_tables doesn't have row count
-					sizeKb: 0, // would need separate query to get size
+					rows: 0,
+					sizeKb: 0,
 				}));
 				await sandboxPool.end();
 			} else {
@@ -657,9 +644,7 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			}
 
 			return tables;
-		} catch (error) {
-			// Log error for debugging
-			console.error("[TABLES DEBUG] Error fetching tables:", error);
+		} catch {
 			// If we can't connect to the sandbox DB (e.g., it's empty or not accessible), return empty
 			return [];
 		}
