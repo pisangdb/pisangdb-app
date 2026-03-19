@@ -1,14 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-
-export const Route = createFileRoute("/_app/dashboard/")({
-	loader: async () => {
-		const { $getSandboxes } = await import("#/modules/sandboxes/serverFn");
-		const sandboxes = await $getSandboxes();
-		return { sandboxes };
-	},
-	component: DashboardHome,
-});
-
 import {
 	ActivityIcon,
 	BotIcon,
@@ -29,8 +19,99 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Skeleton } from "#/components/ui/skeleton";
 import type { SandboxUiStatus } from "#/lib/types";
 import { computeSandboxUiStatus } from "#/lib/types";
+
+export const Route = createFileRoute("/_app/dashboard/")({
+	loader: async () => {
+		const { $getSandboxes } = await import("#/modules/sandboxes/serverFn");
+		const sandboxes = await $getSandboxes();
+		return { sandboxes };
+	},
+	pendingComponent: DashboardSkeleton,
+	component: DashboardHome,
+});
+
+const generateKey = () => `sk-${Math.random().toString(36).slice(2, 9)}`;
+
+function DashboardSkeleton() {
+	return (
+		<div className="flex flex-col gap-6 p-4 md:p-6">
+			<div className="flex items-center justify-between">
+				<div className="flex flex-col gap-1">
+					<Skeleton className="h-7 w-32" />
+					<Skeleton className="h-4 w-48" />
+				</div>
+				<Skeleton className="h-8 w-28" />
+			</div>
+
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				{Array.from({ length: 4 }).map(() => (
+					<div
+						key={generateKey()}
+						className="flex flex-col gap-3 rounded-lg border p-4"
+					>
+						<div className="flex items-center justify-between">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="size-7" />
+						</div>
+						<div className="flex items-baseline gap-1.5">
+							<Skeleton className="h-8 w-12" />
+							<Skeleton className="h-3 w-16" />
+						</div>
+					</div>
+				))}
+			</div>
+
+			<div className="grid gap-4 lg:grid-cols-3">
+				<div className="flex flex-col gap-2 rounded-lg border p-4">
+					<Skeleton className="h-4 w-20" />
+					{Array.from({ length: 4 }).map(() => (
+						<div
+							key={generateKey()}
+							className="flex items-center gap-3 rounded-md p-2"
+						>
+							<Skeleton className="size-9" />
+							<div className="flex flex-col gap-1">
+								<Skeleton className="h-4 w-24" />
+								<Skeleton className="h-3 w-32" />
+							</div>
+						</div>
+					))}
+				</div>
+
+				<div className="flex flex-col gap-2 rounded-lg border p-4 lg:col-span-2">
+					<div className="flex items-center justify-between">
+						<div className="flex flex-col gap-1">
+							<Skeleton className="h-4 w-28" />
+							<Skeleton className="h-3 w-36" />
+						</div>
+						<Skeleton className="h-7 w-16" />
+					</div>
+					<div className="flex flex-col gap-2">
+						{Array.from({ length: 3 }).map(() => (
+							<div
+								key={generateKey()}
+								className="flex items-center gap-3 rounded-lg border p-3"
+							>
+								<Skeleton className="size-9" />
+								<div className="flex flex-1 flex-col gap-1">
+									<Skeleton className="h-4 w-40" />
+									<Skeleton className="h-3 w-48" />
+								</div>
+								<div className="flex flex-col items-end gap-1">
+									<Skeleton className="h-5 w-16" />
+									<Skeleton className="h-3 w-12" />
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 const MAX_ACTIVE_SANDBOXES = 5;
 
