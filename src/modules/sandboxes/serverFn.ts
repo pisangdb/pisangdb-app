@@ -443,8 +443,8 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 				Array<{
 					TABLE_NAME: string;
 					TABLE_ROWS: number;
-					Data_length: bigint;
-					Index_length: bigint;
+					Data_length: number;
+					Index_length: number;
 				}>
 			>(
 				`SELECT

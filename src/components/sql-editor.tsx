@@ -4,7 +4,7 @@ import {
 	defaultHighlightStyle,
 	syntaxHighlighting,
 } from "@codemirror/language";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import {
 	EditorView,
 	highlightActiveLineGutter,
@@ -53,6 +53,9 @@ const defaultTheme = EditorView.theme({
 	},
 });
 
+// Compartment instance for read-only toggle — module-level so same instance persists
+const editableCompartment = new Compartment();
+
 export function SqlEditor({
 	value,
 	onChange,
@@ -67,6 +70,7 @@ export function SqlEditor({
 	const onChangeRef = useRef(onChange);
 	const onSubmitRef = useRef(onSubmit);
 
+	// Keep refs current
 	useEffect(() => {
 		onChangeRef.current = onChange;
 	}, [onChange]);
@@ -75,22 +79,27 @@ export function SqlEditor({
 		onSubmitRef.current = onSubmit;
 	}, [onSubmit]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: editor must not re-mount on keystrokes; controlled via React key prop
+	// Create editor once when engine or placeholderText changes
+	// biome-ignore lint/correctness/useExhaustiveDependencies: intentional re-mount on engine/placeholderText; value synced separately
 	useEffect(() => {
 		if (!editorRef.current) return;
 
 		const dialect =
 			engine === "mysql" || engine === "mariadb" ? MySQL : PostgreSQL;
 
-		const submitKeymap = [
-			{
-				key: "Mod-Enter",
-				run: () => {
-					onSubmitRef.current?.();
-					return true;
-				},
+		// Remove Mod-Enter from defaultKeymap to avoid precedence conflict
+		const filteredDefaultKeymap = defaultKeymap.filter(
+			(kb) => !kb.key?.includes("Mod-Enter"),
+		);
+
+		const submitKeyBinding = {
+			key: "Mod-Enter",
+			run: (view: EditorView) => {
+				if (!view.hasFocus) view.focus();
+				onSubmitRef.current?.();
+				return true;
 			},
-		];
+		};
 
 		const state = EditorState.create({
 			doc: value,
@@ -100,15 +109,14 @@ export function SqlEditor({
 				sql({ dialect }),
 				syntaxHighlighting(defaultHighlightStyle),
 				defaultTheme,
-				keymap.of([...defaultKeymap, ...submitKeymap]),
+				keymap.of([...filteredDefaultKeymap, submitKeyBinding]),
+				placeholder(placeholderText),
+				editableCompartment.of(EditorView.editable.of(!disabled)),
 				EditorView.updateListener.of((update) => {
 					if (update.docChanged) {
-						const newValue = update.state.doc.toString();
-						onChangeRef.current(newValue);
+						onChangeRef.current(update.state.doc.toString());
 					}
 				}),
-				EditorView.editable.of(!disabled),
-				placeholder(placeholderText),
 			],
 		});
 
@@ -123,7 +131,27 @@ export function SqlEditor({
 			view.destroy();
 			viewRef.current = null;
 		};
-	}, [engine]);
+	}, [engine, placeholderText]);
+
+	// Sync external value changes (e.g. "Clear" button)
+	useEffect(() => {
+		if (!viewRef.current) return;
+		const view = viewRef.current;
+		if (view.state.doc.toString() === value) return;
+		view.dispatch({
+			changes: { from: 0, to: view.state.doc.length, insert: value },
+		});
+	}, [value]);
+
+	// Toggle read-only mode via compartment (no re-mount needed)
+	useEffect(() => {
+		if (!viewRef.current) return;
+		viewRef.current.dispatch({
+			effects: editableCompartment.reconfigure(
+				disabled ? EditorView.editable.of(false) : EditorView.editable.of(true),
+			),
+		});
+	}, [disabled]);
 
 	return (
 		<div

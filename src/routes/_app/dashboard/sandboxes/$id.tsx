@@ -592,6 +592,12 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 		}
 	};
 
+	const isSelectQuery = queryResult && queryResult.columns.length > 0;
+	const isMutation =
+		queryResult &&
+		queryResult.columns.length === 0 &&
+		queryResult.rowsAffected >= 0;
+
 	return (
 		<Card>
 			<CardHeader>
@@ -603,6 +609,7 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 			</CardHeader>
 			<CardContent className="space-y-3">
 				<SqlEditor
+					key={sandbox.id}
 					value={query}
 					onChange={setQuery}
 					onSubmit={handleRun}
@@ -631,7 +638,9 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 					>
 						Clear
 					</Button>
-					<Badge variant="outline">Ctrl + Enter</Badge>
+					<Badge variant="outline">
+						{navigator.platform?.includes("Mac") ? "⌘ + Enter" : "Ctrl + Enter"}
+					</Badge>
 				</div>
 
 				{queryError && (
@@ -642,12 +651,18 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 				{queryResult ? (
 					<div className="overflow-x-auto rounded-md border">
-						<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-							<span>{queryResult.rows.length} row(s)</span>
-							<span>•</span>
-							<span>{queryResult.executionTimeMs} ms</span>
-						</div>
-						{queryResult.rows.length > 0 ? (
+						{isMutation ? (
+							<>
+								<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+									<span>{queryResult.rowsAffected} row(s) affected</span>
+									<span>•</span>
+									<span>{queryResult.executionTimeMs} ms</span>
+								</div>
+								<div className="p-4 text-sm text-muted-foreground">
+									Query executed successfully.
+								</div>
+							</>
+						) : isSelectQuery ? (
 							<table className="w-full min-w-96 text-sm">
 								<thead className="bg-muted/50 text-left">
 									<tr>
@@ -659,19 +674,30 @@ function ConsoleTab({ sandbox }: { sandbox: SandboxDetail }) {
 									</tr>
 								</thead>
 								<tbody>
-									{queryResult.rows.map((row) => (
-										<tr key={Object.values(row).join("-")} className="border-t">
-											{queryResult.columns.map((col) => (
-												<td key={col} className="px-3 py-2 font-mono text-xs">
-													{row[col] === null ? (
-														<span className="text-muted-foreground">NULL</span>
-													) : (
-														String(row[col])
-													)}
-												</td>
-											))}
-										</tr>
-									))}
+									{queryResult.rows.map((row) => {
+										const rowId = crypto.randomUUID();
+										return (
+											<tr key={rowId} className="border-t">
+												{queryResult.columns.map((col) => {
+													const raw = row[col];
+													return (
+														<td
+															key={col}
+															className="px-3 py-2 font-mono text-xs"
+														>
+															{raw === null || raw === undefined ? (
+																<span className="text-muted-foreground">
+																	NULL
+																</span>
+															) : (
+																String(raw)
+															)}
+														</td>
+													);
+												})}
+											</tr>
+										);
+									})}
 								</tbody>
 							</table>
 						) : (
@@ -709,7 +735,7 @@ function AiTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 		try {
 			const result = await $aiGenerate({
-				data: { sandboxId: sandbox.id, prompt },
+				data: { sandboxId: sandbox.id, prompt, engine: sandbox.engine },
 			});
 			setGenerated(result);
 			setGeneratedSql(result.sqlGenerated);

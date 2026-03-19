@@ -71,8 +71,10 @@ function AiSeederPage() {
 		setIsGenerating(true);
 		setExecuteError(null);
 		try {
+			const selected = sandboxes?.find((s) => s.id === selectedSandbox);
+			const engine = selected?.engine ?? "postgresql";
 			const result = await $aiGenerate({
-				data: { sandboxId: selectedSandbox, prompt },
+				data: { sandboxId: selectedSandbox, prompt, engine },
 			});
 			setGenerated(result);
 			setSqlText(result.sqlGenerated);

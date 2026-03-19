@@ -118,7 +118,7 @@ function SqlConsolePage() {
 	const isMutation =
 		queryResult &&
 		queryResult.columns.length === 0 &&
-		queryResult.rowsAffected > 0;
+		queryResult.rowsAffected >= 0;
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -160,7 +160,7 @@ function SqlConsolePage() {
 						</div>
 
 						<SqlEditor
-							key={`${selectedSandboxId}-${historyQueryId}-${resetKey}-${isLoading}`}
+							key={`${selectedSandboxId}-${historyQueryId}-${resetKey}`}
 							value={query}
 							onChange={setQuery}
 							onSubmit={handleRun}
@@ -266,6 +266,17 @@ function SqlConsolePage() {
 											</div>
 										)}
 									</>
+								) : queryResult.columns.length === 0 ? (
+									<>
+										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+											<span>{queryResult.rowsAffected} row(s) affected</span>
+											<span>•</span>
+											<span>{queryResult.executionTimeMs} ms</span>
+										</div>
+										<div className="p-4 text-sm text-muted-foreground">
+											Query executed successfully.
+										</div>
+									</>
 								) : (
 									<>
 										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -274,7 +285,7 @@ function SqlConsolePage() {
 											<span>{queryResult.executionTimeMs} ms</span>
 										</div>
 										<div className="p-4 text-sm text-muted-foreground">
-											Query executed successfully.
+											Query executed successfully. No rows returned.
 										</div>
 									</>
 								)}

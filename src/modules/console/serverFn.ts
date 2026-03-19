@@ -4,7 +4,8 @@ import { and, desc, eq } from "drizzle-orm";
 import mysql from "mysql2/promise";
 import { Pool } from "pg";
 import { db } from "#/db";
-import { queryHistory, sandboxes } from "#/db/schema";
+import { aiLogs, queryHistory, sandboxes } from "#/db/schema";
+import { generateSQL } from "#/lib/ai";
 import { auth } from "#/lib/auth";
 import type {
 	AiGenerateInput,
@@ -258,42 +259,223 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 	.inputValidator(aiGenerateSchema)
 	.handler(async ({ data }): Promise<AiGenerateResult> => {
 		const input = data as AiGenerateInput;
-		const mockSql = `-- Generated for: ${input.prompt}\nCREATE TABLE users (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(100) NOT NULL,\n  email VARCHAR(255) UNIQUE NOT NULL,\n  created_at TIMESTAMPTZ DEFAULT NOW()\n);\n\nINSERT INTO users (name, email) VALUES\n  ('Alice', 'alice@example.com'),\n  ('Bob', 'bob@example.com');`;
+		const user = await getCurrentUser();
+
+		// Verify sandbox ownership
+		const [sandbox] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, input.sandboxId), eq(sandboxes.userId, user.id)),
+			);
+
+		if (!sandbox) {
+			throw new Error("Sandbox not found");
+		}
+
+		if (sandbox.status !== "active") {
+			throw new Error("Sandbox is not active");
+		}
+
+		// Rate limit: 30 requests per day per user
+		const todayStart = new Date();
+		todayStart.setHours(0, 0, 0, 0);
+
+		const todayLogs = await db
+			.select()
+			.from(aiLogs)
+			.where(and(eq(aiLogs.userId, user.id)));
+
+		const todayCount = todayLogs.filter(
+			(log) => new Date(log.createdAt) >= todayStart,
+		).length;
+
+		if (todayCount >= 30) {
+			throw new Error(
+				"Daily AI request limit reached (30 requests/day). Please try again tomorrow.",
+			);
+		}
+
+		// Call Gemini
+		const { sql, explanation, tokensUsed } = await generateSQL({
+			prompt: input.prompt,
+			engine: input.engine,
+			sandboxDbName: sandbox.dbName,
+		});
+
+		// Log the request
+		const [newLog] = await db
+			.insert(aiLogs)
+			.values({
+				sandboxId: sandbox.id,
+				userId: user.id,
+				prompt: input.prompt,
+				response: explanation,
+				sqlGenerated: sql,
+				executed: false,
+				tokensUsed,
+			})
+			.returning();
 
 		return {
-			logId: crypto.randomUUID(),
-			sqlGenerated: mockSql,
-			explanation:
-				"Membuat tabel users dengan kolom dasar (id, name, email, created_at) dan mengisi 2 data contoh.",
-			tokensUsed: 312,
+			logId: newLog.id,
+			sqlGenerated: sql,
+			explanation,
+			tokensUsed,
 		};
 	});
-
 export const $aiExecute = createServerFn({ method: "POST" })
 	.inputValidator(aiExecuteSchema)
-	.handler(async ({ data: _data }): Promise<QueryResult> => {
+	.handler(async ({ data }): Promise<QueryResult> => {
+		const user = await getCurrentUser();
+
+		// Fetch the AI log entry
+		const [logEntry] = await db
+			.select()
+			.from(aiLogs)
+			.where(and(eq(aiLogs.id, data.logId), eq(aiLogs.userId, user.id)));
+
+		if (!logEntry) {
+			throw new Error("AI log entry not found");
+		}
+
+		if (!logEntry.sqlGenerated) {
+			throw new Error("No SQL to execute");
+		}
+
+		// Execute the SQL via $executeQuery logic
+		const [sandbox] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			);
+
+		if (!sandbox) {
+			throw new Error("Sandbox not found");
+		}
+
+		if (sandbox.status !== "active") {
+			throw new Error("Sandbox is not active");
+		}
+
+		checkForbiddenCommands(logEntry.sqlGenerated);
+
+		const { host, port } = getSandboxConnection(
+			sandbox.engine,
+			sandbox.region,
+			sandbox.host,
+		);
+
 		const start = Date.now();
-		return {
-			columns: [],
-			rows: [],
-			rowsAffected: 0,
-			executionTimeMs: Date.now() - start,
-		};
+		let pool: Pool | mysql.Pool | undefined;
+
+		try {
+			if (sandbox.engine === "postgresql") {
+				pool = new Pool({
+					host,
+					port,
+					database: sandbox.dbName,
+					user: sandbox.dbUser,
+					password: sandbox.dbPassword,
+					max: 5,
+				});
+
+				await pool.query("SET statement_timeout = '30s'");
+				const result = await pool.query(logEntry.sqlGenerated);
+				const executionTimeMs = Date.now() - start;
+				const columns = result.fields?.map((f) => f.name) ?? [];
+				const plainRows = JSON.parse(JSON.stringify(result.rows ?? []));
+				const rowsAffected = result.rowCount ?? 0;
+
+				// Mark AI log as executed
+				await db
+					.update(aiLogs)
+					.set({ executed: true })
+					.where(eq(aiLogs.id, data.logId));
+
+				return { columns, rows: plainRows, rowsAffected, executionTimeMs };
+			}
+
+			pool = mysql.createPool({
+				host,
+				port,
+				database: sandbox.dbName,
+				user: sandbox.dbUser,
+				password: sandbox.dbPassword,
+				waitForConnections: true,
+				connectionLimit: 5,
+			});
+
+			const [rows] = await pool.query(logEntry.sqlGenerated);
+			const executionTimeMs = Date.now() - start;
+
+			let result: QueryResult;
+			if (Array.isArray(rows) && rows.length > 0) {
+				const columns = Object.keys(rows[0] as Record<string, unknown>);
+				const plainRows = JSON.parse(JSON.stringify(rows));
+				result = {
+					columns,
+					rows: plainRows,
+					rowsAffected: plainRows.length,
+					executionTimeMs,
+				};
+			} else {
+				const mysqlResult = rows as mysql.ResultSetHeader;
+				result = {
+					columns: [],
+					rows: [],
+					rowsAffected: mysqlResult.affectedRows ?? 0,
+					executionTimeMs,
+				};
+			}
+
+			// Mark AI log as executed
+			await db
+				.update(aiLogs)
+				.set({ executed: true })
+				.where(eq(aiLogs.id, data.logId));
+
+			return result;
+		} finally {
+			if (pool) {
+				await pool.end();
+			}
+		}
 	});
 
 export const $getAiLogs = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
-	.handler(async ({ data: _data }): Promise<AiLogItem[]> => {
-		return [
-			{
-				id: crypto.randomUUID(),
-				prompt: "Buatkan tabel users dan products untuk e-commerce",
-				response: "SQL generated successfully.",
-				sqlGenerated:
-					"CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT NOT NULL);",
-				executed: true,
-				tokensUsed: 312,
-				createdAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-			},
-		];
+	.handler(async ({ data }): Promise<AiLogItem[]> => {
+		const user = await getCurrentUser();
+
+		// Verify sandbox belongs to this user
+		const [sandbox] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
+			);
+
+		if (!sandbox) {
+			throw new Error("Sandbox not found");
+		}
+
+		// Fetch AI logs for this sandbox
+		const logs = await db
+			.select()
+			.from(aiLogs)
+			.where(eq(aiLogs.sandboxId, data.sandboxId))
+			.orderBy(desc(aiLogs.createdAt))
+			.limit(50);
+
+		return logs.map((row) => ({
+			id: row.id,
+			prompt: row.prompt,
+			response: row.response,
+			sqlGenerated: row.sqlGenerated,
+			executed: row.executed,
+			tokensUsed: row.tokensUsed,
+			createdAt: row.createdAt.toISOString(),
+		}));
 	});
