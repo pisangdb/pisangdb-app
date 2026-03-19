@@ -7,7 +7,6 @@ import { db } from "#/db";
 import { queryHistory, sandboxes } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import type {
-	AiGenerateInput,
 	AiGenerateResult,
 	AiLogItem,
 	QueryHistoryItem,
@@ -19,33 +18,6 @@ import {
 	executeQuerySchema,
 	sandboxIdSchema,
 } from "./schema";
-
-const MOCK_SANDBOXES = [
-	{
-		id: "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-		userId: "test-user-id",
-		engine: "postgresql" as const,
-		region: "id",
-		dbName: "postgres",
-		dbUser: "postgres",
-		dbPassword: "pisangdev",
-		host: "localhost",
-		port: 5433,
-		status: "active" as const,
-	},
-	{
-		id: "9b1deb4d-3eb7-4c81-aceb-7e3b5d1f2a3c",
-		userId: "test-user-id",
-		engine: "mysql" as const,
-		region: "id",
-		dbName: "mysql",
-		dbUser: "root",
-		dbPassword: "password",
-		host: "localhost",
-		port: 3306,
-		status: "active" as const,
-	},
-];
 
 const FORBIDDEN_PATTERNS = [
 	/DROP\s+DATABASE/i,
@@ -87,19 +59,13 @@ export const $executeQuery = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<QueryResult> => {
 		const user = await getCurrentUser();
 
-		let sandbox = await db
+		const sandbox = await db
 			.select()
 			.from(sandboxes)
 			.where(
 				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
 			)
 			.then((rows) => rows[0]);
-
-		if (!sandbox) {
-			sandbox = MOCK_SANDBOXES.find(
-				(s) => s.id === data.sandboxId,
-			) as typeof sandbox;
-		}
 
 		if (!sandbox) {
 			throw new Error("Sandbox not found");
@@ -225,13 +191,8 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
 			);
 
-		let isMockSandbox = false;
 		if (!sandbox) {
-			const mockSandbox = MOCK_SANDBOXES.find((s) => s.id === data.sandboxId);
-			if (!mockSandbox) {
-				throw new Error("Sandbox not found");
-			}
-			isMockSandbox = true;
+			throw new Error("Sandbox not found");
 		}
 
 		const history = await db
@@ -241,93 +202,35 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 			.orderBy(desc(queryHistory.createdAt))
 			.limit(50);
 
-		if (history.length > 0) {
-			return history.map((h) => ({
-				id: h.id,
-				query: h.query,
-				status: h.status as "success" | "error",
-				executionTimeMs: h.executionTimeMs,
-				rowsAffected: h.rowsAffected,
-				errorMessage: h.errorMessage,
-				createdAt: h.createdAt.toISOString(),
-			}));
-		}
-
-		if (isMockSandbox) {
-			return [
-				{
-					id: crypto.randomUUID(),
-					query: "SELECT * FROM users LIMIT 10;",
-					status: "success" as const,
-					executionTimeMs: 12,
-					rowsAffected: 10,
-					errorMessage: null,
-					createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-				},
-				{
-					id: crypto.randomUUID(),
-					query: "CREATE TABLE products (id SERIAL PRIMARY KEY, name TEXT);",
-					status: "success" as const,
-					executionTimeMs: 34,
-					rowsAffected: 0,
-					errorMessage: null,
-					createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-				},
-				{
-					id: crypto.randomUUID(),
-					query: "SELECT * FROM non_existent_table;",
-					status: "error" as const,
-					executionTimeMs: 5,
-					rowsAffected: null,
-					errorMessage: 'relation "non_existent_table" does not exist',
-					createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-				},
-			];
-		}
-
-		return [];
+		return history.map((h) => ({
+			id: h.id,
+			query: h.query,
+			status: h.status as "success" | "error",
+			executionTimeMs: h.executionTimeMs,
+			rowsAffected: h.rowsAffected,
+			errorMessage: h.errorMessage,
+			createdAt: h.createdAt.toISOString(),
+		}));
 	});
 
 export const $aiGenerate = createServerFn({ method: "POST" })
 	.inputValidator(aiGenerateSchema)
-	.handler(async ({ data }): Promise<AiGenerateResult> => {
-		const input = data as AiGenerateInput;
-		const mockSql = `-- Generated for: ${input.prompt}\nCREATE TABLE users (\n  id SERIAL PRIMARY KEY,\n  name VARCHAR(100) NOT NULL,\n  email VARCHAR(255) UNIQUE NOT NULL,\n  created_at TIMESTAMPTZ DEFAULT NOW()\n);\n\nINSERT INTO users (name, email) VALUES\n  ('Alice', 'alice@example.com'),\n  ('Bob', 'bob@example.com');`;
-
-		return {
-			logId: crypto.randomUUID(),
-			sqlGenerated: mockSql,
-			explanation:
-				"Membuat tabel users dengan kolom dasar (id, name, email, created_at) dan mengisi 2 data contoh.",
-			tokensUsed: 312,
-		};
+	.handler(async ({ data: _data }): Promise<AiGenerateResult> => {
+		throw new Error(
+			"AI Generate not yet implemented - Gemini API not configured",
+		);
 	});
 
 export const $aiExecute = createServerFn({ method: "POST" })
 	.inputValidator(aiExecuteSchema)
 	.handler(async ({ data: _data }): Promise<QueryResult> => {
-		const start = Date.now();
-		return {
-			columns: [],
-			rows: [],
-			rowsAffected: 0,
-			executionTimeMs: Date.now() - start,
-		};
+		throw new Error(
+			"AI Execute not yet implemented - Gemini API not configured",
+		);
 	});
 
 export const $getAiLogs = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data: _data }): Promise<AiLogItem[]> => {
-		return [
-			{
-				id: crypto.randomUUID(),
-				prompt: "Buatkan tabel users dan products untuk e-commerce",
-				response: "SQL generated successfully.",
-				sqlGenerated:
-					"CREATE TABLE users (id SERIAL PRIMARY KEY, name TEXT NOT NULL);",
-				executed: true,
-				tokensUsed: 312,
-				createdAt: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-			},
-		];
+		throw new Error("AI Logs not yet implemented - Gemini API not configured");
 	});
