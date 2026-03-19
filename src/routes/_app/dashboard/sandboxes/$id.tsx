@@ -536,9 +536,11 @@ function ConsoleTab({
 		}
 	};
 
-	const isDdlQuery = (q: string): boolean => {
-		const ddlKeywords = /^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME)\s+/i;
-		return ddlKeywords.test(q.trim());
+	const isMutationQuery = (q: string): boolean => {
+		// DDL and DML statements that affect rows
+		const mutationKeywords =
+			/^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME|INSERT|UPDATE|DELETE)\s+/i;
+		return mutationKeywords.test(q.trim());
 	};
 
 	const getQueryStatusMessage = (
@@ -546,7 +548,7 @@ function ConsoleTab({
 		rowsLength: number,
 		rowsAffected: number,
 	): string => {
-		if (isDdlQuery(q)) {
+		if (isMutationQuery(q)) {
 			return rowsAffected >= 0
 				? `${rowsAffected} row(s) affected`
 				: "Query executed successfully";
@@ -834,14 +836,16 @@ function TablesTab({
 }
 
 function HistoryTab({ history }: { history: QueryHistoryItem[] }) {
-	const isDdlQuery = (q: string): boolean => {
-		const ddlKeywords = /^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME)\s+/i;
-		return ddlKeywords.test(q.trim());
+	const isMutationQuery = (q: string): boolean => {
+		// DDL and DML statements that affect rows
+		const mutationKeywords =
+			/^\s*(CREATE|DROP|ALTER|TRUNCATE|COMMENT|RENAME|INSERT|UPDATE|DELETE)\s+/i;
+		return mutationKeywords.test(q.trim());
 	};
 
 	const getHistoryStatus = (item: QueryHistoryItem): string => {
 		if (item.status === "error") return "ERROR";
-		if (isDdlQuery(item.query)) {
+		if (isMutationQuery(item.query)) {
 			return item.rowsAffected !== null
 				? `${item.rowsAffected} row(s) affected`
 				: "SUCCESS";
