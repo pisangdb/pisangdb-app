@@ -33,8 +33,30 @@ yarn-error.log*
 # Test coverage
 coverage
 
+# Playwright
+playwright-report/
+test-results/
+
 # pnpm
 .pnpm-store
 
+# Test files
+test-*.mjs
+*.test.*
+playwright.config.*
+*.spec.*
+
 # Misc
 todos.json
+
+# AI agents / assistants
+.sisyphus/
+.claude/
+.aios/
+.aeon/
+.ai/
+.agents/
+*.ai/
+*_ai/
+ai_*/
+__agents__/

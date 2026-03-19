@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import {
 	BadgeCheckIcon,
 	ChevronsUpDownIcon,
@@ -21,6 +21,7 @@ import {
 	SidebarMenuItem,
 	useSidebar,
 } from "#/components/ui/sidebar";
+import { signOut } from "#/lib/auth-client";
 
 export function NavUser({
 	user,
@@ -32,6 +33,16 @@ export function NavUser({
 	};
 }) {
 	const { isMobile } = useSidebar();
+	const router = useRouter();
+
+	const handleLogout = async () => {
+		try {
+			await signOut();
+			await router.navigate({ to: "/login", replace: true });
+		} catch (error) {
+			console.error("Logout error:", error);
+		}
+	};
 
 	return (
 		<SidebarMenu>
@@ -101,11 +112,12 @@ export function NavUser({
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem asChild>
-							<Link to="/" className="text-destructive focus:text-destructive">
-								<LogOutIcon />
-								Log out
-							</Link>
+						<DropdownMenuItem
+							onClick={handleLogout}
+							className="text-destructive focus:text-destructive cursor-pointer"
+						>
+							<LogOutIcon />
+							Log out
 						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
