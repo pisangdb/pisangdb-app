@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import type { Pool } from "pg";
 import {
@@ -12,6 +12,11 @@ import {
 } from "#/db";
 import { sandboxes } from "#/db/schema";
 import { auth } from "#/lib/auth";
+import {
+	deprovisionMariaDB,
+	deprovisionMySQL,
+	deprovisionPostgreSQL,
+} from "#/lib/sandbox-provisioning";
 import type {
 	DashboardStats,
 	DbEngine,
@@ -85,19 +90,26 @@ export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 				dbName: sandboxes.dbName,
 				dbUser: sandboxes.dbUser,
 				connectionUrl: sandboxes.connectionUrl,
-				sizeMb: sandboxes.maxSizeMb,
 				maxSizeMb: sandboxes.maxSizeMb,
 				createdAt: sandboxes.createdAt,
 				expiredAt: sandboxes.expiredAt,
 			})
 			.from(sandboxes)
-			.where(eq(sandboxes.userId, userId));
+			.where(
+				and(
+					eq(sandboxes.userId, userId),
+					ne(sandboxes.status, "expired"),
+					ne(sandboxes.status, "destroying"),
+				),
+			)
+			.orderBy(desc(sandboxes.createdAt));
 
 		return rows.map((row) => ({
 			...row,
 			engine: row.engine as DbEngine,
 			region: row.region as DbRegion,
 			status: row.status as SandboxStatus,
+			sizeMb: 0, // actual size not stored; detail page fetches it on-demand
 			createdAt: row.createdAt.toISOString(),
 			expiredAt: row.expiredAt.toISOString(),
 		}));
@@ -127,12 +139,18 @@ export const $getSandboxById = createServerFn({ method: "GET" })
 			throw new Error("Sandbox not found");
 		}
 
+		const sizeMb = await getSandboxDatabaseSize(
+			sandbox.engine as DbEngine,
+			sandbox.region,
+			sandbox.dbName,
+		);
+
 		return {
 			...sandbox,
 			engine: sandbox.engine as DbEngine,
 			region: sandbox.region as DbRegion,
 			status: sandbox.status as SandboxStatus,
-			sizeMb: 0,
+			sizeMb,
 			createdAt: sandbox.createdAt.toISOString(),
 			expiredAt: sandbox.expiredAt.toISOString(),
 		};
@@ -183,23 +201,29 @@ async function cleanupPartialSandbox(
 	pool: Pool | MySqlPool | null,
 	dbName: string,
 	dbUser: string,
+	region: string,
 ): Promise<void> {
 	if (!pool) return;
 
 	try {
 		if (engine === "postgresql") {
-			const pgPool = pool as Pool;
-			await pgPool.query(
-				`SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${dbName}'`,
-			);
-			await pgPool.query(`DROP DATABASE IF EXISTS "${dbName}"`);
-			await pgPool.query(`DROP USER IF EXISTS "${dbUser}"`);
-		} else {
-			const myPool = pool as MySqlPool;
-			await myPool.execute(`DROP DATABASE IF EXISTS \`${dbName}\``);
-			await myPool.execute(`DROP USER IF EXISTS '${dbUser}'@'%'`);
+			await deprovisionPostgreSQL(pool as Pool, dbName, dbUser, region);
+		} else if (engine === "mysql") {
+			await deprovisionMySQL(pool as MySqlPool, dbName, dbUser);
+		} else if (engine === "mariadb") {
+			await deprovisionMariaDB(pool as MySqlPool, dbName, dbUser);
 		}
-	} catch {}
+	} catch (error) {
+		// Error may be a plain object from driver — serialize safely
+		const message =
+			error instanceof Error
+				? error.message
+				: typeof error === "object" && error !== null
+					? JSON.stringify(error)
+					: String(error);
+		console.error(`Failed to cleanup sandbox: ${message}`);
+		throw error; // Re-throw so status doesn't get set to expired if cleanup fails
+	}
 }
 
 async function provisionPostgresql(
@@ -359,6 +383,7 @@ export const $createSandbox = createServerFn({ method: "POST" })
 				cleanupPool as Pool | MySqlPool | null,
 				dbName,
 				dbUser,
+				data.region,
 			);
 			throw err instanceof Error ? err : new Error("Failed to create sandbox");
 		}
@@ -441,7 +466,8 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 			.set({ status: "destroying", updatedAt: new Date() })
 			.where(eq(sandboxes.id, data.sandboxId));
 
-		// Actually deprovision the database
+		// Actually deprovision the database — always mark as expired afterwards
+		// even if deprovision fails (so ephemeral engine won't retry a stuck sandbox)
 		const cleanupPool =
 			sandbox.engine === "postgresql"
 				? createPgAdminPool(sandbox.region)
@@ -449,19 +475,76 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 					? createMysqlAdminPool(sandbox.region)
 					: createMariadbAdminPool(sandbox.region);
 
-		await cleanupPartialSandbox(
-			sandbox.engine,
-			cleanupPool as Pool | MySqlPool | null,
-			sandbox.dbName,
-			sandbox.dbUser,
-		);
+		try {
+			await cleanupPartialSandbox(
+				sandbox.engine,
+				cleanupPool as Pool | MySqlPool | null,
+				sandbox.dbName,
+				sandbox.dbUser,
+				sandbox.region,
+			);
+		} catch (deprovisionError) {
+			console.error(
+				"Deprovision failed, marking sandbox as expired anyway:",
+				deprovisionError,
+			);
+		}
 
-		// Mark as expired after successful cleanup
+		// Always mark as expired — deprovision failure shouldn't leave it stuck at "destroying"
 		await db
 			.update(sandboxes)
 			.set({ status: "expired", updatedAt: new Date() })
 			.where(eq(sandboxes.id, data.sandboxId));
 	});
+
+// ─── Database Size Helper ────────────────────────────────────────────────
+
+async function getSandboxDatabaseSize(
+	engine: DbEngine,
+	region: string,
+	dbName: string,
+): Promise<number> {
+	try {
+		if (engine === "postgresql") {
+			const pool = createPgAdminPool(region);
+			// pg_database_size returns bytes
+			const result = await pool.query<{ pg_database_size: string }>(
+				`SELECT pg_database_size($1) AS pg_database_size`,
+				[dbName],
+			);
+			await pool.end();
+			const bytes = parseInt(result.rows[0]?.pg_database_size ?? "0", 10);
+			return Math.round(bytes / (1024 * 1024));
+		} else {
+			// MySQL or MariaDB — use information_schema
+			const pool =
+				engine === "mysql"
+					? createMysqlAdminPool(region)
+					: createMariadbAdminPool(region);
+			const [result] = (await pool.query(
+				`SELECT ROUND(SUM(Data_length + Index_length) / 1024 / 1024, 2) AS size_mb
+				 FROM information_schema.tables
+				 WHERE table_schema = ?`,
+				[dbName],
+			)) as [
+				{
+					"ROUND(SUM(Data_length + Index_length) / 1024 / 1024, 2)":
+						| number
+						| null;
+				}[],
+				unknown,
+			];
+			await pool.end();
+			return Math.round(
+				result[0]?.[
+					"ROUND(SUM(Data_length + Index_length) / 1024 / 1024, 2)"
+				] ?? 0,
+			);
+		}
+	} catch {
+		return 0;
+	}
+}
 
 // ─── $getSandboxTables ────────────────────────────────────────────────────
 
@@ -528,11 +611,11 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					`SHOW TABLE STATUS FROM \`${sandbox.dbName}\``,
 				)) as [Record<string, number | string>[], unknown];
 				tables = result.map((row) => ({
-					name: row["Tables_in_db"] as string,
-					rows: (row["Rows"] as number) || 0,
+					name: row.Tables_in_db as string,
+					rows: (row.Rows as number) || 0,
 					sizeKb:
 						Math.round(
-							parseInt((row["Data_length"] as string) || "0", 10) / 1024,
+							parseInt((row.Data_length as string) || "0", 10) / 1024,
 						) || 0,
 				}));
 				await pool.end();

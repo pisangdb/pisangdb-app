@@ -1,4 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+	createFileRoute,
+	Link,
+	useNavigate,
+	useRouter,
+} from "@tanstack/react-router";
 import {
 	ArrowLeftIcon,
 	BotIcon,
@@ -24,6 +29,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { useDeleteSandbox, useExtendSandbox } from "#/lib/hooks/useSandboxes";
 import type {
 	AiGenerateResult,
 	QueryHistoryItem,
@@ -39,8 +45,6 @@ import {
 	$getQueryHistory,
 } from "#/modules/console/serverFn";
 import {
-	$deleteSandbox as $deleteSandboxFn,
-	$extendSandbox as $extendSandboxFn,
 	$getSandboxById,
 	$getSandboxTables,
 } from "#/modules/sandboxes/serverFn";
@@ -124,36 +128,36 @@ function formatDate(iso: string): string {
 function SandboxDetailPage() {
 	const { sandbox, tables, history: initialHistory } = Route.useLoaderData();
 	const navigate = useNavigate();
+	const router = useRouter();
+	const extendSandbox = useExtendSandbox();
+	const deleteSandbox = useDeleteSandbox();
 	const [activeTab, setActiveTab] = useState<Tab>("info");
 	const [extendOpen, setExtendOpen] = useState(false);
-	const [extended, setExtended] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
-	const [deleting, setDeleting] = useState(false);
 
 	const ttl = formatTtl(sandbox.expiredAt);
 
 	const handleExtend = async (duration: 1 | 6 | 12 | 24) => {
 		setExtendOpen(false);
 		try {
-			await $extendSandboxFn({
-				data: { sandboxId: sandbox.id, additionalHours: duration },
+			await extendSandbox.mutateAsync({
+				sandboxId: sandbox.id,
+				additionalHours: duration,
 			});
-			setExtended(true);
-			setTimeout(() => setExtended(false), 2000);
-		} catch (error) {
-			console.error("Failed to extend sandbox:", error);
+			await router.invalidate();
+		} catch {
+			// error toast handled by hook
 		}
 	};
 
 	const handleDelete = async () => {
 		setConfirmDelete(false);
-		setDeleting(true);
 		try {
-			await $deleteSandboxFn({ data: { sandboxId: sandbox.id } });
-			navigate({ to: "/dashboard/sandboxes" });
-		} catch (error) {
-			console.error("Failed to delete sandbox:", error);
-			setDeleting(false);
+			await deleteSandbox.mutateAsync(sandbox.id);
+			await router.invalidate();
+			await navigate({ to: "/dashboard/sandboxes" });
+		} catch {
+			// error toast handled by hook
 		}
 	};
 
@@ -242,9 +246,9 @@ function SandboxDetailPage() {
 									variant="destructive"
 									className="h-7 px-2 text-xs"
 									onClick={handleDelete}
-									disabled={deleting}
+									disabled={deleteSandbox.isPending}
 								>
-									{deleting ? "..." : "Confirm"}
+									{deleteSandbox.isPending ? "..." : "Confirm"}
 								</Button>
 								<Button
 									size="sm"
@@ -257,9 +261,6 @@ function SandboxDetailPage() {
 							</div>
 						)}
 					</div>
-					{extended && (
-						<p className="text-xs text-muted-foreground">Extended ✓</p>
-					)}
 				</div>
 			</div>
 

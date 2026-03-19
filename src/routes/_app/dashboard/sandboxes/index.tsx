@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
 	CopyIcon,
 	PlusIcon,
@@ -7,7 +7,6 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { TtlCountdown } from "#/components/ttl-countdown";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -19,9 +18,12 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { Skeleton } from "#/components/ui/skeleton";
-import { useSandboxes } from "#/lib/hooks/useSandboxes";
+import {
+	useDeleteSandbox,
+	useExtendSandbox,
+	useSandboxes,
+} from "#/lib/hooks/useSandboxes";
 import { computeSandboxUiStatus } from "#/lib/types";
-import { $deleteSandbox, $extendSandbox } from "#/modules/sandboxes/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/")({
 	component: SandboxesPage,
@@ -62,7 +64,8 @@ const statusMap: Record<
 
 function SandboxesPage() {
 	const { data: sandboxes = [], isPending } = useSandboxes();
-	const router = useRouter();
+	const deleteSandbox = useDeleteSandbox();
+	const extendSandbox = useExtendSandbox();
 
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 	const [extendMenuId, setExtendMenuId] = useState<string | null>(null);
@@ -87,13 +90,9 @@ function SandboxesPage() {
 		setExtendMenuId(null);
 		setActionPending({ id, type: "extend" });
 		try {
-			await $extendSandbox({ data: { sandboxId: id, additionalHours } });
-			toast.success(`Sandbox extended by ${additionalHours}h`);
-			router.invalidate();
-		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Failed to extend sandbox",
-			);
+			await extendSandbox.mutateAsync({ sandboxId: id, additionalHours });
+		} catch {
+			// error toast is handled by the hook
 		} finally {
 			setActionPending(null);
 		}
@@ -103,13 +102,9 @@ function SandboxesPage() {
 		setDeleteConfirmId(null);
 		setActionPending({ id, type: "delete" });
 		try {
-			await $deleteSandbox({ data: { sandboxId: id } });
-			toast.success("Sandbox deleted");
-			router.invalidate();
-		} catch (err) {
-			toast.error(
-				err instanceof Error ? err.message : "Failed to delete sandbox",
-			);
+			await deleteSandbox.mutateAsync(id);
+		} catch {
+			// error toast is handled by the hook
 		} finally {
 			setActionPending(null);
 		}

@@ -9,8 +9,8 @@ interface TtlCountdownProps {
 	status?: SandboxStatus;
 }
 
-const MS_PER_SECOND = 1000;
-const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+const MS_PER_30SECONDS = 30000;
+const MS_PER_MINUTE = 60 * 1000;
 
 function parseExpiredAt(expiredAt: Date | string): number {
 	const date = expiredAt instanceof Date ? expiredAt : new Date(expiredAt);
@@ -18,7 +18,7 @@ function parseExpiredAt(expiredAt: Date | string): number {
 }
 
 function formatCountdown(ms: number): string {
-	const totalSeconds = Math.max(0, Math.floor(ms / MS_PER_SECOND));
+	const totalSeconds = Math.max(0, Math.floor(ms / 1000));
 	const hours = Math.floor(totalSeconds / 3600);
 	const minutes = Math.floor((totalSeconds % 3600) / 60);
 	const seconds = totalSeconds % 60;
@@ -47,7 +47,7 @@ export function TtlCountdown({
 		};
 
 		tick();
-		const interval = setInterval(tick, MS_PER_SECOND);
+		const interval = setInterval(tick, MS_PER_30SECONDS);
 
 		return () => clearInterval(interval);
 	}, [expiredMs]);
