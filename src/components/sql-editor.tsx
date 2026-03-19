@@ -75,12 +75,14 @@ export function SqlEditor({
 		onSubmitRef.current = onSubmit;
 	}, [onSubmit]);
 
-	// Sync external value changes into editor
+	useEffect(() => {
+		valueRef.current = value;
+	}, [value]);
+
 	useEffect(() => {
 		if (!viewRef.current) return;
 		const currentValue = viewRef.current.state.doc.toString();
 		if (value !== currentValue) {
-			valueRef.current = value;
 			viewRef.current.dispatch({
 				changes: {
 					from: 0,
@@ -97,17 +99,19 @@ export function SqlEditor({
 		const dialect =
 			engine === "mysql" || engine === "mariadb" ? MySQL : PostgreSQL;
 
-		const submitKeymap = onSubmit
-			? [
-					{
-						key: "Mod-Enter",
-						run: () => {
-							onSubmitRef.current?.();
-							return true;
-						},
+		const submitKeyBinding = onSubmitRef.current
+			? {
+					key: "Mod-Enter",
+					run: () => {
+						onSubmitRef.current?.();
+						return true;
 					},
-				]
-			: [];
+				}
+			: null;
+
+		const keymapExtensions = submitKeyBinding
+			? keymap.of([...defaultKeymap, submitKeyBinding])
+			: keymap.of(defaultKeymap);
 
 		const state = EditorState.create({
 			doc: valueRef.current,
@@ -117,7 +121,7 @@ export function SqlEditor({
 				sql({ dialect }),
 				syntaxHighlighting(defaultHighlightStyle),
 				defaultTheme,
-				keymap.of([...defaultKeymap, ...submitKeymap]),
+				keymapExtensions,
 				EditorView.updateListener.of((update) => {
 					if (update.docChanged) {
 						const newValue = update.state.doc.toString();
@@ -142,7 +146,7 @@ export function SqlEditor({
 			view.destroy();
 			viewRef.current = null;
 		};
-	}, [engine, disabled, placeholderText, onSubmit]);
+	}, [engine, disabled, placeholderText]);
 
 	return (
 		<div

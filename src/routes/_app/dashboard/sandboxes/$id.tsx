@@ -620,7 +620,7 @@ function AiTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 		try {
 			const result = await $aiGenerate({
-				data: { sandboxId: sandbox.id, prompt, mode: "schema" },
+				data: { sandboxId: sandbox.id, prompt },
 			});
 			setGenerated(result);
 			setGeneratedSql(result.sqlGenerated);
