@@ -126,7 +126,11 @@ function formatDate(iso: string): string {
 }
 
 function SandboxDetailPage() {
-	const { sandbox, tables, history: initialHistory } = Route.useLoaderData();
+	const {
+		sandbox,
+		tables: initialTables,
+		history: initialHistory,
+	} = Route.useLoaderData();
 	const navigate = useNavigate();
 	const router = useRouter();
 	const extendSandbox = useExtendSandbox();
@@ -134,6 +138,8 @@ function SandboxDetailPage() {
 	const [activeTab, setActiveTab] = useState<Tab>("info");
 	const [extendOpen, setExtendOpen] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
+	const [tables, setTables] = useState(initialTables);
+	const [history, setHistory] = useState(initialHistory);
 
 	const ttl = formatTtl(sandbox.expiredAt);
 
@@ -284,13 +290,17 @@ function SandboxDetailPage() {
 
 			{activeTab === "info" && <InfoTab sandbox={sandbox} />}
 			{activeTab === "console" && (
-				<ConsoleTab sandbox={sandbox} router={router} />
+				<ConsoleTab
+					sandbox={sandbox}
+					setHistory={setHistory}
+					setTables={setTables}
+				/>
 			)}
 			{activeTab === "ai" && <AiTab sandbox={sandbox} />}
 			{activeTab === "tables" && (
 				<TablesTab tables={tables} dbName={sandbox.dbName} />
 			)}
-			{activeTab === "history" && <HistoryTab history={initialHistory} />}
+			{activeTab === "history" && <HistoryTab history={history} />}
 		</div>
 	);
 }
@@ -483,10 +493,12 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 function ConsoleTab({
 	sandbox,
-	router,
+	setHistory,
+	setTables,
 }: {
 	sandbox: SandboxDetail;
-	router: ReturnType<typeof useRouter>;
+	setHistory: React.Dispatch<React.SetStateAction<QueryHistoryItem[]>>;
+	setTables: React.Dispatch<React.SetStateAction<SandboxTable[]>>;
 }) {
 	const isMac =
 		typeof navigator !== "undefined" &&
@@ -509,8 +521,14 @@ function ConsoleTab({
 				data: { sandboxId: sandbox.id, query },
 			});
 			setQueryResult(result);
-			// Refresh history and tables after successful query
-			await router.invalidate();
+
+			// Fetch fresh history and tables after successful query
+			const [newHistory, newTables] = await Promise.all([
+				$getQueryHistory({ data: { sandboxId: sandbox.id } }),
+				$getSandboxTables({ data: { sandboxId: sandbox.id } }),
+			]);
+			setHistory(newHistory);
+			setTables(newTables);
 		} catch (error) {
 			setQueryError(error instanceof Error ? error.message : "Query failed");
 		} finally {
