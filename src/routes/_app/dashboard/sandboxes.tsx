@@ -10,7 +10,7 @@ function SandboxesLayout() {
 
 	useEffect(() => {
 		if (window.location.pathname === "/dashboard/sandboxes") {
-			void navigate("/dashboard/sandboxes/");
+			void navigate({ to: "/dashboard/sandboxes" });
 		}
 	}, [navigate]);
 

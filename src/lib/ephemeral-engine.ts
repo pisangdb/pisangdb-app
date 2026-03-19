@@ -84,7 +84,7 @@ async function cleanupSandbox(
 		const adminPool = getAdminPool(engine, region);
 
 		if (engine === "postgresql") {
-			await deprovisionPostgreSQL(adminPool, dbName, dbUser);
+			await deprovisionPostgreSQL(adminPool, dbName, dbUser, region);
 		} else if (engine === "mysql") {
 			await deprovisionMySQL(adminPool, dbName, dbUser);
 		} else if (engine === "mariadb") {
