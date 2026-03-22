@@ -1,18 +1,22 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import {
+	createFileRoute,
+	Outlet,
+	useRouterState,
+} from "@tanstack/react-router";
+import { DashboardHome } from "./dashboard/index";
 
 export const Route = createFileRoute("/_app/dashboard")({
 	component: DashboardLayout,
 });
 
 function DashboardLayout() {
-	const navigate = useNavigate();
+	const pathname = useRouterState({
+		select: (state) => state.location.pathname,
+	});
 
-	useEffect(() => {
-		if (window.location.pathname === "/dashboard") {
-			void navigate({ to: "/dashboard" });
-		}
-	}, [navigate]);
+	if (pathname === "/dashboard") {
+		return <DashboardHome />;
+	}
 
 	return <Outlet />;
 }

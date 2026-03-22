@@ -21,6 +21,7 @@ Closes #
 ## Checklist
 
 - [ ] `pnpm check` lulus (tidak ada error Biome)
+- [ ] `pnpm test` lulus
 - [ ] Tidak ada non-null assertion (`!`)
 - [ ] Tidak ada `as any` / `@ts-ignore`
 - [ ] Sudah review diff sendiri
