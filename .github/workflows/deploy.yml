@@ -160,17 +160,27 @@ jobs:
             echo "Running database migrations..."
             docker run --rm --network=integrate -v "$PWD/drizzle.config.ts:/app/drizzle.config.ts" -v "$PWD/src/db:/app/src/db" -e DATABASE_URL="postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb" node:22-alpine sh -c "corepack enable && pnpm install drizzle-kit@0.31.9 && npx drizzle-kit push" 2>/dev/null || echo "Migration may have already been applied"
 
-            # Deploy app
+            # Deploy app - RADICAL CLEANUP
             echo "📦 Deploying application..."
-            echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            echo "Expected Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            docker compose stop app || true
-            docker compose rm -f app || true
-            docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null || true
-            docker rmi pisangdb-app 2>/dev/null || true
-            docker compose pull --ignore-build-args app
-            docker compose up -d --force-recreate --pull always app
+            echo "🧹 Radical cleanup..."
+            docker compose down --remove-orphans 2>/dev/null || true
+            docker compose rm -f -s -v app 2>/dev/null || true
+            docker container rm -f pisang-app 2>/dev/null || true
+            
+            echo "🗑️ Purging all related images..."
+            docker rmi -f ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null || true
+            docker rmi -f $(docker images -q "pisangdb*" 2>/dev/null) 2>/dev/null || true
+            docker image prune -af --filter "until=1h" 2>/dev/null || true
+            
+            echo "⬇️ Pulling fresh image..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest pisangdb-app:latest
+            
+            echo "🚀 Starting container..."
+            docker compose up -d --force-recreate app
             docker logout ghcr.io
 
             # Cleanup old images
