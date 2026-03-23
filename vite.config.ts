@@ -7,6 +7,7 @@ import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 const config = defineConfig({
+	base: "/",
 	plugins: [
 		devtools(),
 		nitro({ rollupConfig: { external: [/^@sentry\//] } }),
@@ -19,6 +20,9 @@ const config = defineConfig({
 		// Pre-bundle drizzle-orm so it's available when @better-auth/drizzle-adapter
 		// imports it as an optional peer dependency during build
 		include: ["drizzle-orm"],
+	},
+	build: {
+		assetsDir: "assets",
 	},
 });
 
