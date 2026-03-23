@@ -79,6 +79,9 @@ jobs:
     environment: ${{ github.event.inputs.environment || 'pisangdb' }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Copy docker-compose.yml to VPS
         uses: appleboy/scp-action@master
         with:
