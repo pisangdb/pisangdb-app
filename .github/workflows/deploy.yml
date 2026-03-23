@@ -155,6 +155,12 @@ jobs:
               sleep 10
             fi
 
+            # Run database migrations
+            echo "Running database migrations..."
+            if [ -f "src/db/migrations/0000_initial_schema.sql" ]; then
+              docker compose exec -T postgres-app psql -U pisang -d pisangdb -f /dev/stdin < src/db/migrations/0000_initial_schema.sql 2>/dev/null || echo "Migration may have already been applied"
+            fi
+
             # Deploy app
             echo "📦 Deploying application..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
