@@ -192,55 +192,48 @@ jobs:
             SMTP_HOST=${{ secrets.SMTP_HOST }}
             SMTP_PORT=${{ secrets.SMTP_PORT }}
             SMTP_USER=${{ secrets.SMTP_USER }}
-            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_PASS=${{ secrets.SMTP_PASS }}
             SMTP_FROM=${{ secrets.SMTP_FROM }}
             ENV_EOF
+
+            set -a
+            . ./.env
+            set +a
 
             # Deploy database if selected (manual only)
             if [ "$DEPLOY_DB" == "true" ]; then
               echo "🗄️ Deploying database containers..."
               docker compose pull postgres-app postgres-sandbox mysql mariadb
               docker compose up -d postgres-app postgres-sandbox mysql mariadb
-              echo "⏳ Waiting for databases to be ready..."
-              sleep 10
             fi
+
+            # App selalu butuh metadata DB + sandbox engines di network compose.
+            echo "🗄️ Ensuring required database containers are running..."
+            docker compose up -d postgres-app postgres-sandbox mysql mariadb
+            echo "⏳ Waiting for databases to be ready..."
+            sleep 10
 
             # Run database migrations using drizzle-kit
             echo "Running database migrations..."
             docker run --rm --network=integrate -v "$PWD/drizzle.config.ts:/app/drizzle.config.ts" -v "$PWD/src/db:/app/src/db" -e DATABASE_URL="postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb" node:22-alpine sh -c "corepack enable && pnpm install drizzle-kit@0.31.9 && npx drizzle-kit push" 2>/dev/null || echo "Migration may have already been applied"
 
-            # Deploy app - RADICAL CLEANUP
+            # Deploy app without tearing down stateful database containers.
             echo "📦 Deploying application..."
             echo "Expected Image: $IMAGE_REF"
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            echo "🧹 Radical cleanup..."
-            docker compose down --remove-orphans 2>/dev/null || true
-            docker compose rm -f -s -v app 2>/dev/null || true
-            docker container rm -f pisang-app 2>/dev/null || true
-            
-            echo "🗑️ Removing old build artifacts..."
-            rm -rf .output 2>/dev/null || true
-            rm -rf dist 2>/dev/null || true
-            
-            echo "🗑️ Purging ALL images and cache..."
-            docker compose down app --remove-orphans 2>/dev/null || true
-            docker rm -f pisang-app 2>/dev/null || true
-            docker rmi -f $(docker images -q "ghcr.io/pisangdb/*" 2>/dev/null) 2>/dev/null || true
-            docker system prune -af --volumes 2>/dev/null || true
-            
+
             echo "⬇️ Pulling specific image by digest..."
             docker pull "$IMAGE_REF"
-            
+
             echo "🔍 Verifying pulled image..."
             PULLED_SHA=$(docker image inspect "$IMAGE_REF" --format='{{index .RepoDigests 0}}' 2>/dev/null || echo "")
             echo "Pulled image RepoDigest: $PULLED_SHA"
-            
-            echo "🧹 Cleaning compose cache..."
-            rm -rf .docker/compose 2>/dev/null || true
-            docker compose -f docker-compose.yml config 2>/dev/null || true
-            
-            echo "🚀 Starting container with explicit digest..."
+
+            echo "🧹 Recreating app container only..."
+            docker compose rm -f -s app 2>/dev/null || true
+            docker container rm -f pisang-app 2>/dev/null || true
+
+            echo "🚀 Starting app with explicit digest..."
             APP_IMAGE="$IMAGE_REF" docker compose up -d --force-recreate --no-deps app
             sleep 3
             
