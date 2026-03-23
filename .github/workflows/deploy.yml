@@ -165,12 +165,12 @@ jobs:
             echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            docker compose stop app
-            docker compose rm -f app
+            docker compose stop app || true
+            docker compose rm -f app || true
             docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null || true
-            docker rmi pisangdb-app:latest 2>/dev/null || true
-            docker compose pull app
-            docker compose up -d app
+            docker rmi pisangdb-app 2>/dev/null || true
+            docker compose pull --ignore-build-args app
+            docker compose up -d --force-recreate --pull always app
             docker logout ghcr.io
 
             # Cleanup old images
