@@ -157,8 +157,10 @@ jobs:
 
             # Deploy app
             echo "📦 Deploying application..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker compose pull app
             docker compose up -d app
+            docker logout ghcr.io
 
             # Cleanup old images
             echo "🧹 Cleaning up..."
