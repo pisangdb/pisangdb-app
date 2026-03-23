@@ -196,7 +196,7 @@ jobs:
   notify:
     name: Notify Status
     needs: deploy
-    if: always() && github.event_name == 'workflow_dispatch'
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
