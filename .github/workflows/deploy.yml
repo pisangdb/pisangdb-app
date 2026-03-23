@@ -155,11 +155,9 @@ jobs:
               sleep 10
             fi
 
-            # Run database migrations
+            # Run database migrations using drizzle-kit
             echo "Running database migrations..."
-            if [ -f "src/db/migrations/0000_initial_schema.sql" ]; then
-              docker compose exec -T postgres-app psql -U pisang -d pisangdb -f /dev/stdin < src/db/migrations/0000_initial_schema.sql 2>/dev/null || echo "Migration may have already been applied"
-            fi
+            docker run --rm --network=integrate -v "$PWD/drizzle.config.ts:/app/drizzle.config.ts" -v "$PWD/src/db:/app/src/db" -e DATABASE_URL="postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb" node:22-alpine sh -c "corepack enable && pnpm install drizzle-kit@0.31.9 && npx drizzle-kit push" 2>/dev/null || echo "Migration may have already been applied"
 
             # Deploy app
             echo "📦 Deploying application..."
