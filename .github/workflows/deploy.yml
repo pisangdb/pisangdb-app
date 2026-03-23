@@ -70,6 +70,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          no-cache: false
 
   deploy:
     name: Deploy to VPS
@@ -195,10 +196,19 @@ jobs:
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             
             echo "🔍 Verifying image..."
-            docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest | grep "RepoDigests"
+            PULLED_SHA=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest | cut -d'@' -f2)
+            echo "Pulled image SHA: $PULLED_SHA"
+            
+            echo "🧹 Ensuring old containers are removed..."
+            docker compose down app --remove-orphans 2>/dev/null || true
+            docker rm -f pisang-app 2>/dev/null || true
             
             echo "🚀 Starting container with explicit image..."
-            APP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest docker compose up -d --force-recreate app
+            APP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest docker compose up -d --force-recreate --no-deps app
+            
+            echo "✅ Verifying running container..."
+            RUNNING_SHA=$(docker inspect --format='{{.Image}}' pisang-app 2>/dev/null || echo "not found")
+            echo "Running container image: $RUNNING_SHA"
             docker logout ghcr.io
 
             # Cleanup old images
