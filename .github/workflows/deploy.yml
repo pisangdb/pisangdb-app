@@ -173,6 +173,10 @@ jobs:
             docker compose rm -f -s -v app 2>/dev/null || true
             docker container rm -f pisang-app 2>/dev/null || true
             
+            echo "🗑️ Removing old build artifacts..."
+            rm -rf .output 2>/dev/null || true
+            rm -rf dist 2>/dev/null || true
+            
             echo "🗑️ Purging all related images..."
             docker rmi -f ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null || true
             docker rmi -f $(docker images -q "pisangdb*" 2>/dev/null) 2>/dev/null || true
