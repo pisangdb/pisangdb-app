@@ -80,17 +80,14 @@ function NewSandboxPage() {
 			return;
 		}
 		try {
-			const result = await createSandbox.mutateAsync({
+			await createSandbox.mutateAsync({
 				displayName: name,
 				engine,
 				region,
 				retentionHours: retentionHours as 1 | 6 | 12 | 24 | 72 | 168,
 			});
 			toast.success("Sandbox created!");
-			void navigate({
-				to: "/dashboard/sandboxes/$id",
-				params: { id: result.id },
-			});
+			void navigate({ to: "/dashboard/sandboxes" });
 		} catch {
 			// Error toast already shown by useCreateSandbox
 		}
@@ -252,11 +249,19 @@ function NewSandboxPage() {
 						</div>
 
 						<Button
-							className="w-full sm:w-auto"
+							size="lg"
+							className="w-full gap-2 sm:w-auto cursor-pointer disabled:cursor-not-allowed"
 							disabled={!name.trim() || createSandbox.isPending}
 							onClick={handleCreate}
 						>
-							{createSandbox.isPending ? "Creating..." : "Create Sandbox 🍌"}
+							{createSandbox.isPending ? (
+								<>
+									<span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+									Creating...
+								</>
+							) : (
+								"Create Sandbox 🍌"
+							)}
 						</Button>
 					</CardContent>
 				</Card>

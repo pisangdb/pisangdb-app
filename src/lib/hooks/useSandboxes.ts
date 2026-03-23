@@ -17,6 +17,7 @@ type CreateSandboxData = z.infer<typeof createSandboxSchema>;
 type ExtendSandboxData = z.infer<typeof extendSandboxSchema>;
 
 const SANDBOXES_QUERY_KEY = ["sandboxes"] as const;
+const DASHBOARD_STATS_QUERY_KEY = ["dashboard-stats"] as const;
 
 export function useSandboxes() {
 	return useQuery({
@@ -42,6 +43,9 @@ export function useCreateSandbox() {
 		mutationFn: (input: CreateSandboxData) => $createSandbox({ data: input }),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: SANDBOXES_QUERY_KEY });
+			void queryClient.invalidateQueries({
+				queryKey: DASHBOARD_STATS_QUERY_KEY,
+			});
 			toast.success("Sandbox created successfully");
 		},
 		onError: (error: Error) => {
@@ -57,6 +61,9 @@ export function useExtendSandbox() {
 		mutationFn: (input: ExtendSandboxData) => $extendSandbox({ data: input }),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: SANDBOXES_QUERY_KEY });
+			void queryClient.invalidateQueries({
+				queryKey: DASHBOARD_STATS_QUERY_KEY,
+			});
 			toast.success("Sandbox extended successfully");
 		},
 		onError: (error: Error) => {
@@ -72,6 +79,9 @@ export function useDeleteSandbox() {
 		mutationFn: (sandboxId: string) => $deleteSandbox({ data: { sandboxId } }),
 		onSuccess: () => {
 			void queryClient.invalidateQueries({ queryKey: SANDBOXES_QUERY_KEY });
+			void queryClient.invalidateQueries({
+				queryKey: DASHBOARD_STATS_QUERY_KEY,
+			});
 			toast.success("Sandbox deleted");
 		},
 		onError: (error: Error) => {

@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
@@ -32,6 +33,7 @@ import {
 import { useDeleteSandbox, useExtendSandbox } from "#/lib/hooks/useSandboxes";
 import type {
 	AiGenerateResult,
+	AiLogItem,
 	QueryHistoryItem,
 	QueryResult,
 	SandboxDetail,
@@ -53,8 +55,21 @@ export const Route = createFileRoute("/_app/dashboard/sandboxes/$id")({
 	loader: async ({ params }) => {
 		const sandbox = await $getSandboxById({ data: { sandboxId: params.id } });
 		const tables = await $getSandboxTables({ data: { sandboxId: params.id } });
-		const history = await $getQueryHistory({ data: { sandboxId: params.id } });
-		const aiLogs = await $getAiLogs({ data: { sandboxId: params.id } });
+
+		let history: QueryHistoryItem[] = [];
+		try {
+			history = await $getQueryHistory({ data: { sandboxId: params.id } });
+		} catch {
+			history = [];
+		}
+
+		let aiLogs: AiLogItem[] = [];
+		try {
+			aiLogs = await $getAiLogs({ data: { sandboxId: params.id } });
+		} catch {
+			aiLogs = [];
+		}
+
 		return { sandbox, tables, history, aiLogs };
 	},
 	head: () => ({ meta: [{ title: "Sandbox Detail — PisangDB" }] }),
@@ -133,13 +148,29 @@ function SandboxDetailPage() {
 	} = Route.useLoaderData();
 	const navigate = useNavigate();
 	const router = useRouter();
+	const queryClient = useQueryClient();
 	const extendSandbox = useExtendSandbox();
 	const deleteSandbox = useDeleteSandbox();
 	const [activeTab, setActiveTab] = useState<Tab>("info");
 	const [extendOpen, setExtendOpen] = useState(false);
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const [tables, setTables] = useState(initialTables);
-	const [history, setHistory] = useState(initialHistory);
+
+	const { data: history = [] } = useQuery({
+		queryKey: ["sandbox-query-history", sandbox.id],
+		queryFn: async () => {
+			return await $getQueryHistory({ data: { sandboxId: sandbox.id } });
+		},
+		initialData: initialHistory,
+		refetchInterval: 5000,
+		refetchIntervalInBackground: false,
+	});
+
+	const refreshHistory = async () => {
+		await queryClient.invalidateQueries({
+			queryKey: ["sandbox-query-history", sandbox.id],
+		});
+	};
 
 	const ttl = formatTtl(sandbox.expiredAt);
 
@@ -292,7 +323,7 @@ function SandboxDetailPage() {
 			{activeTab === "console" && (
 				<ConsoleTab
 					sandbox={sandbox}
-					setHistory={setHistory}
+					refreshHistory={refreshHistory}
 					setTables={setTables}
 				/>
 			)}
@@ -493,11 +524,11 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 function ConsoleTab({
 	sandbox,
-	setHistory,
+	refreshHistory,
 	setTables,
 }: {
 	sandbox: SandboxDetail;
-	setHistory: React.Dispatch<React.SetStateAction<QueryHistoryItem[]>>;
+	refreshHistory: () => Promise<void>;
 	setTables: React.Dispatch<React.SetStateAction<SandboxTable[]>>;
 }) {
 	const isMac =
@@ -522,13 +553,11 @@ function ConsoleTab({
 			});
 			setQueryResult(result);
 
-			// Fetch fresh history and tables after successful query
-			const [newHistory, newTables] = await Promise.all([
-				$getQueryHistory({ data: { sandboxId: sandbox.id } }),
-				$getSandboxTables({ data: { sandboxId: sandbox.id } }),
-			]);
-			setHistory(newHistory);
+			const newTables = await $getSandboxTables({
+				data: { sandboxId: sandbox.id },
+			});
 			setTables(newTables);
+			await refreshHistory();
 		} catch (error) {
 			setQueryError(error instanceof Error ? error.message : "Query failed");
 		} finally {

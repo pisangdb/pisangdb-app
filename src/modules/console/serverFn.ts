@@ -6,9 +6,11 @@ import { Pool } from "pg";
 import { db } from "#/db";
 import { aiLogs, queryHistory, sandboxes } from "#/db/schema";
 import { auth } from "#/lib/auth";
+import { getSandboxConnection } from "#/lib/sandbox-provisioning";
 import type {
 	AiGenerateResult,
 	AiLogItem,
+	DbEngine,
 	QueryHistoryItem,
 	QueryResult,
 } from "#/lib/types";
@@ -54,37 +56,6 @@ async function getCurrentUser() {
 	return session.user;
 }
 
-function getSandboxPort(engine: string, region: string): number {
-	const regionKey = region.toUpperCase();
-	if (engine === "postgresql") {
-		const url = process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ?? "";
-		const match = url.match(/:(\d+)(?:\/|$)/);
-		if (match) return parseInt(match[1], 10);
-		return 5432;
-	}
-	if (engine === "mysql") {
-		const url = process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ?? "";
-		const match = url.match(/:(\d+)(?:\/|$)/);
-		if (match) return parseInt(match[1], 10);
-		return 3306;
-	}
-	const envUrl = process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ?? "";
-	const match = envUrl.match(/:(\d+)(?:\/|$)/);
-	if (match) return parseInt(match[1], 10);
-	return 3307;
-}
-
-function getSandboxConnection(
-	engine: string,
-	region: string,
-	storedHost: string,
-): { host: string; port: number } {
-	// Override host for development - allows connecting to local sandbox containers
-	const devHost = process.env.SANDBOX_HOST ?? storedHost;
-	const port = getSandboxPort(engine, region);
-	return { host: devHost, port };
-}
-
 export const $executeQuery = createServerFn({ method: "POST" })
 	.inputValidator(executeQuerySchema)
 	.handler(async ({ data }): Promise<QueryResult> => {
@@ -113,7 +84,7 @@ export const $executeQuery = createServerFn({ method: "POST" })
 
 		// Use dev host/port override for local development
 		const { host, port } = getSandboxConnection(
-			sandbox.engine,
+			sandbox.engine as DbEngine,
 			sandbox.region,
 			sandbox.host,
 		);

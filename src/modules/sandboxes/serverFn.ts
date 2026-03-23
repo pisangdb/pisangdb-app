@@ -1,30 +1,32 @@
-import crypto from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, desc, eq, ne } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import { Pool } from "pg";
-import {
-	createMariadbAdminPool,
-	createMysqlAdminPool,
-	createPgAdminPool,
-	db,
-} from "#/db";
+import { db } from "#/db";
 import { sandboxes } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import {
 	deprovisionMariaDB,
 	deprovisionMySQL,
 	deprovisionPostgreSQL,
+	generateSandboxCredentials,
+	getAdminPool,
+	getSandboxPort,
+	provisionMariaDB,
+	provisionMySQL,
+	provisionPostgreSQL,
 } from "#/lib/sandbox-provisioning";
-import type {
-	DashboardStats,
-	DbEngine,
-	DbRegion,
-	SandboxDetail,
-	SandboxListItem,
-	SandboxStatus,
-	SandboxTable,
+import {
+	type DashboardStats,
+	type DbEngine,
+	type DbRegion,
+	DEFAULT_TIER,
+	type SandboxDetail,
+	type SandboxListItem,
+	type SandboxStatus,
+	type SandboxTable,
+	TIER_LIMITS,
 } from "#/lib/types";
 import {
 	createSandboxSchema,
@@ -59,11 +61,16 @@ export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 				and(eq(sandboxes.userId, userId), eq(sandboxes.status, "expired")),
 			);
 
+		const tier = DEFAULT_TIER;
+		const maxSandboxes = TIER_LIMITS[tier];
+
 		return {
 			activeSandboxes: activeResult?.count ?? 0,
 			totalCreated: totalResult?.count ?? 0,
 			autoCleaned: expiredResult?.count ?? 0,
 			aiQueriesThisMonth: 0,
+			tier,
+			maxSandboxes,
 		};
 	},
 );
@@ -104,15 +111,26 @@ export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 			)
 			.orderBy(desc(sandboxes.createdAt));
 
-		return rows.map((row) => ({
-			...row,
-			engine: row.engine as DbEngine,
-			region: row.region as DbRegion,
-			status: row.status as SandboxStatus,
-			sizeMb: 0, // actual size not stored; detail page fetches it on-demand
-			createdAt: row.createdAt.toISOString(),
-			expiredAt: row.expiredAt.toISOString(),
-		}));
+		const sandboxesWithSizes = await Promise.all(
+			rows.map(async (row) => {
+				const sizeMb = await getSandboxDatabaseSize(
+					row.engine as DbEngine,
+					row.region,
+					row.dbName,
+				);
+				return {
+					...row,
+					engine: row.engine as DbEngine,
+					region: row.region as DbRegion,
+					status: row.status as SandboxStatus,
+					sizeMb,
+					createdAt: row.createdAt.toISOString(),
+					expiredAt: row.expiredAt.toISOString(),
+				};
+			}),
+		);
+
+		return sandboxesWithSizes;
 	},
 );
 
@@ -156,152 +174,6 @@ export const $getSandboxById = createServerFn({ method: "GET" })
 		};
 	});
 
-// ─── Sandbox Creation Helpers ─────────────────────────────────────────────
-
-function generateSandboxCredentials(
-	userId: string,
-	displayName: string,
-	engine: string,
-): {
-	dbName: string;
-	dbUser: string;
-	dbPassword: string;
-	host: string;
-	port: number;
-	connectionUrl: string;
-} {
-	const shortUid = userId.slice(0, 8);
-	const randomSuffix = crypto.randomBytes(3).toString("hex");
-	const safeName = displayName
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-|-$/g, "")
-		.slice(0, 20);
-
-	const dbName = `pisang_${shortUid}_${safeName}_${randomSuffix}`;
-	const dbUser = `sb_${crypto.randomBytes(4).toString("hex")}`;
-	const dbPassword = crypto.randomBytes(16).toString("base64url");
-
-	const region = "id";
-	const host = `${region}.pisangdb.com`;
-	const port =
-		engine === "postgresql" ? 5432 : engine === "mysql" ? 3306 : 3307;
-
-	const encodedPassword = encodeURIComponent(dbPassword);
-	const connectionUrl =
-		engine === "postgresql"
-			? `postgresql://${dbUser}:${encodedPassword}@${host}:${port}/${dbName}`
-			: `mysql://${dbUser}:${encodedPassword}@${host}:${port}/${dbName}`;
-
-	return { dbName, dbUser, dbPassword, host, port, connectionUrl };
-}
-
-async function cleanupPartialSandbox(
-	engine: string,
-	pool: Pool | MySqlPool | null,
-	dbName: string,
-	dbUser: string,
-	region: string,
-): Promise<void> {
-	if (!pool) return;
-
-	try {
-		if (engine === "postgresql") {
-			await deprovisionPostgreSQL(pool as Pool, dbName, dbUser, region);
-		} else if (engine === "mysql") {
-			await deprovisionMySQL(pool as MySqlPool, dbName, dbUser);
-		} else if (engine === "mariadb") {
-			await deprovisionMariaDB(pool as MySqlPool, dbName, dbUser);
-		}
-	} catch (error) {
-		// Error may be a plain object from driver — serialize safely
-		const message =
-			error instanceof Error
-				? error.message
-				: typeof error === "object" && error !== null
-					? JSON.stringify(error)
-					: String(error);
-		console.error(`Failed to cleanup sandbox: ${message}`);
-		throw error; // Re-throw so status doesn't get set to expired if cleanup fails
-	}
-}
-
-async function provisionPostgresql(
-	pool: Pool,
-	dbName: string,
-	dbUser: string,
-	dbPassword: string,
-): Promise<void> {
-	const safeDbName = `"${dbName}"`;
-	const safeUser = `"${dbUser}"`;
-	const escapedPassword = dbPassword.replace(/'/g, "''");
-
-	await pool.query(
-		`CREATE USER ${safeUser} WITH PASSWORD '${escapedPassword}' NOSUPERUSER NOCREATEROLE NOCREATEDB LOGIN`,
-	);
-	await pool.query(`CREATE DATABASE ${safeDbName} OWNER ${safeUser}`);
-	await pool.query(`GRANT CONNECT ON DATABASE ${safeDbName} TO ${safeUser}`);
-	await pool.query(`GRANT USAGE ON SCHEMA public TO ${safeUser}`);
-	await pool.query(`GRANT CREATE ON SCHEMA public TO ${safeUser}`);
-	await pool.query(
-		`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${safeUser}`,
-	);
-	await pool.query(
-		`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${safeUser}`,
-	);
-	await pool.query(
-		`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${safeUser}`,
-	);
-	await pool.query(
-		`ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ${safeUser}`,
-	);
-	await pool.query(`ALTER USER ${safeUser} SET statement_timeout = '30s'`);
-}
-
-async function provisionMysql(
-	pool: MySqlPool,
-	dbName: string,
-	dbUser: string,
-	dbPassword: string,
-): Promise<void> {
-	const escapedUser = dbUser.replace(/'/g, "''");
-	const escapedPassword = dbPassword.replace(/'/g, "''");
-
-	await pool.execute(
-		`CREATE USER '${escapedUser}'@'%' IDENTIFIED WITH mysql_native_password BY '${escapedPassword}'`,
-	);
-	await pool.execute(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-	await pool.execute(
-		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
-	);
-	await pool.execute(
-		`GRANT USAGE ON *.* TO '${escapedUser}'@'%' WITH MAX_USER_CONNECTIONS 5`,
-	);
-	await pool.execute(`FLUSH PRIVILEGES`);
-}
-
-async function provisionMariadb(
-	pool: MySqlPool,
-	dbName: string,
-	dbUser: string,
-	dbPassword: string,
-): Promise<void> {
-	const escapedUser = dbUser.replace(/'/g, "''");
-	const escapedPassword = dbPassword.replace(/'/g, "''");
-
-	await pool.execute(
-		`CREATE USER '${escapedUser}'@'%' IDENTIFIED BY '${escapedPassword}'`,
-	);
-	await pool.execute(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-	await pool.execute(
-		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
-	);
-	await pool.execute(
-		`GRANT USAGE ON *.* TO '${escapedUser}'@'%' WITH MAX_USER_CONNECTIONS 5`,
-	);
-	await pool.execute(`FLUSH PRIVILEGES`);
-}
-
 // ─── $createSandbox ───────────────────────────────────────────────────────
 
 export const $createSandbox = createServerFn({ method: "POST" })
@@ -326,18 +198,22 @@ export const $createSandbox = createServerFn({ method: "POST" })
 		}
 
 		const { dbName, dbUser, dbPassword, host, port, connectionUrl } =
-			generateSandboxCredentials(userId, data.displayName, data.engine);
+			generateSandboxCredentials(
+				userId,
+				data.displayName,
+				data.engine as DbEngine,
+			);
+
+		const engine = data.engine as DbEngine;
+		const adminPool = getAdminPool(engine, data.region);
 
 		try {
 			if (data.engine === "postgresql") {
-				const rawPool = createPgAdminPool(data.region);
-				await provisionPostgresql(rawPool, dbName, dbUser, dbPassword);
+				await provisionPostgreSQL(adminPool, dbName, dbUser, dbPassword);
 			} else if (data.engine === "mysql") {
-				const rawPool = createMysqlAdminPool(data.region);
-				await provisionMysql(rawPool, dbName, dbUser, dbPassword);
+				await provisionMySQL(adminPool, dbName, dbUser, dbPassword);
 			} else {
-				const rawPool = createMariadbAdminPool(data.region);
-				await provisionMariadb(rawPool, dbName, dbUser, dbPassword);
+				await provisionMariaDB(adminPool, dbName, dbUser, dbPassword);
 			}
 
 			const expiredAt = new Date(
@@ -372,19 +248,17 @@ export const $createSandbox = createServerFn({ method: "POST" })
 				expiredAt: created.expiredAt.toISOString(),
 			};
 		} catch (err) {
-			const cleanupPool =
-				data.engine === "postgresql"
-					? createPgAdminPool(data.region)
-					: data.engine === "mysql"
-						? createMysqlAdminPool(data.region)
-						: createMariadbAdminPool(data.region);
-			await cleanupPartialSandbox(
-				data.engine,
-				cleanupPool as Pool | MySqlPool | null,
-				dbName,
-				dbUser,
-				data.region,
-			);
+			try {
+				if (data.engine === "postgresql") {
+					await deprovisionPostgreSQL(adminPool, dbName, dbUser, data.region);
+				} else if (data.engine === "mysql") {
+					await deprovisionMySQL(adminPool, dbName, dbUser);
+				} else {
+					await deprovisionMariaDB(adminPool, dbName, dbUser);
+				}
+			} catch (cleanupError) {
+				console.error("Failed to cleanup partial sandbox:", cleanupError);
+			}
 			throw err instanceof Error ? err : new Error("Failed to create sandbox");
 		}
 	});
@@ -466,23 +340,22 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 			.set({ status: "destroying", updatedAt: new Date() })
 			.where(eq(sandboxes.id, data.sandboxId));
 
-		// Actually deprovision the database — always mark as expired afterwards
-		// even if deprovision fails (so ephemeral engine won't retry a stuck sandbox)
-		const cleanupPool =
-			sandbox.engine === "postgresql"
-				? createPgAdminPool(sandbox.region)
-				: sandbox.engine === "mysql"
-					? createMysqlAdminPool(sandbox.region)
-					: createMariadbAdminPool(sandbox.region);
+		const engine = sandbox.engine as DbEngine;
+		const adminPool = getAdminPool(engine, sandbox.region);
 
 		try {
-			await cleanupPartialSandbox(
-				sandbox.engine,
-				cleanupPool as Pool | MySqlPool | null,
-				sandbox.dbName,
-				sandbox.dbUser,
-				sandbox.region,
-			);
+			if (sandbox.engine === "postgresql") {
+				await deprovisionPostgreSQL(
+					adminPool,
+					sandbox.dbName,
+					sandbox.dbUser,
+					sandbox.region,
+				);
+			} else if (sandbox.engine === "mysql") {
+				await deprovisionMySQL(adminPool, sandbox.dbName, sandbox.dbUser);
+			} else {
+				await deprovisionMariaDB(adminPool, sandbox.dbName, sandbox.dbUser);
+			}
 		} catch (deprovisionError) {
 			console.error(
 				"Deprovision failed, marking sandbox as expired anyway:",
@@ -505,9 +378,9 @@ async function getSandboxDatabaseSize(
 	dbName: string,
 ): Promise<number> {
 	try {
+		const adminPool = getAdminPool(engine, region);
 		if (engine === "postgresql") {
-			const pool = createPgAdminPool(region);
-			// pg_database_size returns bytes
+			const pool = adminPool as Pool;
 			const result = await pool.query<{ pg_database_size: string }>(
 				`SELECT pg_database_size($1) AS pg_database_size`,
 				[dbName],
@@ -516,11 +389,7 @@ async function getSandboxDatabaseSize(
 			const bytes = parseInt(result.rows[0]?.pg_database_size ?? "0", 10);
 			return Math.round(bytes / (1024 * 1024));
 		} else {
-			// MySQL or MariaDB — use information_schema
-			const pool =
-				engine === "mysql"
-					? createMysqlAdminPool(region)
-					: createMariadbAdminPool(region);
+			const pool = adminPool as MySqlPool;
 			const [result] = (await pool.query(
 				`SELECT ROUND(SUM(Data_length + Index_length) / 1024 / 1024, 2) AS size_mb
 				 FROM information_schema.tables
@@ -571,36 +440,15 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			throw new Error("Sandbox not found");
 		}
 
-		// Get port from env var - same logic as $executeQuery uses
-		const getSandboxPort = (engine: string, region: string): number => {
-			const regionKey = region.toUpperCase();
-			if (engine === "postgresql") {
-				const url = process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ?? "";
-				const match = url.match(/:(\d+)(?:\/|$)/);
-				if (match) return parseInt(match[1], 10);
-				return 5432;
-			}
-			if (engine === "mysql") {
-				const url = process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ?? "";
-				const match = url.match(/:(\d+)(?:\/|$)/);
-				if (match) return parseInt(match[1], 10);
-				return 3306;
-			}
-			const envUrl = process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ?? "";
-			const envMatch = envUrl.match(/:(\d+)(?:\/|$)/);
-			if (envMatch) return parseInt(envMatch[1], 10);
-			return 3307;
-		};
-
-		// Connect to the sandbox database to get tables
 		try {
 			let tables: SandboxTable[] = [];
+			const engine = sandbox.engine as DbEngine;
 
 			if (sandbox.engine === "postgresql") {
-				// Use SANDBOX_HOST and SANDBOX_PORT env vars - same as $executeQuery
-				const host = process.env.SANDBOX_HOST ?? sandbox.host;
-				const port = getSandboxPort(sandbox.engine, sandbox.region);
-				// Connect directly to the sandbox database using sandbox credentials
+				const { host, port } = {
+					host: process.env.SANDBOX_HOST ?? sandbox.host,
+					port: getSandboxPort(engine, sandbox.region),
+				};
 				const sandboxPool = new Pool({
 					host,
 					port,
@@ -618,11 +466,8 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					ORDER BY tablename`,
 				);
 
-				// Get row counts and sizes using COUNT(*) and pg_table_size
 				for (const row of result.rows) {
 					const tableName = row.tablename;
-					// Use COUNT(*) for accurate row count - pg_stat_user_tables may not have stats for new tables
-					// Use pg_table_size with proper regclass cast for size
 					const countResult = await sandboxPool.query<{
 						row_count: bigint;
 						size_kb: bigint;
@@ -645,11 +490,7 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 				}
 				await sandboxPool.end();
 			} else {
-				// MySQL or MariaDB
-				const pool =
-					sandbox.engine === "mysql"
-						? createMysqlAdminPool(sandbox.region)
-						: createMariadbAdminPool(sandbox.region);
+				const pool = getAdminPool(engine, sandbox.region) as MySqlPool;
 				const [result] = (await pool.query(
 					`SHOW TABLE STATUS FROM \`${sandbox.dbName}\``,
 				)) as [Record<string, number | string>[], unknown];
@@ -666,7 +507,6 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 
 			return tables;
 		} catch {
-			// If we can't connect to the sandbox DB (e.g., it's empty or not accessible), return empty
 			return [];
 		}
 	});
