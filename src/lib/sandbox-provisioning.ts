@@ -53,6 +53,33 @@ export function generateDbPassword(): string {
 	return generateRandomString(32);
 }
 
+export function generateSandboxCredentials(
+	userId: string,
+	displayName: string,
+	engine: DbEngine,
+	region = "id",
+): {
+	dbName: string;
+	dbUser: string;
+	dbPassword: string;
+	host: string;
+	port: number;
+	connectionUrl: string;
+} {
+	const shortUid = userId.slice(0, 8);
+	const dbName = generateDbName(shortUid, displayName);
+	const dbUser = generateDbUser();
+	const dbPassword = generateDbPassword();
+	const host = `${region}.pisangdb.com`;
+	const port = ENGINE_PORTS[engine];
+	const encodedPassword = encodeURIComponent(dbPassword);
+	const connectionUrl =
+		engine === "postgresql"
+			? `postgresql://${dbUser}:${encodedPassword}@${host}:${port}/${dbName}`
+			: `mysql://${dbUser}:${encodedPassword}@${host}:${port}/${dbName}`;
+	return { dbName, dbUser, dbPassword, host, port, connectionUrl };
+}
+
 export async function provisionPostgreSQL(
 	pool: AdminPool,
 	dbName: string,
@@ -61,11 +88,12 @@ export async function provisionPostgreSQL(
 ): Promise<void> {
 	const pgPool = pool as Pool;
 	const client = await pgPool.connect();
+	const escapedPassword = dbPassword.replace(/'/g, "''");
 	try {
 		await client.query(`CREATE DATABASE "${dbName}"`);
-		await client.query(`CREATE USER "${dbUser}" WITH PASSWORD $1`, [
-			dbPassword,
-		]);
+		await client.query(
+			`CREATE USER "${dbUser}" WITH PASSWORD '${escapedPassword}' NOSUPERUSER NOCREATEDB NOCREATEROLE`,
+		);
 		await client.query(
 			`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${dbUser}"`,
 		);
@@ -227,12 +255,33 @@ export async function provisionMySQL(
 	dbPassword: string,
 ): Promise<void> {
 	const mysqlPool = pool as MySqlPool;
-	await mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-	await mysqlPool.query(`CREATE USER '${dbUser}'@'%' IDENTIFIED BY ?`, [
-		dbPassword,
-	]);
+	const escapedUser = dbUser.replace(/'/g, "''");
+	const escapedPassword = dbPassword.replace(/'/g, "''");
 	await mysqlPool.query(
-		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES ON \`${dbName}\`.* TO '${dbUser}'@'%'`,
+		`CREATE USER '${escapedUser}'@'%' IDENTIFIED WITH mysql_native_password BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+	);
+	await mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+	await mysqlPool.query(
+		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
+	);
+	await mysqlPool.query("FLUSH PRIVILEGES");
+}
+
+export async function provisionMariaDB(
+	pool: AdminPool,
+	dbName: string,
+	dbUser: string,
+	dbPassword: string,
+): Promise<void> {
+	const mysqlPool = pool as MySqlPool;
+	const escapedUser = dbUser.replace(/'/g, "''");
+	const escapedPassword = dbPassword.replace(/'/g, "''");
+	await mysqlPool.query(
+		`CREATE USER '${escapedUser}'@'%' IDENTIFIED BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+	);
+	await mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
+	await mysqlPool.query(
+		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
 	);
 	await mysqlPool.query("FLUSH PRIVILEGES");
 }
@@ -286,6 +335,45 @@ export const ENGINE_PORTS: Record<DbEngine, number> = {
 	mysql: 3306,
 	mariadb: 3307,
 };
+
+export function getSandboxPort(engine: DbEngine, region: string): number {
+	const regionKey = region.toUpperCase();
+	if (engine === "postgresql") {
+		const url =
+			process.env[`POSTGRES_SANDBOX_URL_${regionKey}`] ??
+			process.env.POSTGRES_SANDBOX_URL_ID ??
+			"";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 5432;
+	}
+	if (engine === "mysql") {
+		const url =
+			process.env[`MYSQL_SANDBOX_URL_${regionKey}`] ??
+			process.env.MYSQL_SANDBOX_URL_ID ??
+			"";
+		const match = url.match(/:(\d+)(?:\/|$)/);
+		if (match) return parseInt(match[1], 10);
+		return 3306;
+	}
+	const envUrl =
+		process.env[`MARIADB_SANDBOX_URL_${regionKey}`] ??
+		process.env.MARIADB_SANDBOX_URL_ID ??
+		"";
+	const match = envUrl.match(/:(\d+)(?:\/|$)/);
+	if (match) return parseInt(match[1], 10);
+	return 3307;
+}
+
+export function getSandboxConnection(
+	engine: DbEngine,
+	region: string,
+	storedHost: string,
+): { host: string; port: number } {
+	const devHost = process.env.SANDBOX_HOST ?? storedHost;
+	const port = getSandboxPort(engine, region);
+	return { host: devHost, port };
+}
 
 export function buildConnectionUrl(
 	engine: DbEngine,

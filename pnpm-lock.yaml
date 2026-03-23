@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@codemirror/autocomplete':
+        specifier: ^6.20.1
+        version: 6.20.1
       '@codemirror/commands':
         specifier: ^6.10.3
         version: 6.10.3
@@ -41,6 +44,9 @@ importers:
       '@google/generative-ai':
         specifier: ^0.24.1
         version: 0.24.1
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@react-email/components':
         specifier: ^1.0.9
         version: 1.0.9(react-dom@19.2.4(react@19.2.4))(react@19.2.4)

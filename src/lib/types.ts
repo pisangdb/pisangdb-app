@@ -14,6 +14,15 @@ export type TemplateEngine = DbEngine | "all";
 
 export const EXPIRING_THRESHOLD_MS = 30 * 60 * 1000;
 
+export type UserTier = "free" | "business";
+
+export const TIER_LIMITS: Record<UserTier, number> = {
+	free: 5,
+	business: 50,
+};
+
+export const DEFAULT_TIER: UserTier = "free";
+
 export function computeSandboxUiStatus(
 	status: SandboxStatus,
 	expiredAt: string,
@@ -140,4 +149,6 @@ export interface DashboardStats {
 	totalCreated: number;
 	autoCleaned: number;
 	aiQueriesThisMonth: number;
+	tier: UserTier;
+	maxSandboxes: number;
 }

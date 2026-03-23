@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PlayIcon, ShieldIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -12,11 +13,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { useSandboxes } from "#/lib/hooks/useSandboxes";
-import type {
-	QueryHistoryItem,
-	QueryResult,
-	SandboxListItem,
-} from "#/lib/types";
+import type { QueryResult, SandboxListItem } from "#/lib/types";
 import { $executeQuery, $getQueryHistory } from "#/modules/console/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/console")({
@@ -41,34 +38,52 @@ function SqlConsolePage() {
 	const [query, setQuery] = useState("SELECT 1 as test;");
 	const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
 	const [queryError, setQueryError] = useState<string | null>(null);
-	const [history, setHistory] = useState<QueryHistoryItem[]>([]);
+	const [history, setHistory] = useState<
+		Array<{
+			id: string;
+			query: string;
+			status: string;
+			executionTimeMs: number | null;
+			rowsAffected: number | null;
+			errorMessage: string | null;
+			createdAt: string;
+		}>
+	>([]);
 	const [isLoading, setIsLoading] = useState(false);
+	const queryClient = useQueryClient();
 
 	const activeSandboxes = (sandboxes ?? []).filter(
 		(s: SandboxListItem) => s.status === "active",
 	) as SandboxListItem[];
 
-	const handleSandboxChange = async (sandboxId: string) => {
-		setSelectedSandboxId(sandboxId);
-		setHistoryQueryId("");
-		setResetKey((k) => k + 1);
-		setQueryResult(null);
-		setQueryError(null);
-
-		if (sandboxId) {
-			const sandbox = activeSandboxes.find((s) => s.id === sandboxId);
-			setSelectedEngine(sandbox?.engine || "postgresql");
-			setQuery("SELECT 1 as test;");
-			try {
-				const historyData = await $getQueryHistory({ data: { sandboxId } });
-				setHistory(historyData);
-			} catch {
-				setHistory([]);
-			}
-		} else {
+	const fetchHistory = useCallback(async (sandboxId: string) => {
+		try {
+			const data = await $getQueryHistory({ data: { sandboxId } });
+			setHistory(data);
+		} catch {
 			setHistory([]);
 		}
-	};
+	}, []);
+
+	const handleSandboxChange = useCallback(
+		async (sandboxId: string) => {
+			setSelectedSandboxId(sandboxId);
+			setHistoryQueryId("");
+			setResetKey((k) => k + 1);
+			setQueryResult(null);
+			setQueryError(null);
+
+			if (sandboxId) {
+				const sandbox = activeSandboxes.find((s) => s.id === sandboxId);
+				setSelectedEngine(sandbox?.engine || "postgresql");
+				setQuery("SELECT 1 as test;");
+				await fetchHistory(sandboxId);
+			} else {
+				setHistory([]);
+			}
+		},
+		[activeSandboxes, fetchHistory],
+	);
 
 	const handleRun = useCallback(async () => {
 		if (!selectedSandboxId || !query.trim()) return;
@@ -86,20 +101,45 @@ function SqlConsolePage() {
 			});
 			setQueryResult(result);
 
-			const historyData = await $getQueryHistory({
-				data: { sandboxId: selectedSandboxId },
-			});
-			setHistory(historyData);
+			setHistory((prev) => [
+				{
+					id: crypto.randomUUID(),
+					query: query,
+					status: "success",
+					executionTimeMs: result.executionTimeMs,
+					rowsAffected: result.rowsAffected,
+					errorMessage: null,
+					createdAt: new Date().toISOString(),
+				},
+				...prev.slice(0, 4),
+			]);
+
+			await queryClient.invalidateQueries({ queryKey: ["sandboxes"] });
 		} catch (error) {
-			setQueryError(error instanceof Error ? error.message : "Query failed");
+			const errorMessage =
+				error instanceof Error ? error.message : "Query failed";
+			setQueryError(errorMessage);
+
+			setHistory((prev) => [
+				{
+					id: crypto.randomUUID(),
+					query: query,
+					status: "error",
+					executionTimeMs: null,
+					rowsAffected: null,
+					errorMessage,
+					createdAt: new Date().toISOString(),
+				},
+				...prev.slice(0, 4),
+			]);
 		} finally {
 			setIsLoading(false);
 		}
-	}, [selectedSandboxId, query]);
+	}, [selectedSandboxId, query, queryClient]);
 
 	const handleClear = () => {
 		setHistoryQueryId("");
-		setQuery("SELECT 1 as test;");
+		setQuery("");
 		setQueryResult(null);
 		setQueryError(null);
 		setResetKey((k) => k + 1);
@@ -142,7 +182,7 @@ function SqlConsolePage() {
 								id="sandbox"
 								value={selectedSandboxId}
 								onChange={(event) => {
-									handleSandboxChange(event.target.value);
+									void handleSandboxChange(event.target.value);
 								}}
 								disabled={sandboxesLoading || undefined}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
@@ -173,7 +213,7 @@ function SqlConsolePage() {
 							<Button
 								size="sm"
 								className="gap-1.5"
-								onClick={handleRun}
+								onClick={() => void handleRun()}
 								disabled={!selectedSandboxId || !query.trim() || isLoading}
 							>
 								<PlayIcon className="size-4" />
@@ -265,7 +305,7 @@ function SqlConsolePage() {
 											</div>
 										)}
 									</>
-								) : queryResult.columns.length === 0 ? (
+								) : (
 									<>
 										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
 											<span>{queryResult.rowsAffected} row(s) affected</span>
@@ -274,17 +314,6 @@ function SqlConsolePage() {
 										</div>
 										<div className="p-4 text-sm text-muted-foreground">
 											Query executed successfully.
-										</div>
-									</>
-								) : (
-									<>
-										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-											<span>{queryResult.rows.length} row(s)</span>
-											<span>•</span>
-											<span>{queryResult.executionTimeMs} ms</span>
-										</div>
-										<div className="p-4 text-sm text-muted-foreground">
-											Query executed successfully. No rows returned.
 										</div>
 									</>
 								)}
@@ -320,25 +349,29 @@ function SqlConsolePage() {
 						<div className="space-y-2">
 							<p className="text-sm font-medium">Recent Queries</p>
 							{history.length > 0 ? (
-								history.slice(0, 5).map((item) => (
-									<button
-										key={item.id}
-										type="button"
-										className="w-full cursor-pointer rounded-md border p-2 text-left hover:bg-muted/50"
-										onClick={() => handleHistoryClick(item.query, item.id)}
-									>
-										<p className="line-clamp-1 font-mono text-xs">
-											{item.query}
-										</p>
-										<p className="mt-1 text-[11px] text-muted-foreground">
-											{item.status.toUpperCase()} •{" "}
-											{item.rowsAffected !== null
-												? `${item.rowsAffected} affected`
-												: `${item.executionTimeMs ?? 0}ms`}
-											• {new Date(item.createdAt).toLocaleTimeString()}
-										</p>
-									</button>
-								))
+								<div className="max-h-48 overflow-y-auto rounded-md border pr-3">
+									<div className="flex flex-col gap-2">
+										{history.slice(0, 5).map((item) => (
+											<button
+												key={item.id}
+												type="button"
+												className="w-full cursor-pointer rounded-md border bg-background p-2 text-left hover:bg-muted/50"
+												onClick={() => handleHistoryClick(item.query, item.id)}
+											>
+												<p className="line-clamp-1 font-mono text-xs">
+													{item.query}
+												</p>
+												<p className="mt-1 text-[11px] text-muted-foreground">
+													{item.status.toUpperCase()} •{" "}
+													{item.rowsAffected !== null
+														? `${item.rowsAffected} affected`
+														: `${item.executionTimeMs ?? 0}ms`}
+													• {new Date(item.createdAt).toLocaleTimeString()}
+												</p>
+											</button>
+										))}
+									</div>
+								</div>
 							) : (
 								<p className="text-xs text-muted-foreground">
 									No query history yet.
