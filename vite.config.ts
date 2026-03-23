@@ -23,15 +23,6 @@ const config = defineConfig({
 	},
 	build: {
 		assetsDir: "assets",
-		rollupOptions: {
-			output: {
-				manualChunks: {
-					vendor: ["react", "react-dom"],
-					router: ["@tanstack/react-router"],
-					query: ["@tanstack/react-query"],
-				},
-			},
-		},
 	},
 });
 
