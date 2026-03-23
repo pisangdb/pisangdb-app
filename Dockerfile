@@ -22,9 +22,17 @@ COPY . .
 # references assets that actually exist in the final public output.
 RUN rm -rf .output .tanstack node_modules/.nitro node_modules/.vite \
   && pnpm build \
-  && ASSET_REFS="$(grep -Rho '/assets/[[:alnum:]_.-]*\\.[[:alnum:]]*' .output/server | sort -u)" \
-  && test -n "$ASSET_REFS" \
-  && for asset in $ASSET_REFS; do test -f ".output/public$asset"; done
+  && grep -RhoE '/assets/[[:alnum:]_.-]+\.[[:alnum:]]+' .output/server \
+    | sed 's#^/assets/##' \
+    | sort -u > /tmp/server-assets.txt \
+  && test -s /tmp/server-assets.txt \
+  && ls -1 .output/public/assets | sort -u > /tmp/public-assets.txt \
+  && comm -23 /tmp/server-assets.txt /tmp/public-assets.txt > /tmp/missing-assets.txt \
+  && if [ -s /tmp/missing-assets.txt ]; then \
+    echo "Missing built assets:" >&2; \
+    cat /tmp/missing-assets.txt >&2; \
+    exit 1; \
+  fi
 
 # ─────────────────────────────────────────────────────────────
 # Stage 2: Runner
