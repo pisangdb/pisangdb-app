@@ -7,6 +7,8 @@ import { db } from "#/db";
 import { aiLogs, queryHistory, sandboxes } from "#/db/schema";
 import { generateSQL } from "#/lib/ai";
 import { auth } from "#/lib/auth";
+import { NotFoundError, UnauthorizedError } from "#/lib/errors";
+import { checkAiRateLimit, recordAiRequest } from "#/lib/rate-limit";
 import { getSandboxConnection } from "#/lib/sandbox-provisioning";
 import type {
 	AiGenerateResult,
@@ -52,7 +54,7 @@ async function getCurrentUser() {
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
 	if (!session?.user) {
-		throw new Error("Unauthorized");
+		throw new UnauthorizedError();
 	}
 	return session.user;
 }
@@ -71,7 +73,7 @@ export const $executeQuery = createServerFn({ method: "POST" })
 			.then((rows) => rows[0]);
 
 		if (!sandbox) {
-			throw new Error("Sandbox not found");
+			throw new NotFoundError("Sandbox not found");
 		}
 
 		if (sandbox.status !== "active") {
@@ -204,7 +206,7 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 			);
 
 		if (!sandbox) {
-			throw new Error("Sandbox not found");
+			throw new NotFoundError("Sandbox not found");
 		}
 
 		const history = await db
@@ -230,6 +232,14 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<AiGenerateResult> => {
 		const user = await getCurrentUser();
 
+		// Check AI rate limit (30 req/day/user per PRD)
+		const rateLimit = checkAiRateLimit(user.id);
+		if (!rateLimit.allowed) {
+			throw new Error(
+				`AI rate limit exceeded. Try again at ${rateLimit.resetAt.toLocaleTimeString()}.`,
+			);
+		}
+
 		const sandbox = await db
 			.select()
 			.from(sandboxes)
@@ -239,7 +249,7 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 			.then((rows) => rows[0]);
 
 		if (!sandbox) {
-			throw new Error("Sandbox not found");
+			throw new NotFoundError("Sandbox not found");
 		}
 
 		if (sandbox.status !== "active") {
@@ -251,6 +261,9 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 			engine: data.engine,
 			sandboxDbName: sandbox.dbName,
 		});
+
+		// Record successful AI request for rate limiting
+		recordAiRequest(user.id);
 
 		const [log] = await db
 			.insert(aiLogs)
@@ -287,7 +300,7 @@ export const $aiExecute = createServerFn({ method: "POST" })
 			.then((rows) => rows[0]);
 
 		if (!sandbox) {
-			throw new Error("Sandbox not found");
+			throw new NotFoundError("Sandbox not found");
 		}
 
 		if (sandbox.status !== "active") {
@@ -446,7 +459,7 @@ export const $getAiLogs = createServerFn({ method: "GET" })
 			);
 
 		if (!sandbox) {
-			throw new Error("Sandbox not found");
+			throw new NotFoundError("Sandbox not found");
 		}
 
 		// Check if AI is configured

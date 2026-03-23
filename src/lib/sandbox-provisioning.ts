@@ -48,6 +48,18 @@ export function generateRandomString(length: number): string {
 	return result;
 }
 
+// Strict validation: pisang_{8 alphanum}_{1-20 alphanum/hyphen}_{6 alphanum}
+const DB_NAME_PATTERN =
+	/^pisang_[a-z0-9]{8}_[a-z0-9][a-z0-9-]{0,18}[a-z0-9]_[a-z0-9]{6}$/;
+
+export function validateDbName(dbName: string): void {
+	if (!DB_NAME_PATTERN.test(dbName)) {
+		throw new Error(
+			`Invalid database name: "${dbName}". Must match pattern pisang_{8 alphanum}_{name}_{6 alphanum}`,
+		);
+	}
+}
+
 export function generateDbName(
 	userShortId: string,
 	displayName: string,
@@ -101,6 +113,7 @@ export async function provisionPostgreSQL(
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
+	validateDbName(dbName);
 	const pgPool = pool as Pool;
 	const client = await pgPool.connect();
 	const escapedPassword = dbPassword.replace(/'/g, "''");
@@ -290,6 +303,7 @@ export async function provisionMySQL(
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
+	validateDbName(dbName);
 	const mysqlPool = pool as MySqlPool;
 	const escapedUser = dbUser.replace(/'/g, "''");
 	const escapedPassword = dbPassword.replace(/'/g, "''");
@@ -318,6 +332,7 @@ export async function provisionMariaDB(
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
+	validateDbName(dbName);
 	const mysqlPool = pool as MySqlPool;
 	const escapedUser = dbUser.replace(/'/g, "''");
 	const escapedPassword = dbPassword.replace(/'/g, "''");
