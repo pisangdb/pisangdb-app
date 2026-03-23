@@ -123,7 +123,10 @@ jobs:
             docker network inspect integrate >/dev/null 2>&1 || docker network create integrate
             echo "✅ Network 'integrate' ready"
 
-            # Create .env file for docker compose
+            export APP_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            export BUILD_TIMESTAMP="${{ github.run_id }}-${{ github.run_attempt }}"
+            export NETWORK_EXTERNAL="true"
+            
             echo "🔧 Creating environment file..."
             cat > .env << 'ENV_EOF'
             APP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
@@ -177,10 +180,12 @@ jobs:
             
             echo "⬇️ Pulling fresh image..."
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest pisangdb-app:latest
             
-            echo "🚀 Starting container..."
-            docker compose up -d --force-recreate app
+            echo "🔍 Verifying image..."
+            docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest | grep "RepoDigests"
+            
+            echo "🚀 Starting container with explicit image..."
+            APP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest docker compose up -d --force-recreate app
             docker logout ghcr.io
 
             # Cleanup old images
