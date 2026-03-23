@@ -127,6 +127,7 @@ jobs:
             echo "🔧 Creating environment file..."
             cat > .env << 'ENV_EOF'
             APP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            BUILD_TIMESTAMP=${{ github.run_id }}-${{ github.run_attempt }}
             NETWORK_EXTERNAL=true
             PG_APP_PASSWORD=${{ secrets.PG_APP_PASSWORD }}
             PG_SANDBOX_PASSWORD=${{ secrets.PG_SANDBOX_PASSWORD }}
@@ -163,7 +164,7 @@ jobs:
             echo "📦 Deploying application..."
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker compose pull app
-            docker compose up -d app
+            docker compose up -d --force-recreate --remove-orphans app
             docker logout ghcr.io
 
             # Cleanup old images

@@ -7,6 +7,8 @@ services:
     image: ${APP_IMAGE:-pisangdb-app:latest}
     restart: unless-stopped
     container_name: pisang-app
+    labels:
+      - "build.timestamp=${BUILD_TIMESTAMP:-unknown}"
     ports:
       - "127.0.0.1:3000:3000"
     networks:
