@@ -74,9 +74,12 @@ jobs:
   deploy:
     name: Deploy to VPS
     needs: build
-    if: always() && (needs.build.result == 'success' || github.event.inputs.skip_build == 'true' || github.event_name == 'push')
+    if: needs.build.result == 'success' || github.event.inputs.skip_build == 'true'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'pisangdb' }}
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - name: Checkout repository
