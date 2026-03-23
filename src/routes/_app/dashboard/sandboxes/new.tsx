@@ -122,6 +122,7 @@ function NewSandboxPage() {
 			await navigator.clipboard.writeText(
 				`DATABASE_URL=${generated.connectionUrl}`,
 			);
+			toast.success("Copied to clipboard!");
 			setCopied(true);
 			setTimeout(() => {
 				setCopied(false);
@@ -210,6 +211,7 @@ function NewSandboxPage() {
 								<Label htmlFor="sandbox-name">Sandbox name</Label>
 								<Input
 									id="sandbox-name"
+									name="sandbox-name"
 									value={name}
 									onChange={(event) => setName(event.target.value)}
 									placeholder="my-project-db"
@@ -286,9 +288,7 @@ function NewSandboxPage() {
 							<p>
 								Host: <span className="font-medium">{generated.host}</span>
 							</p>
-							<p>
-								Port: <span className="font-medium">{selectedEngine.port}</span>
-							</p>
+							<p className="font-medium">Port: {selectedEngine.port}</p>
 							<p>
 								Database:{" "}
 								<span className="font-mono text-xs">{generated.dbName}</span>

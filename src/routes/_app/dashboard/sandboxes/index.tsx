@@ -136,7 +136,9 @@ function SandboxesPage() {
 		<div className="flex flex-col gap-6 p-4 md:p-6">
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
-					<h1 className="text-xl font-semibold tracking-tight">Sandboxes</h1>
+					<h1 aria-level={1} className="text-xl font-semibold tracking-tight">
+						Sandboxes
+					</h1>
 					<p className="text-sm text-muted-foreground">
 						Manage your active databases and credentials.
 					</p>
