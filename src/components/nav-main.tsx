@@ -13,7 +13,13 @@ import {
 	SidebarMenuSub,
 	SidebarMenuSubButton,
 	SidebarMenuSubItem,
+	useSidebar,
 } from "#/components/ui/sidebar";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/ui/tooltip";
 
 export function NavMain({
 	items,
@@ -29,6 +35,9 @@ export function NavMain({
 		}[];
 	}[];
 }) {
+	const { state } = useSidebar();
+	const isCollapsed = state === "collapsed";
+
 	return (
 		<SidebarGroup>
 			<SidebarMenu>
@@ -37,7 +46,7 @@ export function NavMain({
 						<Collapsible
 							key={item.title}
 							asChild
-							defaultOpen={true}
+							defaultOpen={!isCollapsed}
 							className="group/collapsible"
 						>
 							<SidebarMenuItem>
@@ -50,15 +59,32 @@ export function NavMain({
 								</CollapsibleTrigger>
 								<CollapsibleContent>
 									<SidebarMenuSub>
-										{item.items.map((subItem) => (
-											<SidebarMenuSubItem key={subItem.title}>
-												<SidebarMenuSubButton asChild>
-													<Link to={subItem.url}>
-														<span>{subItem.title}</span>
-													</Link>
-												</SidebarMenuSubButton>
-											</SidebarMenuSubItem>
-										))}
+										{item.items.map((subItem) =>
+											isCollapsed ? (
+												<Tooltip key={subItem.title} delayDuration={0}>
+													<TooltipTrigger asChild>
+														<SidebarMenuSubItem>
+															<SidebarMenuSubButton asChild>
+																<Link to={subItem.url}>
+																	<span>{subItem.title}</span>
+																</Link>
+															</SidebarMenuSubButton>
+														</SidebarMenuSubItem>
+													</TooltipTrigger>
+													<TooltipContent side="right">
+														{subItem.title}
+													</TooltipContent>
+												</Tooltip>
+											) : (
+												<SidebarMenuSubItem key={subItem.title}>
+													<SidebarMenuSubButton asChild>
+														<Link to={subItem.url}>
+															<span>{subItem.title}</span>
+														</Link>
+													</SidebarMenuSubButton>
+												</SidebarMenuSubItem>
+											),
+										)}
 									</SidebarMenuSub>
 								</CollapsibleContent>
 							</SidebarMenuItem>

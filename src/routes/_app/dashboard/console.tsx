@@ -1,6 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { PlayIcon, ShieldIcon, Trash2Icon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useCallback, useState } from "react";
+import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -10,76 +12,149 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { useSandboxes } from "#/lib/hooks/useSandboxes";
+import type { QueryResult, SandboxListItem } from "#/lib/types";
+import { $executeQuery, $getQueryHistory } from "#/modules/console/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/console")({
 	head: () => ({ meta: [{ title: "SQL Console — PisangDB" }] }),
 	component: SqlConsolePage,
 });
 
-const sandboxOptions = [
-	{
-		id: "sb_a1b2x8",
-		label: "migration-check (PostgreSQL 16)",
-	},
-	{
-		id: "sb_c3d4y9",
-		label: "bootcamp-prisma (MySQL 8)",
-	},
-];
-
-const defaultQuery = `SELECT id, name, email
-FROM users
-ORDER BY created_at DESC
-LIMIT 5;`;
-
-const historyItems = [
-	{
-		id: "h1",
-		query: "SELECT COUNT(*) FROM users;",
-		status: "success",
-		execution: "18 ms",
-		time: "10:24",
-	},
-	{
-		id: "h2",
-		query: "SELECT * FROM orders LIMIT 10;",
-		status: "success",
-		execution: "42 ms",
-		time: "10:22",
-	},
-	{
-		id: "h3",
-		query: "SELECT * FORM users;",
-		status: "error",
-		execution: "3 ms",
-		time: "10:20",
-	},
-];
+const ENGINE_LABELS: Record<string, string> = {
+	postgresql: "PostgreSQL",
+	mysql: "MySQL",
+	mariadb: "MariaDB",
+};
 
 function SqlConsolePage() {
-	const [selectedSandbox, setSelectedSandbox] = useState(
-		sandboxOptions[0]?.id ?? "",
-	);
-	const [query, setQuery] = useState(defaultQuery);
-	const [hasRun, setHasRun] = useState(false);
-	const [isRunning, setIsRunning] = useState(false);
+	const { data: sandboxes = [], isPending: sandboxesLoading } = useSandboxes();
+	const [selectedSandboxId, setSelectedSandboxId] = useState<string>("");
+	const [historyQueryId, setHistoryQueryId] = useState<string>("");
+	const [resetKey, setResetKey] = useState(0);
+	const [selectedEngine, setSelectedEngine] = useState<
+		"postgresql" | "mysql" | "mariadb"
+	>("postgresql");
+	const [query, setQuery] = useState("SELECT 1 as test;");
+	const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
+	const [queryError, setQueryError] = useState<string | null>(null);
+	const [history, setHistory] = useState<
+		Array<{
+			id: string;
+			query: string;
+			status: string;
+			executionTimeMs: number | null;
+			rowsAffected: number | null;
+			errorMessage: string | null;
+			createdAt: string;
+		}>
+	>([]);
+	const [isLoading, setIsLoading] = useState(false);
+	const queryClient = useQueryClient();
 
-	const handleRun = () => {
-		setIsRunning(true);
-		setTimeout(() => {
-			setIsRunning(false);
-			setHasRun(true);
-		}, 800);
+	const activeSandboxes = (sandboxes ?? []).filter(
+		(s: SandboxListItem) => s.status === "active",
+	) as SandboxListItem[];
+
+	const fetchHistory = useCallback(async (sandboxId: string) => {
+		try {
+			const data = await $getQueryHistory({ data: { sandboxId } });
+			setHistory(data);
+		} catch {
+			setHistory([]);
+		}
+	}, []);
+
+	const handleSandboxChange = useCallback(
+		async (sandboxId: string) => {
+			setSelectedSandboxId(sandboxId);
+			setHistoryQueryId("");
+			setResetKey((k) => k + 1);
+			setQueryResult(null);
+			setQueryError(null);
+
+			if (sandboxId) {
+				const sandbox = activeSandboxes.find((s) => s.id === sandboxId);
+				setSelectedEngine(sandbox?.engine || "postgresql");
+				setQuery("SELECT 1 as test;");
+				await fetchHistory(sandboxId);
+			} else {
+				setHistory([]);
+			}
+		},
+		[activeSandboxes, fetchHistory],
+	);
+
+	const handleRun = useCallback(async () => {
+		if (!selectedSandboxId || !query.trim()) return;
+
+		setIsLoading(true);
+		setQueryResult(null);
+		setQueryError(null);
+
+		try {
+			const result = await $executeQuery({
+				data: {
+					sandboxId: selectedSandboxId,
+					query,
+				},
+			});
+			setQueryResult(result);
+
+			setHistory((prev) => [
+				{
+					id: crypto.randomUUID(),
+					query: query,
+					status: "success",
+					executionTimeMs: result.executionTimeMs,
+					rowsAffected: result.rowsAffected,
+					errorMessage: null,
+					createdAt: new Date().toISOString(),
+				},
+				...prev.slice(0, 4),
+			]);
+
+			await queryClient.invalidateQueries({ queryKey: ["sandboxes"] });
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Query failed";
+			setQueryError(errorMessage);
+
+			setHistory((prev) => [
+				{
+					id: crypto.randomUUID(),
+					query: query,
+					status: "error",
+					executionTimeMs: null,
+					rowsAffected: null,
+					errorMessage,
+					createdAt: new Date().toISOString(),
+				},
+				...prev.slice(0, 4),
+			]);
+		} finally {
+			setIsLoading(false);
+		}
+	}, [selectedSandboxId, query, queryClient]);
+
+	const handleClear = () => {
+		setHistoryQueryId("");
+		setQuery("");
+		setQueryResult(null);
+		setQueryError(null);
+		setResetKey((k) => k + 1);
 	};
 
-	const rows = useMemo(
-		() => [
-			{ id: "u_001", name: "Andi Pratama", email: "andi@example.com" },
-			{ id: "u_002", name: "Citra Dewi", email: "citra@example.com" },
-			{ id: "u_003", name: "Budi Rahman", email: "budi@example.com" },
-		],
-		[],
-	);
+	const handleHistoryClick = (q: string, id: string) => {
+		setHistoryQueryId(id);
+		setQuery(q);
+	};
+
+	const isSelectQuery = queryResult && queryResult.columns.length > 0;
+	const isMutation =
+		queryResult &&
+		queryResult.columns.length === 0 &&
+		queryResult.rowsAffected >= 0;
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -105,74 +180,149 @@ function SqlConsolePage() {
 							</label>
 							<select
 								id="sandbox"
-								value={selectedSandbox}
-								onChange={(event) => setSelectedSandbox(event.target.value)}
+								value={selectedSandboxId}
+								onChange={(event) => {
+									void handleSandboxChange(event.target.value);
+								}}
+								disabled={sandboxesLoading || undefined}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
 							>
-								{sandboxOptions.map((option) => (
-									<option key={option.id} value={option.id}>
-										{option.label}
+								<option value="">
+									{sandboxesLoading ? "Loading..." : "Select a sandbox"}
+								</option>
+								{activeSandboxes.map((sandbox) => (
+									<option key={sandbox.id} value={sandbox.id}>
+										{sandbox.displayName} ({ENGINE_LABELS[sandbox.engine]})
 									</option>
 								))}
 							</select>
 						</div>
 
-						<textarea
+						<SqlEditor
+							key={`${selectedSandboxId}-${historyQueryId}-${resetKey}`}
 							value={query}
-							onChange={(event) => setQuery(event.target.value)}
-							className="min-h-48 w-full rounded-md border bg-muted/30 p-3 font-mono text-sm"
+							onChange={setQuery}
+							onSubmit={handleRun}
+							engine={selectedEngine}
+							disabled={isLoading}
+							placeholder="SELECT * FROM users LIMIT 10;"
+							className="min-h-48"
 						/>
 
 						<div className="flex flex-wrap items-center gap-2">
 							<Button
 								size="sm"
 								className="gap-1.5"
-								onClick={handleRun}
-								disabled={isRunning}
+								onClick={() => void handleRun()}
+								disabled={!selectedSandboxId || !query.trim() || isLoading}
 							>
 								<PlayIcon className="size-4" />
-								{isRunning ? "Running…" : "Run Query"}
+								{isLoading ? "Running…" : "Run Query"}
 							</Button>
 							<Button
 								variant="outline"
 								size="sm"
 								className="gap-1.5"
-								onClick={() => setQuery("")}
+								onClick={handleClear}
 							>
 								<Trash2Icon className="size-4" />
 								Clear
 							</Button>
-							<Badge variant="outline">Ctrl + Enter</Badge>
+							<Badge variant="outline">
+								{navigator.platform?.includes("Mac")
+									? "⌘ + Enter"
+									: "Ctrl + Enter"}
+							</Badge>
 						</div>
 
-						{hasRun ? (
-							<div className="overflow-x-auto rounded-md border">
-								<table className="w-full min-w-96 text-sm">
-									<thead className="bg-muted/50 text-left">
-										<tr>
-											<th className="px-3 py-2 font-medium">id</th>
-											<th className="px-3 py-2 font-medium">name</th>
-											<th className="px-3 py-2 font-medium">email</th>
-										</tr>
-									</thead>
-									<tbody>
-										{rows.map((row) => (
-											<tr key={row.id} className="border-t">
-												<td className="px-3 py-2 font-mono text-xs">
-													{row.id}
-												</td>
-												<td className="px-3 py-2">{row.name}</td>
-												<td className="px-3 py-2">{row.email}</td>
-											</tr>
-										))}
-									</tbody>
-								</table>
-							</div>
-						) : (
-							<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-								Run a query to see results here.
+						{queryError && (
+							<div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
+								{queryError}
 							</div>
 						)}
+
+						{queryResult ? (
+							<div className="overflow-x-auto rounded-md border">
+								{isMutation ? (
+									<>
+										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+											<span>{queryResult.rowsAffected} row(s) affected</span>
+											<span>•</span>
+											<span>{queryResult.executionTimeMs} ms</span>
+										</div>
+										<div className="p-4 text-sm text-muted-foreground">
+											Query executed successfully.
+										</div>
+									</>
+								) : isSelectQuery ? (
+									<>
+										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+											<span>{queryResult.rows.length} row(s)</span>
+											<span>•</span>
+											<span>{queryResult.executionTimeMs} ms</span>
+										</div>
+										{queryResult.rows.length > 0 ? (
+											<table className="w-full min-w-96 text-sm">
+												<thead className="bg-muted/50 text-left">
+													<tr>
+														{queryResult.columns.map((col) => (
+															<th key={col} className="px-3 py-2 font-medium">
+																{col}
+															</th>
+														))}
+													</tr>
+												</thead>
+												<tbody>
+													{queryResult.rows.map((row) => {
+														const rowId = crypto.randomUUID();
+														return (
+															<tr key={rowId} className="border-t">
+																{queryResult.columns.map((col) => {
+																	const raw = row[col];
+																	return (
+																		<td
+																			key={col}
+																			className="px-3 py-2 font-mono text-xs"
+																		>
+																			{raw === null || raw === undefined ? (
+																				<span className="text-muted-foreground">
+																					NULL
+																				</span>
+																			) : (
+																				String(raw)
+																			)}
+																		</td>
+																	);
+																})}
+															</tr>
+														);
+													})}
+												</tbody>
+											</table>
+										) : (
+											<div className="p-4 text-sm text-muted-foreground">
+												Query executed successfully. No rows returned.
+											</div>
+										)}
+									</>
+								) : (
+									<>
+										<div className="mb-2 flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+											<span>{queryResult.rowsAffected} row(s) affected</span>
+											<span>•</span>
+											<span>{queryResult.executionTimeMs} ms</span>
+										</div>
+										<div className="p-4 text-sm text-muted-foreground">
+											Query executed successfully.
+										</div>
+									</>
+								)}
+							</div>
+						) : !queryError ? (
+							<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+								Select a sandbox and run a query to see results here.
+							</div>
+						) : null}
 					</CardContent>
 				</Card>
 
@@ -198,14 +348,35 @@ function SqlConsolePage() {
 
 						<div className="space-y-2">
 							<p className="text-sm font-medium">Recent Queries</p>
-							{historyItems.map((item) => (
-								<div key={item.id} className="rounded-md border p-2">
-									<p className="line-clamp-1 text-xs font-mono">{item.query}</p>
-									<p className="mt-1 text-[11px] text-muted-foreground">
-										{item.status.toUpperCase()} · {item.execution} · {item.time}
-									</p>
+							{history.length > 0 ? (
+								<div className="max-h-48 overflow-y-auto rounded-md border pr-3">
+									<div className="flex flex-col gap-2">
+										{history.slice(0, 5).map((item) => (
+											<button
+												key={item.id}
+												type="button"
+												className="w-full cursor-pointer rounded-md border bg-background p-2 text-left hover:bg-muted/50"
+												onClick={() => handleHistoryClick(item.query, item.id)}
+											>
+												<p className="line-clamp-1 font-mono text-xs">
+													{item.query}
+												</p>
+												<p className="mt-1 text-[11px] text-muted-foreground">
+													{item.status.toUpperCase()} •{" "}
+													{item.rowsAffected !== null
+														? `${item.rowsAffected} affected`
+														: `${item.executionTimeMs ?? 0}ms`}
+													• {new Date(item.createdAt).toLocaleTimeString()}
+												</p>
+											</button>
+										))}
+									</div>
 								</div>
-							))}
+							) : (
+								<p className="text-xs text-muted-foreground">
+									No query history yet.
+								</p>
+							)}
 						</div>
 					</CardContent>
 				</Card>

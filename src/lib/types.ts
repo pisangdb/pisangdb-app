@@ -4,11 +4,43 @@ export type DbRegion = "id" | "sg" | "us" | "eu";
 
 export type SandboxStatus = "active" | "destroying" | "expired";
 
+export type SandboxUiStatus = SandboxStatus | "expiring";
+
 export type UserRole = "user" | "admin";
 
 export type QueryStatus = "success" | "error";
 
 export type TemplateEngine = DbEngine | "all";
+
+export const EXPIRING_THRESHOLD_MS = 30 * 60 * 1000;
+
+export type UserTier = "free" | "business";
+
+export const TIER_LIMITS: Record<UserTier, number> = {
+	free: 5,
+	business: 50,
+};
+
+export const DEFAULT_TIER: UserTier = "free";
+
+export function computeSandboxUiStatus(
+	status: SandboxStatus,
+	expiredAt: string,
+): SandboxUiStatus {
+	if (status === "destroying" || status === "expired") {
+		return status;
+	}
+
+	const now = Date.now();
+	const expiryTime = new Date(expiredAt).getTime();
+	const timeUntilExpiry = expiryTime - now;
+
+	if (timeUntilExpiry <= EXPIRING_THRESHOLD_MS) {
+		return "expiring";
+	}
+
+	return "active";
+}
 
 export interface SandboxCredentials {
 	host: string;
@@ -92,6 +124,7 @@ export interface ExecuteQueryInput {
 export interface AiGenerateInput {
 	sandboxId: string;
 	prompt: string;
+	engine: "postgresql" | "mysql" | "mariadb";
 }
 
 export interface AiGenerateResult {
@@ -116,4 +149,6 @@ export interface DashboardStats {
 	totalCreated: number;
 	autoCleaned: number;
 	aiQueriesThisMonth: number;
+	tier: UserTier;
+	maxSandboxes: number;
 }

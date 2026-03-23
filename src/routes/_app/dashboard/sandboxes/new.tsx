@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon, CopyIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
 } from "#/components/ui/card";
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
+import { useCreateSandbox } from "#/lib/hooks/useSandboxes";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/new")({
 	head: () => ({ meta: [{ title: "New Sandbox — PisangDB" }] }),
@@ -53,20 +55,42 @@ const retentionOptions = [
 const templateOptions = ["Blank", "E-commerce", "Blog", "Inventory"];
 
 function NewSandboxPage() {
+	const navigate = useNavigate();
+	const createSandbox = useCreateSandbox();
 	const [engine, setEngine] = useState<Engine>("postgresql");
 	const [region, setRegion] = useState<Region>("id");
 	const [name, setName] = useState("my-project-db");
 	const [retention, setRetention] = useState("6 hours");
 	const [template, setTemplate] = useState("Blank");
 	const [copied, setCopied] = useState(false);
-	const [creating, setCreating] = useState<"idle" | "loading" | "done">("idle");
 
-	const handleCreate = () => {
-		setCreating("loading");
-		setTimeout(() => {
-			setCreating("done");
-			setTimeout(() => setCreating("idle"), 3000);
-		}, 1200);
+	const RETENTION_MAP: Record<string, number> = {
+		"1 hour": 1,
+		"6 hours": 6,
+		"12 hours": 12,
+		"24 hours": 24,
+		"3 days": 72,
+		"7 days": 168,
+	};
+
+	const handleCreate = async () => {
+		const retentionHours = RETENTION_MAP[retention];
+		if (!retentionHours) {
+			toast.error("Invalid retention period");
+			return;
+		}
+		try {
+			await createSandbox.mutateAsync({
+				displayName: name,
+				engine,
+				region,
+				retentionHours: retentionHours as 1 | 6 | 12 | 24 | 72 | 168,
+			});
+			toast.success("Sandbox created!");
+			void navigate({ to: "/dashboard/sandboxes" });
+		} catch {
+			// Error toast already shown by useCreateSandbox
+		}
 	};
 
 	const selectedEngine =
@@ -90,14 +114,21 @@ function NewSandboxPage() {
 	}, [engine, name, region, selectedEngine.port]);
 
 	const copyEnv = async () => {
-		if (typeof navigator === "undefined" || !navigator.clipboard) return;
-		await navigator.clipboard.writeText(
-			`DATABASE_URL=${generated.connectionUrl}`,
-		);
-		setCopied(true);
-		setTimeout(() => {
-			setCopied(false);
-		}, 1200);
+		if (typeof navigator === "undefined" || !navigator.clipboard) {
+			toast.error("Clipboard not available");
+			return;
+		}
+		try {
+			await navigator.clipboard.writeText(
+				`DATABASE_URL=${generated.connectionUrl}`,
+			);
+			setCopied(true);
+			setTimeout(() => {
+				setCopied(false);
+			}, 1200);
+		} catch {
+			toast.error("Failed to copy to clipboard");
+		}
 	};
 
 	return (
@@ -218,15 +249,19 @@ function NewSandboxPage() {
 						</div>
 
 						<Button
-							className="w-full sm:w-auto"
-							disabled={creating === "loading"}
+							size="lg"
+							className="w-full gap-2 sm:w-auto cursor-pointer disabled:cursor-not-allowed"
+							disabled={!name.trim() || createSandbox.isPending}
 							onClick={handleCreate}
 						>
-							{creating === "loading"
-								? "Creating..."
-								: creating === "done"
-									? "Sandbox Created! 🎉"
-									: "Create Sandbox 🍌"}
+							{createSandbox.isPending ? (
+								<>
+									<span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+									Creating...
+								</>
+							) : (
+								"Create Sandbox 🍌"
+							)}
 						</Button>
 					</CardContent>
 				</Card>
