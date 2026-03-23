@@ -162,11 +162,13 @@ jobs:
 
             # Deploy app
             echo "📦 Deploying application..."
+            echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             docker compose stop app
             docker compose rm -f app
             docker rmi ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null || true
+            docker rmi pisangdb-app:latest 2>/dev/null || true
             docker compose pull app
             docker compose up -d app
             docker logout ghcr.io

@@ -3,7 +3,6 @@ services:
   # App — TanStack Start SSR
   # ─────────────────────────────────────────────────────────────
   app:
-    build: .
     image: ${APP_IMAGE:-pisangdb-app:latest}
     restart: unless-stopped
     container_name: pisang-app
