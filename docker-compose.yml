@@ -4,9 +4,11 @@ services:
   # ─────────────────────────────────────────────────────────────
   app:
     build: .
+    image: ${APP_IMAGE:-pisangdb-app:latest}
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    container_name: pisang-app
+    networks:
+      - integrate
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -25,7 +27,7 @@ services:
       # Sandbox engine admin URLs — region: id (Indonesia, VPS ini)
       POSTGRES_SANDBOX_URL_ID: postgresql://pisang:${PG_SANDBOX_PASSWORD}@postgres-sandbox:5432/postgres
       MYSQL_SANDBOX_URL_ID: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306
-      MARIADB_SANDBOX_URL_ID: mysql://root:${MARIADB_ROOT_PASSWORD}@mariadb:3307
+      MARIADB_SANDBOX_URL_ID: mysql://root:${MARIADB_ROOT_PASSWORD}@mariadb:3306
       # Google OAuth (opsional — aktif otomatis jika diisi)
       # GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       # GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -48,12 +50,15 @@ services:
   postgres-app:
     image: postgres:16-alpine
     restart: unless-stopped
+    container_name: pisang-postgres-app
+    networks:
+      - integrate
     environment:
       POSTGRES_DB: pisangdb
       POSTGRES_USER: pisang
       POSTGRES_PASSWORD: ${PG_APP_PASSWORD}
     volumes:
-      - pgdata_app:/var/lib/postgresql/data
+      - ./postgres-app:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pisang -d pisangdb"]
       interval: 10s
@@ -76,6 +81,9 @@ services:
   postgres-sandbox:
     image: postgres:16-alpine
     restart: unless-stopped
+    container_name: pisang-postgres-sandbox
+    networks:
+      - integrate
     environment:
       POSTGRES_USER: pisang
       POSTGRES_PASSWORD: ${PG_SANDBOX_PASSWORD}
@@ -84,7 +92,7 @@ services:
       # (postgres-app tidak expose port ke host di luar Docker network).
       POSTGRES_DB: pisangdb
     volumes:
-      - pgdata_sandbox:/var/lib/postgresql/data
+      - ./postgres-sandbox:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -110,6 +118,9 @@ services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
+    container_name: pisang-mysql
+    networks:
+      - integrate
     command: >
       --default-authentication-plugin=mysql_native_password
       --skip-name-resolve
@@ -119,7 +130,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
-      - mysqldata:/var/lib/mysql
+      - ./mysql:/var/lib/mysql
     ports:
       - "3306:3306"
     healthcheck:
@@ -152,6 +163,9 @@ services:
   mariadb:
     image: mariadb:11.4
     restart: unless-stopped
+    container_name: pisang-mariadb
+    networks:
+      - integrate
     command: >
       --skip-name-resolve
       --skip-show-database
@@ -160,7 +174,7 @@ services:
     environment:
       MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
     volumes:
-      - mariadbdata:/var/lib/mysql
+      - ./mariadb:/var/lib/mysql
     ports:
       - "3307:3306"
     healthcheck:
@@ -177,29 +191,6 @@ services:
         reservations:
           memory: 200M
 
-  # ─────────────────────────────────────────────────────────────
-  # Caddy — Reverse Proxy + HTTPS otomatis
-  # Hanya handle pisangdb.com (HTTP/HTTPS)
-  # DB ports (5432/3306/3307) tidak lewat Caddy — TCP langsung
-  # ─────────────────────────────────────────────────────────────
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
-
-volumes:
-  pgdata_app:
-  pgdata_sandbox:
-  mysqldata:
-  mariadbdata:
-  caddy_data:
-  caddy_config:
+networks:
+  integrate:
+    external: ${NETWORK_EXTERNAL:-false}
