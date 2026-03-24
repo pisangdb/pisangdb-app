@@ -108,7 +108,7 @@ export const templates = pgTable("templates", {
 	ddlSql: text("ddl_sql").notNull(),
 	seedSql: text("seed_sql"),
 	isBuiltin: boolean("is_builtin").notNull().default(false),
-	userId: text("user_id").references(() => users.id),
+	userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
@@ -120,7 +120,7 @@ export const sandboxes = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		userId: text("user_id")
 			.notNull()
-			.references(() => users.id),
+			.references(() => users.id, { onDelete: "cascade" }),
 		engine: varchar("engine", { length: 20 }).notNull(),
 		region: varchar("region", { length: 10 }).notNull().default("id"),
 		dbName: varchar("db_name", { length: 63 }).unique().notNull(),
@@ -154,7 +154,7 @@ export const queryHistory = pgTable("query_history", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	sandboxId: uuid("sandbox_id")
 		.notNull()
-		.references(() => sandboxes.id),
+		.references(() => sandboxes.id, { onDelete: "cascade" }),
 	query: text("query").notNull(),
 	status: varchar("status", { length: 20 }).notNull(),
 	executionTimeMs: integer("execution_time_ms"),
@@ -169,10 +169,10 @@ export const aiLogs = pgTable("ai_logs", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	sandboxId: uuid("sandbox_id")
 		.notNull()
-		.references(() => sandboxes.id),
+		.references(() => sandboxes.id, { onDelete: "cascade" }),
 	userId: text("user_id")
 		.notNull()
-		.references(() => users.id),
+		.references(() => users.id, { onDelete: "cascade" }),
 	prompt: text("prompt").notNull(),
 	response: text("response").notNull(),
 	sqlGenerated: text("sql_generated"),
