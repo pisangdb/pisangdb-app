@@ -37,6 +37,48 @@
 
 ---
 
+## Implementation Status
+
+Track implementasi fitur berdasarkan PRD. Update section ini saat fitur diimplementasi.
+
+### ✅ Sudah Diimplementasi
+
+| Fitur | Status | Catatan |
+|-------|--------|---------|
+| Auth (register, login, better-auth) | ✅ Done | Email/password + session |
+| Sandbox CRUD (create, list, detail, extend, delete) | ✅ Done | Full lifecycle management |
+| Multi-engine support (PostgreSQL, MySQL, MariaDB) | ✅ Done | Provisioning per engine |
+| Auto-cleanup (ephemeral engine) | ✅ Done | Background worker |
+| SQL Console | ✅ Done | Query execution + history |
+| Template selector (create sandbox) | ✅ Done | US-40 |
+| Built-in templates (E-commerce, Blog, Inventory, HR) | ✅ Done | US-40 |
+| Template SQL execution (DDL + seed) | ✅ Done | 10-20 rows per table |
+
+### ⚠️ Belum Diimplementasi / Partial
+
+| Fitur | Status | Catatan |
+|-------|--------|---------|
+| AI SQL Seeder (Gemini) | ⚠️ Stub only | AI integration not finalized |
+| Google OAuth | ⚠️ Not started | US-03 |
+| Email notification (expiry warning) | ⚠️ Not started | US-17 |
+| User-defined templates | ⚠️ Not started | US-41 |
+| Export sandbox as SQL dump | ⚠️ Not started | v1.1 |
+| Multi-region (sg, us) | ⚠️ Not started | DNS not configured |
+| Health check worker | ⚠️ Not started | Worker heartbeat |
+
+### ❌ Tidak Ada Rencana MVP
+
+| Fitur | Catatan |
+|-------|---------|
+| SQLite, Redis, MongoDB support | v2.0 |
+| REST API + API Key | v2.0 |
+| CLI tool (`pisang create`) | v2.0 |
+| Paid tiers | v2.0 |
+| Team workspace | v1.2 |
+| Snapshot & restore | v2.0 |
+
+---
+
 
 # PRD: PisangDB — Fresh Databases, Peels Away When Done 🍌
 
