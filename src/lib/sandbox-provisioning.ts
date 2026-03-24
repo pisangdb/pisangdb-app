@@ -9,6 +9,21 @@ import type { DbEngine } from "#/lib/types";
 
 export type AdminPool = Pool | MySqlPool;
 
+const PROVISION_TIMEOUT_MS = 30_000;
+
+async function withTimeout<T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+): Promise<T> {
+	const timeout = new Promise<never>((_, reject) =>
+		setTimeout(
+			() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)),
+			timeoutMs,
+		),
+	);
+	return Promise.race([promise, timeout]);
+}
+
 export function getAdminPool(engine: DbEngine, region: string): AdminPool {
 	switch (engine) {
 		case "postgresql":
@@ -31,6 +46,18 @@ export function generateRandomString(length: number): string {
 		result += chars[randomValues[i] % chars.length];
 	}
 	return result;
+}
+
+// Strict validation: pisang_{8 alphanum}_{1-20 alphanum/hyphen}_{6 alphanum}
+const DB_NAME_PATTERN =
+	/^pisang_[a-z0-9]{8}_[a-z0-9][a-z0-9-]{0,18}[a-z0-9]_[a-z0-9]{6}$/;
+
+export function validateDbName(dbName: string): void {
+	if (!DB_NAME_PATTERN.test(dbName)) {
+		throw new Error(
+			`Invalid database name: "${dbName}". Must match pattern pisang_{8 alphanum}_{name}_{6 alphanum}`,
+		);
+	}
 }
 
 export function generateDbName(
@@ -86,24 +113,46 @@ export async function provisionPostgreSQL(
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
+	validateDbName(dbName);
 	const pgPool = pool as Pool;
 	const client = await pgPool.connect();
 	const escapedPassword = dbPassword.replace(/'/g, "''");
 	try {
-		await client.query(`CREATE DATABASE "${dbName}"`);
-		await client.query(
-			`CREATE USER "${dbUser}" WITH PASSWORD '${escapedPassword}' NOSUPERUSER NOCREATEDB NOCREATEROLE`,
+		await withTimeout(
+			client.query(`CREATE DATABASE "${dbName}"`),
+			PROVISION_TIMEOUT_MS,
 		);
-		await client.query(
-			`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${dbUser}"`,
+		await withTimeout(
+			client.query(
+				`CREATE USER "${dbUser}" WITH PASSWORD '${escapedPassword}' NOSUPERUSER NOCREATEDB NOCREATEROLE`,
+			),
+			PROVISION_TIMEOUT_MS,
 		);
-		await client.query(
-			`ALTER USER "${dbUser}" NOSUPERUSER NOCREATEDB NOCREATEROLE`,
+		await withTimeout(
+			client.query(
+				`GRANT ALL PRIVILEGES ON DATABASE "${dbName}" TO "${dbUser}"`,
+			),
+			PROVISION_TIMEOUT_MS,
 		);
-		await client.query(`ALTER ROLE "${dbUser}" SET statement_timeout = '30s'`);
-		await client.query(`GRANT CONNECT ON DATABASE "${dbName}" TO "${dbUser}"`);
+		await withTimeout(
+			client.query(
+				`ALTER USER "${dbUser}" NOSUPERUSER NOCREATEDB NOCREATEROLE`,
+			),
+			PROVISION_TIMEOUT_MS,
+		);
+		await withTimeout(
+			client.query(`ALTER ROLE "${dbUser}" SET statement_timeout = '30s'`),
+			PROVISION_TIMEOUT_MS,
+		);
+		await withTimeout(
+			client.query(`GRANT CONNECT ON DATABASE "${dbName}" TO "${dbUser}"`),
+			PROVISION_TIMEOUT_MS,
+		);
 
-		await client.query(`ALTER DATABASE "${dbName}" OWNER TO "${dbUser}"`);
+		await withTimeout(
+			client.query(`ALTER DATABASE "${dbName}" OWNER TO "${dbUser}"`),
+			PROVISION_TIMEOUT_MS,
+		);
 	} finally {
 		client.release();
 	}
@@ -254,17 +303,27 @@ export async function provisionMySQL(
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
+	validateDbName(dbName);
 	const mysqlPool = pool as MySqlPool;
 	const escapedUser = dbUser.replace(/'/g, "''");
 	const escapedPassword = dbPassword.replace(/'/g, "''");
-	await mysqlPool.query(
-		`CREATE USER '${escapedUser}'@'%' IDENTIFIED WITH mysql_native_password BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+	await withTimeout(
+		mysqlPool.query(
+			`CREATE USER '${escapedUser}'@'%' IDENTIFIED WITH mysql_native_password BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+		),
+		PROVISION_TIMEOUT_MS,
 	);
-	await mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-	await mysqlPool.query(
-		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
+	await withTimeout(
+		mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``),
+		PROVISION_TIMEOUT_MS,
 	);
-	await mysqlPool.query("FLUSH PRIVILEGES");
+	await withTimeout(
+		mysqlPool.query(
+			`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
+		),
+		PROVISION_TIMEOUT_MS,
+	);
+	await withTimeout(mysqlPool.query("FLUSH PRIVILEGES"), PROVISION_TIMEOUT_MS);
 }
 
 export async function provisionMariaDB(
@@ -273,17 +332,27 @@ export async function provisionMariaDB(
 	dbUser: string,
 	dbPassword: string,
 ): Promise<void> {
+	validateDbName(dbName);
 	const mysqlPool = pool as MySqlPool;
 	const escapedUser = dbUser.replace(/'/g, "''");
 	const escapedPassword = dbPassword.replace(/'/g, "''");
-	await mysqlPool.query(
-		`CREATE USER '${escapedUser}'@'%' IDENTIFIED BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+	await withTimeout(
+		mysqlPool.query(
+			`CREATE USER '${escapedUser}'@'%' IDENTIFIED BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+		),
+		PROVISION_TIMEOUT_MS,
 	);
-	await mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``);
-	await mysqlPool.query(
-		`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
+	await withTimeout(
+		mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``),
+		PROVISION_TIMEOUT_MS,
 	);
-	await mysqlPool.query("FLUSH PRIVILEGES");
+	await withTimeout(
+		mysqlPool.query(
+			`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
+		),
+		PROVISION_TIMEOUT_MS,
+	);
+	await withTimeout(mysqlPool.query("FLUSH PRIVILEGES"), PROVISION_TIMEOUT_MS);
 }
 
 export async function deprovisionMySQL(

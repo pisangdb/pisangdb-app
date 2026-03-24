@@ -16,7 +16,7 @@ export const aiGenerateSchema = z.object({
 });
 
 export const aiExecuteSchema = z.object({
-	logId: z.string().uuid(),
 	sandboxId: z.string().uuid(),
 	sql: z.string().min(1),
+	logId: z.string().uuid().optional(),
 });
