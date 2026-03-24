@@ -1,6 +1,10 @@
 import type { Pool as MySqlPool } from "mysql2/promise";
 import { Pool } from "pg";
-import { getAdminPool, getSandboxPort } from "#/lib/sandbox-provisioning";
+import {
+	getAdminPool,
+	getSandboxPort,
+	validateDbName,
+} from "#/lib/sandbox-provisioning";
 import type { DbEngine, DbRegion } from "#/lib/types";
 
 /**
@@ -10,11 +14,14 @@ export async function executeTemplateSql(
 	engine: DbEngine,
 	region: DbRegion,
 	dbName: string,
-	dbUser: string,
-	dbPassword: string,
+	_dbUser: string,
+	_dbPassword: string,
 	ddlSql: string,
 	seedSql: string | null,
 ): Promise<void> {
+	// Validate database name for defense in depth
+	validateDbName(dbName);
+
 	const host = process.env.SANDBOX_HOST ?? `${region}.pisangdb.com`;
 	const port = getSandboxPort(engine, region);
 
@@ -23,8 +30,8 @@ export async function executeTemplateSql(
 			host,
 			port,
 			database: dbName,
-			user: dbUser,
-			password: dbPassword,
+			user: _dbUser,
+			password: _dbPassword,
 			max: 5,
 		});
 
@@ -37,7 +44,13 @@ export async function executeTemplateSql(
 
 			for (const statement of ddlStatements) {
 				if (statement) {
-					await pool.query(statement);
+					try {
+						await pool.query(statement);
+					} catch (err) {
+						throw new Error(
+							`Failed to execute DDL: ${statement.slice(0, 50)}... Error: ${err instanceof Error ? err.message : String(err)}`,
+						);
+					}
 				}
 			}
 
@@ -50,7 +63,13 @@ export async function executeTemplateSql(
 
 				for (const statement of seedStatements) {
 					if (statement) {
-						await pool.query(statement);
+						try {
+							await pool.query(statement);
+						} catch (err) {
+							throw new Error(
+								`Failed to execute seed: ${statement.slice(0, 50)}... Error: ${err instanceof Error ? err.message : String(err)}`,
+							);
+						}
 					}
 				}
 			}
@@ -63,6 +82,7 @@ export async function executeTemplateSql(
 
 		try {
 			// Switch to the sandbox database
+			// dbName is already validated, safe to use in backtick-quoted identifier
 			await pool.query(`USE \`${dbName}\``);
 
 			// Execute DDL statements
@@ -73,7 +93,13 @@ export async function executeTemplateSql(
 
 			for (const statement of ddlStatements) {
 				if (statement) {
-					await pool.query(statement);
+					try {
+						await pool.query(statement);
+					} catch (err) {
+						throw new Error(
+							`Failed to execute DDL: ${statement.slice(0, 50)}... Error: ${err instanceof Error ? err.message : String(err)}`,
+						);
+					}
 				}
 			}
 
@@ -86,7 +112,13 @@ export async function executeTemplateSql(
 
 				for (const statement of seedStatements) {
 					if (statement) {
-						await pool.query(statement);
+						try {
+							await pool.query(statement);
+						} catch (err) {
+							throw new Error(
+								`Failed to execute seed: ${statement.slice(0, 50)}... Error: ${err instanceof Error ? err.message : String(err)}`,
+							);
+						}
 					}
 				}
 			}
