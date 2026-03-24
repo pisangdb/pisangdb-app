@@ -80,6 +80,26 @@ export const verifications = pgTable("verifications", {
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+// ─── User preferences ────────────────────────────────────────────────────────
+
+export const userPreferences = pgTable("user_preferences", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.unique()
+		.references(() => users.id, { onDelete: "cascade" }),
+	sandboxExpiryWarning: boolean("sandbox_expiry_warning")
+		.notNull()
+		.default(true),
+	productUpdates: boolean("product_updates").notNull().default(false),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});
+
 export const templates = pgTable("templates", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	name: varchar("name", { length: 50 }).notNull(),
@@ -180,3 +200,6 @@ export type NewAiLog = typeof aiLogs.$inferInsert;
 
 export type Template = typeof templates.$inferSelect;
 export type NewTemplate = typeof templates.$inferInsert;
+
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type NewUserPreferences = typeof userPreferences.$inferInsert;

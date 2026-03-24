@@ -10,7 +10,11 @@ const config = defineConfig({
 	base: "/",
 	plugins: [
 		devtools(),
-		nitro({ rollupConfig: { external: [/^@sentry\//] } }),
+		nitro({
+			rollupConfig: {
+				external: [/^@sentry\//, /^drizzle-orm/],
+			},
+		}),
 		tsconfigPaths({ projects: ["./tsconfig.json"] }),
 		tailwindcss(),
 		tanstackStart(),
@@ -20,6 +24,9 @@ const config = defineConfig({
 		// Pre-bundle drizzle-orm so it's available when @better-auth/drizzle-adapter
 		// imports it as an optional peer dependency during build
 		include: ["drizzle-orm"],
+	},
+	ssr: {
+		external: ["drizzle-orm"],
 	},
 	build: {
 		assetsDir: "assets",
