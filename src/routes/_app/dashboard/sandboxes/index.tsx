@@ -209,7 +209,7 @@ function SandboxesPage() {
 							</Button>
 						</div>
 					) : (
-						<ScrollArea className="max-h-[480px] w-full">
+						<ScrollArea className="h-[480px] w-full overflow-hidden">
 							<div className="flex flex-col gap-3 pr-3">
 								{sandboxes.map((sandbox) => {
 									const uiStatus = computeSandboxUiStatus(
