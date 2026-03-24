@@ -69,7 +69,7 @@ export function generateDbName(
 		.replace(/[^a-z0-9]/g, "-")
 		.slice(0, 20);
 	const randomSuffix = generateRandomString(6);
-	return `pisang_${userShortId}_${sanitizedName}_${randomSuffix}`;
+	return `pisang_${userShortId.toLowerCase()}_${sanitizedName}_${randomSuffix}`;
 }
 
 export function generateDbUser(): string {

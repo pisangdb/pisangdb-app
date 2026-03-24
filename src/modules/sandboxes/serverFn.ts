@@ -4,7 +4,7 @@ import { and, count, desc, eq, ne } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import { Pool } from "pg";
 import { db } from "#/db";
-import { sandboxes } from "#/db/schema";
+import { sandboxes, templates } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import {
 	deprovisionMariaDB,
@@ -33,6 +33,7 @@ import {
 	extendSandboxSchema,
 	sandboxIdSchema,
 } from "./schema";
+import { executeTemplateSql } from "./template-helper";
 
 export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<DashboardStats> => {
@@ -216,6 +217,34 @@ export const $createSandbox = createServerFn({ method: "POST" })
 				await provisionMariaDB(adminPool, dbName, dbUser, dbPassword);
 			}
 
+			// Execute template SQL if provided
+			let templateId: string | null = null;
+			if (data.templateId) {
+				const [template] = await db
+					.select()
+					.from(templates)
+					.where(
+						and(
+							eq(templates.id, data.templateId),
+							eq(templates.engine, data.engine),
+						),
+					)
+					.limit(1);
+
+				if (template) {
+					templateId = template.id;
+					await executeTemplateSql(
+						engine,
+						data.region,
+						dbName,
+						dbUser,
+						dbPassword,
+						template.ddlSql,
+						template.seedSql,
+					);
+				}
+			}
+
 			const expiredAt = new Date(
 				Date.now() + data.retentionHours * 60 * 60 * 1000,
 			);
@@ -235,6 +264,7 @@ export const $createSandbox = createServerFn({ method: "POST" })
 					displayName: data.displayName,
 					status: "active",
 					expiredAt,
+					templateId,
 				})
 				.returning();
 
