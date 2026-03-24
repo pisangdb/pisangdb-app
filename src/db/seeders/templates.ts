@@ -8,7 +8,7 @@ async function seedTemplates() {
 	console.log("🌱 Seeding templates...\n");
 
 	let inserted = 0;
-	let skipped = 0;
+	let updated = 0;
 
 	for (const def of TEMPLATE_DEFINITIONS) {
 		for (const [engine, variant] of Object.entries(def.variants)) {
@@ -22,30 +22,37 @@ async function seedTemplates() {
 				.limit(1);
 
 			if (existing.length > 0) {
-				console.log(`⏭️  Skipped (exists): ${templateName}`);
-				skipped++;
-				continue;
+				// Update existing template
+				await db
+					.update(templates)
+					.set({
+						description: def.description,
+						ddlSql: variant.ddl,
+						seedSql: variant.seed,
+					})
+					.where(eq(templates.name, templateName));
+				console.log(`🔄 Updated: ${templateName}`);
+				updated++;
+			} else {
+				await db.insert(templates).values({
+					name: templateName,
+					description: def.description,
+					engine,
+					ddlSql: variant.ddl,
+					seedSql: variant.seed,
+					isBuiltin: true,
+					userId: null,
+				});
+				console.log(`✅ Inserted: ${templateName}`);
+				inserted++;
 			}
-
-			await db.insert(templates).values({
-				name: templateName,
-				description: def.description,
-				engine,
-				ddlSql: variant.ddl,
-				seedSql: variant.seed,
-				isBuiltin: true,
-				userId: null,
-			});
-
-			console.log(`✅ Inserted: ${templateName}`);
-			inserted++;
 		}
 	}
 
 	console.log(`\n🎉 Seeding complete!`);
 	console.log(`   Inserted: ${inserted}`);
-	console.log(`   Skipped: ${skipped}`);
-	console.log(`   Total: ${inserted + skipped}`);
+	console.log(`   Updated: ${updated}`);
+	console.log(`   Total: ${inserted + updated}`);
 
 	process.exit(0);
 }

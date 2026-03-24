@@ -61,7 +61,12 @@ INSERT INTO departments (name, description) VALUES
   ('Marketing', 'Brand management and marketing campaigns'),
   ('Human Resources', 'Employee relations and talent acquisition'),
   ('Finance', 'Financial planning and accounting'),
-  ('Operations', 'Day-to-day business operations');
+  ('Operations', 'Day-to-day business operations'),
+  ('Sales', 'Direct sales and business development'),
+  ('Customer Support', 'Customer service and account management'),
+  ('Research & Development', 'Innovation and product development'),
+  ('Legal', 'Legal affairs and compliance'),
+  ('Administration', 'Office management and administrative support');
 
 INSERT INTO positions (title, department_id, salary_range_min, salary_range_max) VALUES
   ('Software Engineer', 1, 8000000, 15000000),
@@ -166,7 +171,12 @@ INSERT INTO departments (name, description) VALUES
   ('Marketing', 'Brand management and marketing campaigns'),
   ('Human Resources', 'Employee relations and talent acquisition'),
   ('Finance', 'Financial planning and accounting'),
-  ('Operations', 'Day-to-day business operations');
+  ('Operations', 'Day-to-day business operations'),
+  ('Sales', 'Direct sales and business development'),
+  ('Customer Support', 'Customer service and account management'),
+  ('Research & Development', 'Innovation and product development'),
+  ('Legal', 'Legal affairs and compliance'),
+  ('Administration', 'Office management and administrative support');
 
 INSERT INTO positions (title, department_id, salary_range_min, salary_range_max) VALUES
   ('Software Engineer', 1, 8000000, 15000000),
@@ -271,7 +281,12 @@ INSERT INTO departments (name, description) VALUES
   ('Marketing', 'Brand management and marketing campaigns'),
   ('Human Resources', 'Employee relations and talent acquisition'),
   ('Finance', 'Financial planning and accounting'),
-  ('Operations', 'Day-to-day business operations');
+  ('Operations', 'Day-to-day business operations'),
+  ('Sales', 'Direct sales and business development'),
+  ('Customer Support', 'Customer service and account management'),
+  ('Research & Development', 'Innovation and product development'),
+  ('Legal', 'Legal affairs and compliance'),
+  ('Administration', 'Office management and administrative support');
 
 INSERT INTO positions (title, department_id, salary_range_min, salary_range_max) VALUES
   ('Software Engineer', 1, 8000000, 15000000),

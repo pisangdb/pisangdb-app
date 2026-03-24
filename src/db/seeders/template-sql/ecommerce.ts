@@ -57,14 +57,24 @@ INSERT INTO categories (name, slug) VALUES
   ('Clothing', 'clothing'),
   ('Books', 'books'),
   ('Home & Garden', 'home-garden'),
-  ('Sports', 'sports');
+  ('Sports', 'sports'),
+  ('Toys', 'toys'),
+  ('Health', 'health'),
+  ('Automotive', 'automotive'),
+  ('Food & Beverages', 'food-beverages'),
+  ('Office Supplies', 'office-supplies');
 
 INSERT INTO users (name, email) VALUES
   ('John Doe', 'john@example.com'),
   ('Jane Smith', 'jane@example.com'),
   ('Bob Wilson', 'bob@example.com'),
   ('Alice Brown', 'alice@example.com'),
-  ('Charlie Davis', 'charlie@example.com');
+  ('Charlie Davis', 'charlie@example.com'),
+  ('Diana Evans', 'diana@example.com'),
+  ('Frank Miller', 'frank@example.com'),
+  ('Grace Lee', 'grace@example.com'),
+  ('Henry Taylor', 'henry@example.com'),
+  ('Ivy Chen', 'ivy@example.com');
 
 INSERT INTO products (name, description, price, stock, category_id) VALUES
   ('Laptop Pro 15', 'High-performance laptop for professionals', 1299.99, 50, 1),
@@ -76,14 +86,24 @@ INSERT INTO products (name, description, price, stock, category_id) VALUES
   ('Yoga Mat', 'Non-slip exercise mat', 29.99, 80, 5),
   ('JavaScript Guide', 'Comprehensive JS programming book', 39.99, 60, 3),
   ('Garden Tools Set', '5-piece garden tool collection', 49.99, 40, 4),
-  ('LED Desk Lamp', 'Adjustable LED desk lamp', 34.99, 90, 1);
+  ('LED Desk Lamp', 'Adjustable LED desk lamp', 34.99, 90, 1),
+  ('Board Game Collection', 'Family board games set', 44.99, 65, 6),
+  ('Vitamin Supplements', 'Daily vitamin pack', 29.99, 200, 7),
+  ('Car Phone Mount', 'Universal car phone holder', 19.99, 150, 8),
+  ('Organic Coffee Beans', 'Premium roasted coffee 1kg', 24.99, 100, 9),
+  ('Notebook Set', 'Pack of 5 notebooks', 14.99, 300, 10);
 
 INSERT INTO orders (user_id, total, status) VALUES
   (1, 1499.98, 'completed'),
   (2, 89.98, 'completed'),
   (3, 299.99, 'pending'),
   (1, 59.99, 'completed'),
-  (4, 1299.99, 'processing');
+  (4, 1299.99, 'processing'),
+  (5, 199.98, 'completed'),
+  (6, 349.97, 'shipped'),
+  (7, 89.98, 'completed'),
+  (8, 159.97, 'pending'),
+  (9, 79.98, 'completed');
 
 INSERT INTO order_items (order_id, product_id, quantity, price) VALUES
   (1, 1, 1, 1299.99),
@@ -92,7 +112,15 @@ INSERT INTO order_items (order_id, product_id, quantity, price) VALUES
   (2, 5, 1, 59.99),
   (3, 3, 1, 299.99),
   (4, 5, 1, 59.99),
-  (5, 1, 1, 1299.99);
+  (5, 1, 1, 1299.99),
+  (6, 2, 1, 199.99),
+  (7, 4, 2, 24.99),
+  (7, 5, 1, 59.99),
+  (8, 6, 1, 89.99),
+  (9, 7, 2, 29.99),
+  (9, 8, 1, 39.99),
+  (10, 9, 1, 49.99),
+  (10, 10, 1, 34.99);
 `.trim(),
 		},
 		mysql: {
@@ -151,14 +179,24 @@ INSERT INTO categories (name, slug) VALUES
   ('Clothing', 'clothing'),
   ('Books', 'books'),
   ('Home & Garden', 'home-garden'),
-  ('Sports', 'sports');
+  ('Sports', 'sports'),
+  ('Toys', 'toys'),
+  ('Health', 'health'),
+  ('Automotive', 'automotive'),
+  ('Food & Beverages', 'food-beverages'),
+  ('Office Supplies', 'office-supplies');
 
 INSERT INTO users (name, email) VALUES
   ('John Doe', 'john@example.com'),
   ('Jane Smith', 'jane@example.com'),
   ('Bob Wilson', 'bob@example.com'),
   ('Alice Brown', 'alice@example.com'),
-  ('Charlie Davis', 'charlie@example.com');
+  ('Charlie Davis', 'charlie@example.com'),
+  ('Diana Evans', 'diana@example.com'),
+  ('Frank Miller', 'frank@example.com'),
+  ('Grace Lee', 'grace@example.com'),
+  ('Henry Taylor', 'henry@example.com'),
+  ('Ivy Chen', 'ivy@example.com');
 
 INSERT INTO products (name, description, price, stock, category_id) VALUES
   ('Laptop Pro 15', 'High-performance laptop for professionals', 1299.99, 50, 1),
@@ -170,14 +208,24 @@ INSERT INTO products (name, description, price, stock, category_id) VALUES
   ('Yoga Mat', 'Non-slip exercise mat', 29.99, 80, 5),
   ('JavaScript Guide', 'Comprehensive JS programming book', 39.99, 60, 3),
   ('Garden Tools Set', '5-piece garden tool collection', 49.99, 40, 4),
-  ('LED Desk Lamp', 'Adjustable LED desk lamp', 34.99, 90, 1);
+  ('LED Desk Lamp', 'Adjustable LED desk lamp', 34.99, 90, 1),
+  ('Board Game Collection', 'Family board games set', 44.99, 65, 6),
+  ('Vitamin Supplements', 'Daily vitamin pack', 29.99, 200, 7),
+  ('Car Phone Mount', 'Universal car phone holder', 19.99, 150, 8),
+  ('Organic Coffee Beans', 'Premium roasted coffee 1kg', 24.99, 100, 9),
+  ('Notebook Set', 'Pack of 5 notebooks', 14.99, 300, 10);
 
 INSERT INTO orders (user_id, total, status) VALUES
   (1, 1499.98, 'completed'),
   (2, 89.98, 'completed'),
   (3, 299.99, 'pending'),
   (1, 59.99, 'completed'),
-  (4, 1299.99, 'processing');
+  (4, 1299.99, 'processing'),
+  (5, 199.98, 'completed'),
+  (6, 349.97, 'shipped'),
+  (7, 89.98, 'completed'),
+  (8, 159.97, 'pending'),
+  (9, 79.98, 'completed');
 
 INSERT INTO order_items (order_id, product_id, quantity, price) VALUES
   (1, 1, 1, 1299.99),
@@ -186,7 +234,15 @@ INSERT INTO order_items (order_id, product_id, quantity, price) VALUES
   (2, 5, 1, 59.99),
   (3, 3, 1, 299.99),
   (4, 5, 1, 59.99),
-  (5, 1, 1, 1299.99);
+  (5, 1, 1, 1299.99),
+  (6, 2, 1, 199.99),
+  (7, 4, 2, 24.99),
+  (7, 5, 1, 59.99),
+  (8, 6, 1, 89.99),
+  (9, 7, 2, 29.99),
+  (9, 8, 1, 39.99),
+  (10, 9, 1, 49.99),
+  (10, 10, 1, 34.99);
 `.trim(),
 		},
 		mariadb: {
@@ -245,14 +301,24 @@ INSERT INTO categories (name, slug) VALUES
   ('Clothing', 'clothing'),
   ('Books', 'books'),
   ('Home & Garden', 'home-garden'),
-  ('Sports', 'sports');
+  ('Sports', 'sports'),
+  ('Toys', 'toys'),
+  ('Health', 'health'),
+  ('Automotive', 'automotive'),
+  ('Food & Beverages', 'food-beverages'),
+  ('Office Supplies', 'office-supplies');
 
 INSERT INTO users (name, email) VALUES
   ('John Doe', 'john@example.com'),
   ('Jane Smith', 'jane@example.com'),
   ('Bob Wilson', 'bob@example.com'),
   ('Alice Brown', 'alice@example.com'),
-  ('Charlie Davis', 'charlie@example.com');
+  ('Charlie Davis', 'charlie@example.com'),
+  ('Diana Evans', 'diana@example.com'),
+  ('Frank Miller', 'frank@example.com'),
+  ('Grace Lee', 'grace@example.com'),
+  ('Henry Taylor', 'henry@example.com'),
+  ('Ivy Chen', 'ivy@example.com');
 
 INSERT INTO products (name, description, price, stock, category_id) VALUES
   ('Laptop Pro 15', 'High-performance laptop for professionals', 1299.99, 50, 1),
@@ -264,14 +330,24 @@ INSERT INTO products (name, description, price, stock, category_id) VALUES
   ('Yoga Mat', 'Non-slip exercise mat', 29.99, 80, 5),
   ('JavaScript Guide', 'Comprehensive JS programming book', 39.99, 60, 3),
   ('Garden Tools Set', '5-piece garden tool collection', 49.99, 40, 4),
-  ('LED Desk Lamp', 'Adjustable LED desk lamp', 34.99, 90, 1);
+  ('LED Desk Lamp', 'Adjustable LED desk lamp', 34.99, 90, 1),
+  ('Board Game Collection', 'Family board games set', 44.99, 65, 6),
+  ('Vitamin Supplements', 'Daily vitamin pack', 29.99, 200, 7),
+  ('Car Phone Mount', 'Universal car phone holder', 19.99, 150, 8),
+  ('Organic Coffee Beans', 'Premium roasted coffee 1kg', 24.99, 100, 9),
+  ('Notebook Set', 'Pack of 5 notebooks', 14.99, 300, 10);
 
 INSERT INTO orders (user_id, total, status) VALUES
   (1, 1499.98, 'completed'),
   (2, 89.98, 'completed'),
   (3, 299.99, 'pending'),
   (1, 59.99, 'completed'),
-  (4, 1299.99, 'processing');
+  (4, 1299.99, 'processing'),
+  (5, 199.98, 'completed'),
+  (6, 349.97, 'shipped'),
+  (7, 89.98, 'completed'),
+  (8, 159.97, 'pending'),
+  (9, 79.98, 'completed');
 
 INSERT INTO order_items (order_id, product_id, quantity, price) VALUES
   (1, 1, 1, 1299.99),
@@ -280,7 +356,15 @@ INSERT INTO order_items (order_id, product_id, quantity, price) VALUES
   (2, 5, 1, 59.99),
   (3, 3, 1, 299.99),
   (4, 5, 1, 59.99),
-  (5, 1, 1, 1299.99);
+  (5, 1, 1, 1299.99),
+  (6, 2, 1, 199.99),
+  (7, 4, 2, 24.99),
+  (7, 5, 1, 59.99),
+  (8, 6, 1, 89.99),
+  (9, 7, 2, 29.99),
+  (9, 8, 1, 39.99),
+  (10, 9, 1, 49.99),
+  (10, 10, 1, 34.99);
 `.trim(),
 		},
 	},
