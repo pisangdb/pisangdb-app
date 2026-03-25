@@ -1,19 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouteContext } from "@tanstack/react-router";
 import {
 	ActivityIcon,
 	BadgeCheckIcon,
-	BotIcon,
 	CalendarIcon,
 	DatabaseIcon,
+	Link2Icon,
 	MailIcon,
+	Settings2Icon,
+	ShieldCheckIcon,
 	UserIcon,
 } from "lucide-react";
+import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
-	CardFooter,
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
@@ -23,8 +25,13 @@ import {
 	useWorkspaceStats,
 } from "#/lib/hooks/useUserSettings";
 import { MAX_RETENTION_HOURS } from "#/lib/types";
+import { $getUserSettings } from "#/modules/auth/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/account")({
+	loader: async () => {
+		const userSettings = await $getUserSettings();
+		return { userSettings };
+	},
 	head: () => ({ meta: [{ title: "Account — PisangDB" }] }),
 	component: AccountPage,
 });
@@ -38,16 +45,18 @@ function UsageBar({
 	max: number;
 	label: string;
 }) {
-	const pct = Math.round((value / max) * 100);
+	const safeMax = Math.max(max, 1);
+	const pct = Math.min(100, Math.round((value / safeMax) * 100));
+
 	return (
-		<div className="space-y-1">
+		<div className="space-y-2">
 			<div className="flex items-center justify-between text-xs">
 				<span className="text-muted-foreground">{label}</span>
 				<span className="font-medium">
 					{value} / {max}
 				</span>
 			</div>
-			<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+			<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
 				<div
 					className="h-full rounded-full bg-primary transition-all"
 					style={{ width: `${pct}%` }}
@@ -59,69 +68,333 @@ function UsageBar({
 
 function formatJoinedAt(createdAt: string | null | undefined) {
 	if (!createdAt) {
-		return "Unknown";
+		return null;
 	}
 
-	return new Date(createdAt).toLocaleDateString("id-ID", {
+	return new Date(createdAt).toLocaleDateString("en-US", {
 		day: "numeric",
-		month: "long",
+		month: "short",
 		year: "numeric",
 	});
 }
 
 function AccountPage() {
-	const { data: settings, isLoading: settingsLoading } = useUserSettings();
+	const context = useRouteContext({ from: "/_app" });
+	const { userSettings: initialUserSettings } = Route.useLoaderData();
+	const { data: settings } = useUserSettings();
 	const { data: workspaceStats, isLoading: statsLoading } = useWorkspaceStats();
+
+	if (statsLoading) {
+		return <AccountSkeleton />;
+	}
+
+	const resolvedSettings = settings ?? initialUserSettings;
+	const user = {
+		...context.user,
+		...resolvedSettings?.user,
+		createdAt: resolvedSettings?.user?.createdAt ?? null,
+	};
+	const stats = workspaceStats;
+	const hasCredentialAccount = Boolean(
+		resolvedSettings?.accounts?.some(
+			(account) => account.providerId === "credential",
+		),
+	);
+	const hasSocialAccount = Boolean(
+		resolvedSettings?.accounts?.some(
+			(account) => account.providerId !== "credential",
+		),
+	);
+	const signInMethod =
+		hasCredentialAccount && hasSocialAccount
+			? "Password + OAuth"
+			: hasCredentialAccount
+				? "Password"
+				: hasSocialAccount
+					? "OAuth"
+					: "Pending";
+	const connectedAccounts = resolvedSettings?.accounts?.length ?? 0;
+	const availableSlots = Math.max(
+		0,
+		(stats?.maxSandboxes ?? 5) - (stats?.activeSandboxes ?? 0),
+	);
+
+	return (
+		<div className="flex flex-col gap-6 p-4 md:p-6">
+			<section className="overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60">
+				<div className="flex flex-col gap-6 p-5 md:p-7">
+					<div className="flex flex-wrap items-center gap-2">
+						<Badge
+							variant="secondary"
+							className="gap-1.5 rounded-full px-3 py-1"
+						>
+							<UserIcon className="size-3.5" />
+							Account Overview
+						</Badge>
+						<Badge variant="outline" className="rounded-full px-3 py-1">
+							Identity and workspace usage
+						</Badge>
+					</div>
+
+					<div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] lg:items-end">
+						<div className="space-y-3">
+							<div className="space-y-2">
+								<h1 className="max-w-2xl text-2xl font-semibold tracking-tight md:text-3xl">
+									Review your account identity, current limits, and recent
+									workspace usage in one place.
+								</h1>
+								<p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+									This page stays lightweight by design: it gives you the
+									snapshot, while settings handles the actual management
+									actions.
+								</p>
+							</div>
+							{(user?.email || user?.createdAt) && (
+								<div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+									{user?.email && (
+										<div className="rounded-full border bg-background/80 px-3 py-1.5">
+											{user.email}
+										</div>
+									)}
+									{user?.createdAt && (
+										<div className="rounded-full border bg-background/80 px-3 py-1.5">
+											Joined {formatJoinedAt(user.createdAt)}
+										</div>
+									)}
+								</div>
+							)}
+							<div className="flex flex-wrap gap-2">
+								<Button asChild size="sm">
+									<Link to="/dashboard/settings">Open settings</Link>
+								</Button>
+								<Button asChild size="sm" variant="outline">
+									<Link to="/dashboard/sandboxes">View sandboxes</Link>
+								</Button>
+							</div>
+						</div>
+
+						<div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<DatabaseIcon className="size-4" />
+									<p className="text-xs font-medium uppercase tracking-[0.16em]">
+										Active Sandboxes
+									</p>
+								</div>
+								<p className="mt-3 text-2xl font-semibold">
+									{stats
+										? `${stats.activeSandboxes}/${stats.maxSandboxes}`
+										: "—"}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									Live sandbox usage against your workspace allowance.
+								</p>
+							</div>
+							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<ShieldCheckIcon className="size-4" />
+									<p className="text-xs font-medium uppercase tracking-[0.16em]">
+										Sign-in Method
+									</p>
+								</div>
+								<p className="mt-3 text-lg font-semibold">{signInMethod}</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									Current access path for this dashboard account.
+								</p>
+							</div>
+							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<Link2Icon className="size-4" />
+									<p className="text-xs font-medium uppercase tracking-[0.16em]">
+										Connected Accounts
+									</p>
+								</div>
+								<p className="mt-3 text-2xl font-semibold">
+									{connectedAccounts}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									Linked providers available for this workspace.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+				<Card className="border-border/80">
+					<CardHeader>
+						<CardTitle className="text-base">Identity Snapshot</CardTitle>
+						<CardDescription>
+							The core identity currently attached to your PisangDB workspace.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="grid gap-3 sm:grid-cols-2">
+						<InfoItem
+							icon={<UserIcon className="size-4" />}
+							label="Display Name"
+							value={user?.name}
+						/>
+						<InfoItem
+							icon={<MailIcon className="size-4" />}
+							label="Email"
+							value={user?.email}
+						/>
+						<InfoItem
+							icon={<BadgeCheckIcon className="size-4" />}
+							label="Role"
+							value={user?.role ?? "user"}
+							capitalize
+						/>
+						<InfoItem
+							icon={<CalendarIcon className="size-4" />}
+							label="Joined"
+							value={formatJoinedAt(user?.createdAt)}
+						/>
+					</CardContent>
+				</Card>
+
+				<Card className="border-border/80">
+					<CardHeader>
+						<CardTitle className="text-base">Access Snapshot</CardTitle>
+						<CardDescription>
+							A quick read on how this account authenticates and stays
+							connected.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="grid gap-3 sm:grid-cols-2">
+						<InfoItem
+							icon={<ShieldCheckIcon className="size-4" />}
+							label="Sign-in Method"
+							value={signInMethod}
+						/>
+						<InfoItem
+							icon={<Link2Icon className="size-4" />}
+							label="Connected Accounts"
+							value={`${connectedAccounts}`}
+						/>
+						<InfoItem
+							icon={<DatabaseIcon className="size-4" />}
+							label="Available Slots"
+							value={`${availableSlots} of ${stats?.maxSandboxes ?? 5}`}
+						/>
+						<InfoItem
+							icon={<ActivityIcon className="size-4" />}
+							label="Total Created"
+							value={`${stats?.totalCreated ?? 0}`}
+						/>
+					</CardContent>
+				</Card>
+			</div>
+
+			<div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+				<Card className="border-border/80">
+					<CardHeader>
+						<CardTitle className="text-base">Workspace Overview</CardTitle>
+						<CardDescription>
+							Current capacity and usage constraints for this account.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-5">
+						<UsageBar
+							value={stats?.activeSandboxes ?? 0}
+							max={stats?.maxSandboxes ?? 5}
+							label="Active sandboxes"
+						/>
+						<UsageBar
+							value={stats?.aiRequestsToday ?? 0}
+							max={stats?.maxAiRequestsPerDay ?? 30}
+							label="AI requests today"
+						/>
+						<div className="grid gap-2 text-sm sm:grid-cols-2">
+							<div className="flex items-center justify-between rounded-lg border p-3">
+								<span className="text-muted-foreground">
+									Max size per sandbox
+								</span>
+								<span className="font-medium">
+									{stats?.maxSizePerSandboxMb ?? 0} MB
+								</span>
+							</div>
+							<div className="flex items-center justify-between rounded-lg border p-3">
+								<span className="text-muted-foreground">Max retention</span>
+								<span className="font-medium">
+									{Math.floor(MAX_RETENTION_HOURS / 24)} days
+								</span>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card className="border-border/80">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2 text-base">
+							<Settings2Icon className="size-4" />
+							Next Actions
+						</CardTitle>
+						<CardDescription>
+							Jump to the pages where you can make account changes or keep
+							building inside the workspace.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="grid gap-3">
+						<div className="rounded-xl border bg-muted/30 p-4 text-sm">
+							<p className="font-medium">Need deeper account controls?</p>
+							<p className="mt-1 text-muted-foreground">
+								Use settings for profile edits, password changes, session
+								review, linked providers, notifications, and account deletion.
+							</p>
+						</div>
+						<div className="flex flex-wrap gap-2">
+							<Button asChild size="sm">
+								<Link to="/dashboard/settings">Open settings</Link>
+							</Button>
+							<Button asChild size="sm" variant="outline">
+								<Link to="/dashboard/sandboxes">View sandboxes</Link>
+							</Button>
+							<Button asChild size="sm" variant="outline">
+								<Link to="/dashboard/help">Open help center</Link>
+							</Button>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		</div>
+	);
+}
+
+function InfoItem({
+	icon,
+	label,
+	value,
+	capitalize = false,
+}: {
+	icon: React.ReactNode;
+	label: string;
+	value: string | null | undefined;
+	capitalize?: boolean;
+}) {
+	return (
+		<div className="rounded-xl border p-4 text-sm">
+			<p className="flex items-center gap-1.5 font-medium text-foreground">
+				{icon}
+				{label}
+			</p>
+			<p
+				className={`mt-2 text-muted-foreground ${capitalize ? "capitalize" : ""}`}
+			>
+				{value ?? "—"}
+			</p>
+		</div>
+	);
+}
+
+function AccountSkeleton() {
 	const profileSkeletonKeys = [
 		"profile-name",
 		"profile-email",
 		"profile-role",
 		"profile-joined",
 	];
-
-	if (settingsLoading || statsLoading) {
-		return (
-			<div className="flex flex-col gap-6 p-4 md:p-6">
-				<div>
-					<h1 className="text-xl font-semibold tracking-tight">Account</h1>
-					<p className="text-sm text-muted-foreground">
-						Your profile, plan, and usage overview.
-					</p>
-				</div>
-
-				<div className="grid gap-4 lg:grid-cols-2">
-					<Card>
-						<CardHeader>
-							<Skeleton className="h-5 w-24" />
-							<Skeleton className="h-4 w-44" />
-						</CardHeader>
-						<CardContent className="grid gap-3 sm:grid-cols-2">
-							{profileSkeletonKeys.map((key) => (
-								<div key={key} className="rounded-md border p-3 text-sm">
-									<Skeleton className="h-4 w-20" />
-									<Skeleton className="mt-2 h-4 w-28" />
-								</div>
-							))}
-						</CardContent>
-					</Card>
-					<Card>
-						<CardHeader>
-							<Skeleton className="h-5 w-20" />
-							<Skeleton className="h-4 w-56" />
-						</CardHeader>
-						<CardContent className="space-y-5">
-							<Skeleton className="h-14 w-full" />
-							<Skeleton className="h-14 w-full" />
-							<Skeleton className="h-14 w-full" />
-						</CardContent>
-					</Card>
-				</div>
-			</div>
-		);
-	}
-
-	const user = settings?.user;
-	const stats = workspaceStats;
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -133,114 +406,29 @@ function AccountPage() {
 			</div>
 
 			<div className="grid gap-4 lg:grid-cols-2">
-				{/* Profile card */}
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-base">Profile</CardTitle>
-						<CardDescription>
-							Your account identity on PisangDB.
-						</CardDescription>
+						<Skeleton className="h-5 w-28" />
+						<Skeleton className="h-4 w-52" />
 					</CardHeader>
 					<CardContent className="grid gap-3 sm:grid-cols-2">
-						<div className="rounded-md border p-3 text-sm">
-							<p className="flex items-center gap-1.5 font-medium">
-								<UserIcon className="size-4" />
-								Name
-							</p>
-							<p className="mt-1 text-muted-foreground">{user?.name}</p>
-						</div>
-						<div className="rounded-md border p-3 text-sm">
-							<p className="flex items-center gap-1.5 font-medium">
-								<MailIcon className="size-4" />
-								Email
-							</p>
-							<p className="mt-1 text-muted-foreground">{user?.email}</p>
-						</div>
-						<div className="rounded-md border p-3 text-sm">
-							<p className="flex items-center gap-1.5 font-medium">
-								<BadgeCheckIcon className="size-4" />
-								Role
-							</p>
-							<p className="mt-1 capitalize text-muted-foreground">
-								{user?.role ?? "user"}
-							</p>
-						</div>
-						<div className="rounded-md border p-3 text-sm">
-							<p className="flex items-center gap-1.5 font-medium">
-								<CalendarIcon className="size-4" />
-								Joined
-							</p>
-							<p className="mt-1 text-muted-foreground">
-								{formatJoinedAt(user?.createdAt)}
-							</p>
-						</div>
+						{profileSkeletonKeys.map((key) => (
+							<div key={key} className="rounded-md border p-3 text-sm">
+								<Skeleton className="h-4 w-20" />
+								<Skeleton className="mt-2 h-4 w-28" />
+							</div>
+						))}
 					</CardContent>
-					<CardFooter className="pt-0">
-						<Button asChild size="sm" className="w-fit">
-							<Link to="/dashboard/settings">Edit account settings</Link>
-						</Button>
-					</CardFooter>
 				</Card>
-
-				{/* Usage card */}
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-base">Usage</CardTitle>
-						<CardDescription>
-							Free tier limits refresh daily or on sandbox delete.
-						</CardDescription>
+						<Skeleton className="h-5 w-28" />
+						<Skeleton className="h-4 w-56" />
 					</CardHeader>
 					<CardContent className="space-y-5">
-						<div className="space-y-3">
-							<div className="flex items-center gap-2 text-sm font-medium">
-								<DatabaseIcon className="size-4 text-muted-foreground" />
-								Sandboxes
-							</div>
-							<UsageBar
-								value={stats?.activeSandboxes ?? 0}
-								max={stats?.maxSandboxes ?? 5}
-								label="Active sandboxes"
-							/>
-						</div>
-
-						<div className="space-y-3">
-							<div className="flex items-center gap-2 text-sm font-medium">
-								<BotIcon className="size-4 text-muted-foreground" />
-								AI Seeder
-							</div>
-							<UsageBar
-								value={stats?.aiRequestsToday ?? 0}
-								max={stats?.maxAiRequestsPerDay ?? 30}
-								label="AI requests today"
-							/>
-						</div>
-
-						<div className="space-y-3">
-							<div className="flex items-center gap-2 text-sm font-medium">
-								<ActivityIcon className="size-4 text-muted-foreground" />
-								Lifetime
-							</div>
-							<div className="flex items-center justify-between rounded-md border p-2.5 text-sm">
-								<span className="text-muted-foreground">
-									Total sandboxes created
-								</span>
-								<span className="font-semibold">
-									{stats?.totalCreated ?? 0}
-								</span>
-							</div>
-						</div>
-
-						<p className="text-xs text-muted-foreground">
-							Max size per sandbox:{" "}
-							<span className="font-medium">
-								{stats?.maxSizePerSandboxMb ?? 0} MB
-							</span>
-							{" · "}
-							Max retention:{" "}
-							<span className="font-medium">
-								{Math.floor(MAX_RETENTION_HOURS / 24)} days
-							</span>
-						</p>
+						<Skeleton className="h-14 w-full" />
+						<Skeleton className="h-14 w-full" />
+						<Skeleton className="h-14 w-full" />
 					</CardContent>
 				</Card>
 			</div>

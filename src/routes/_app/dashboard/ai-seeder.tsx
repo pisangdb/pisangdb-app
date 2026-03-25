@@ -1,7 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+	ActivityIcon,
 	BotIcon,
+	DatabaseIcon,
+	LayoutTemplateIcon,
 	ShieldCheckIcon,
 	SparklesIcon,
 	TerminalSquareIcon,
@@ -69,7 +72,37 @@ function AiSeederPage() {
 	const [confirmExecute, setConfirmExecute] = useState(false);
 	const [isExecuting, setIsExecuting] = useState(false);
 	const [executeError, setExecuteError] = useState<string | null>(null);
-
+	const selectedSandboxDetails = activeSandboxes.find(
+		(sandbox) => sandbox.id === selectedSandbox,
+	);
+	const usageRatio = workspaceStats
+		? Math.min(
+				100,
+				Math.round(
+					(workspaceStats.aiRequestsToday /
+						Math.max(workspaceStats.maxAiRequestsPerDay, 1)) *
+						100,
+				),
+			)
+		: 0;
+	const promptIdeas =
+		mode === "schema"
+			? [
+					"Build a SaaS billing schema with plans, subscriptions, invoices, and payments.",
+					"Design tables for a school system with students, classes, teachers, and attendance.",
+					"Create marketplace tables with products, carts, orders, and shipment events.",
+				]
+			: mode === "seed"
+				? [
+						"Generate 25 realistic Indonesian customers with phone numbers and city names.",
+						"Seed products with categories, prices, stock counts, and short descriptions.",
+						"Create monthly order history with mixed statuses and believable totals.",
+					]
+				: [
+						"Write a query to find top customers by total revenue in the last 30 days.",
+						"Show how to join users, orders, and payments with a failed-payment filter.",
+						"Suggest a query to detect products with low stock and high recent sales.",
+					];
 	const handleGenerate = async () => {
 		if (!selectedSandbox) {
 			toast.error("Please select a sandbox first");
@@ -131,20 +164,131 @@ function AiSeederPage() {
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div>
-				<h1 className="text-xl font-semibold tracking-tight">AI Seeder</h1>
-				<p className="text-sm text-muted-foreground">
-					Generate schema, seed data, and SQL helpers using natural language.
-				</p>
-			</div>
+			<section className="overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60">
+				<div className="flex flex-col gap-6 p-5 md:p-7">
+					<div className="flex flex-wrap items-center gap-2">
+						<Badge
+							variant="secondary"
+							className="gap-1.5 rounded-full px-3 py-1"
+						>
+							<BotIcon className="size-3.5" />
+							AI SQL Workspace
+						</Badge>
+						<Badge variant="outline" className="rounded-full px-3 py-1">
+							Prompt to SQL
+						</Badge>
+						<Badge variant="outline" className="rounded-full px-3 py-1">
+							Manual execution control
+						</Badge>
+					</div>
+
+					<div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)] lg:items-end">
+						<div className="space-y-3">
+							<div className="space-y-2">
+								<h1 className="max-w-2xl text-2xl font-semibold tracking-tight md:text-3xl">
+									Generate cleaner schema, seed data, and helper queries against
+									a real sandbox.
+								</h1>
+								<p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+									Use natural language to draft SQL, then review the output
+									before anything runs. The page stays focused on one job:
+									faster iteration without hiding what will execute.
+								</p>
+							</div>
+							<div className="flex flex-wrap gap-2">
+								<Button
+									size="sm"
+									className="gap-1.5"
+									onClick={handleGenerate}
+									disabled={
+										isGenerating ||
+										sandboxesLoading ||
+										activeSandboxes.length === 0
+									}
+								>
+									<SparklesIcon className="size-4" />
+									{isGenerating ? "Generating…" : "Generate SQL"}
+								</Button>
+								<Button asChild size="sm" variant="outline">
+									<Link to="/dashboard/sandboxes">Browse Sandboxes</Link>
+								</Button>
+							</div>
+						</div>
+
+						<div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<DatabaseIcon className="size-4" />
+									<p className="text-xs font-medium uppercase tracking-[0.16em]">
+										Active Targets
+									</p>
+								</div>
+								<p className="mt-3 text-2xl font-semibold">
+									{activeSandboxes.length}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									Sandboxes available for AI-assisted generation.
+								</p>
+							</div>
+							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<ActivityIcon className="size-4" />
+									<p className="text-xs font-medium uppercase tracking-[0.16em]">
+										AI Usage Today
+									</p>
+								</div>
+								<p className="mt-3 text-2xl font-semibold">
+									{workspaceStats
+										? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay}`
+										: "—"}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									{workspaceStats
+										? `${usageRatio}% of the daily allowance has been used.`
+										: "Loading workspace usage."}
+								</p>
+							</div>
+							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
+								<div className="flex items-center gap-2 text-muted-foreground">
+									<LayoutTemplateIcon className="size-4" />
+									<p className="text-xs font-medium uppercase tracking-[0.16em]">
+										Current Focus
+									</p>
+								</div>
+								<p className="mt-3 text-lg font-semibold">
+									{modeConfig.find((item) => item.key === mode)?.title}
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									{modeConfig.find((item) => item.key === mode)?.description}
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
 
 			<div className="grid gap-4 lg:grid-cols-3">
-				<Card className="lg:col-span-2">
+				<Card className="overflow-hidden border-border/80 lg:col-span-2">
 					<CardHeader>
-						<CardTitle className="text-base">Prompt</CardTitle>
-						<CardDescription>
-							Generate SQL and run it against your selected sandbox.
-						</CardDescription>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<div className="space-y-1">
+								<CardTitle className="text-base">Prompt Workspace</CardTitle>
+								<CardDescription>
+									Select a target, choose a generation mode, then refine the SQL
+									before execution.
+								</CardDescription>
+							</div>
+							{selectedSandboxDetails && (
+								<Badge
+									variant="secondary"
+									className="gap-1 rounded-full px-3 py-1"
+								>
+									<DatabaseIcon className="size-3.5" />
+									{selectedSandboxDetails.displayName} ·{" "}
+									{selectedSandboxDetails.engine}
+								</Badge>
+							)}
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<div className="space-y-1.5">
@@ -167,11 +311,11 @@ function AiSeederPage() {
 							</select>
 							{!sandboxesLoading && activeSandboxes.length === 0 && (
 								<p className="text-xs text-muted-foreground">
-									No sandboxes found.{" "}
-									<a href="/dashboard/sandboxes" className="underline">
+									No active sandboxes found.{" "}
+									<Link to="/dashboard/sandboxes" className="underline">
 										Create one
-									</a>{" "}
-									to get started.
+									</Link>{" "}
+									to start generating SQL.
 								</p>
 							)}
 						</div>
@@ -195,6 +339,28 @@ function AiSeederPage() {
 							))}
 						</div>
 
+						<div className="rounded-xl border bg-muted/20 p-4">
+							<div className="flex items-center gap-2 text-foreground">
+								<SparklesIcon className="size-4 text-primary" />
+								<p className="text-sm font-medium">Prompt Ideas</p>
+							</div>
+							<p className="mt-1 text-xs text-muted-foreground">
+								Click any idea to load it into the prompt editor.
+							</p>
+							<div className="mt-3 grid gap-2">
+								{promptIdeas.map((idea) => (
+									<button
+										key={idea}
+										type="button"
+										onClick={() => setPrompt(idea)}
+										className="rounded-lg border bg-background px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+									>
+										{idea}
+									</button>
+								))}
+							</div>
+						</div>
+
 						<textarea
 							value={prompt}
 							onChange={(event) => setPrompt(event.target.value)}
@@ -208,21 +374,26 @@ function AiSeederPage() {
 							className="min-h-36 w-full rounded-md border bg-muted/30 p-3 text-sm"
 						/>
 
-						<div className="flex flex-wrap items-center gap-2">
-							<Button
-								size="sm"
-								className="gap-1.5"
-								onClick={handleGenerate}
-								disabled={
-									isGenerating ||
-									sandboxesLoading ||
-									activeSandboxes.length === 0
-								}
-							>
-								<SparklesIcon className="size-4" />
-								{isGenerating ? "Generating…" : "Generate SQL"}
-							</Button>
-							<Badge variant="outline">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							<div className="flex flex-wrap items-center gap-2">
+								<Button
+									size="sm"
+									className="gap-1.5"
+									onClick={handleGenerate}
+									disabled={
+										isGenerating ||
+										sandboxesLoading ||
+										activeSandboxes.length === 0
+									}
+								>
+									<SparklesIcon className="size-4" />
+									{isGenerating ? "Generating…" : "Generate SQL"}
+								</Button>
+								<Badge variant="outline" className="rounded-full px-3 py-1">
+									Review before execute
+								</Badge>
+							</div>
+							<Badge variant="outline" className="rounded-full px-3 py-1">
 								{workspaceStats
 									? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} requests today`
 									: "Loading AI usage…"}
@@ -230,9 +401,15 @@ function AiSeederPage() {
 						</div>
 
 						{generated ? (
-							<div className="space-y-2 rounded-lg border p-3">
-								<div className="flex items-center justify-between">
-									<p className="text-sm font-medium">Generated SQL</p>
+							<div className="space-y-3 rounded-xl border bg-muted/10 p-4">
+								<div className="flex flex-wrap items-center justify-between gap-3">
+									<div>
+										<p className="text-sm font-medium">Generated SQL</p>
+										<p className="text-xs text-muted-foreground">
+											Inspect the statement, adjust it if needed, then run it
+											against the selected sandbox.
+										</p>
+									</div>
 									<Button
 										variant="outline"
 										size="sm"
@@ -268,14 +445,20 @@ function AiSeederPage() {
 								</div>
 							</div>
 						) : (
-							<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-								Generate SQL to preview and run it in your selected sandbox.
+							<div className="rounded-xl border border-dashed bg-muted/10 p-5 text-sm text-muted-foreground">
+								<p className="font-medium text-foreground">
+									No SQL generated yet
+								</p>
+								<p className="mt-1">
+									Start with a target sandbox and a concrete prompt. The output
+									will appear here with an edit step before execution.
+								</p>
 							</div>
 						)}
 					</CardContent>
 				</Card>
 
-				<Card>
+				<Card className="border-border/80">
 					<CardHeader>
 						<CardTitle className="text-base">AI Guardrails</CardTitle>
 						<CardDescription>

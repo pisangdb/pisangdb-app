@@ -162,16 +162,107 @@ export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 			)
 			.orderBy(desc(sandboxes.createdAt));
 
-		return rows.map((row) => ({
+		const measuredSizes = await Promise.all(
+			rows.map(async (row) => {
+				try {
+					return await getSandboxDatabaseSize(
+						row.engine as DbEngine,
+						row.region as DbRegion,
+						row.dbName,
+					);
+				} catch (error) {
+					console.warn(
+						`[sandboxes] Failed to measure storage for ${row.dbName}, treating as 0 MB`,
+						error,
+					);
+					return 0;
+				}
+			}),
+		);
+
+		return rows.map((row, index) => ({
 			...row,
 			engine: row.engine as DbEngine,
 			region: row.region as DbRegion,
 			status: row.status as SandboxStatus,
-			// Avoid per-sandbox admin DB queries on list page.
-			sizeMb: 0,
+			sizeMb: measuredSizes[index] ?? 0,
 			createdAt: row.createdAt.toISOString(),
 			expiredAt: row.expiredAt.toISOString(),
 		}));
+	},
+);
+
+export const $getSandboxStorageOverview = createServerFn({
+	method: "GET",
+}).handler(
+	async (): Promise<{
+		measuredCount: number;
+		totalStorageLimitMb: number;
+		totalStorageUsedMb: number;
+		usagePct: number;
+	}> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
+		const request = getRequest();
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session?.user) {
+			throw new Error("Unauthorized");
+		}
+
+		const userId = session.user.id;
+
+		const rows = await db
+			.select({
+				dbName: sandboxes.dbName,
+				engine: sandboxes.engine,
+				maxSizeMb: sandboxes.maxSizeMb,
+				region: sandboxes.region,
+			})
+			.from(sandboxes)
+			.where(
+				and(
+					eq(sandboxes.userId, userId),
+					ne(sandboxes.status, "expired"),
+					ne(sandboxes.status, "destroying"),
+				),
+			);
+
+		const measuredSizes = await Promise.all(
+			rows.map(async (row) => {
+				try {
+					return await getSandboxDatabaseSize(
+						row.engine as DbEngine,
+						row.region as DbRegion,
+						row.dbName,
+					);
+				} catch (error) {
+					console.warn(
+						`[sandboxes] Failed to measure storage for ${row.dbName}, treating as 0 MB`,
+						error,
+					);
+					return 0;
+				}
+			}),
+		);
+
+		const totalStorageUsedMb = measuredSizes.reduce(
+			(sum, size) => sum + size,
+			0,
+		);
+		const totalStorageLimitMb = rows.reduce(
+			(sum, row) => sum + row.maxSizeMb,
+			0,
+		);
+		const usagePct =
+			totalStorageLimitMb > 0
+				? Math.round((totalStorageUsedMb / totalStorageLimitMb) * 100)
+				: 0;
+
+		return {
+			measuredCount: rows.length,
+			totalStorageLimitMb,
+			totalStorageUsedMb,
+			usagePct,
+		};
 	},
 );
 
@@ -479,7 +570,7 @@ async function getSandboxDatabaseSize(
 				[dbName],
 			);
 			const bytes = parseInt(result.rows[0]?.pg_database_size ?? "0", 10);
-			return Math.round(bytes / (1024 * 1024));
+			return Number((bytes / (1024 * 1024)).toFixed(2));
 		} else {
 			const pool = adminPool as MySqlPool;
 			const [result] = (await pool.query(
@@ -487,19 +578,13 @@ async function getSandboxDatabaseSize(
 				 FROM information_schema.tables
 				 WHERE table_schema = ?`,
 				[dbName],
-			)) as [
-				{
-					"ROUND(SUM(Data_length + Index_length) / 1024 / 1024, 2)":
-						| number
-						| null;
-				}[],
-				unknown,
-			];
-			return Math.round(
-				result[0]?.[
-					"ROUND(SUM(Data_length + Index_length) / 1024 / 1024, 2)"
-				] ?? 0,
-			);
+			)) as [{ size_mb: number | string | null }[], unknown];
+			const rawSizeMb = result[0]?.size_mb;
+			const sizeMb =
+				typeof rawSizeMb === "string"
+					? Number.parseFloat(rawSizeMb)
+					: (rawSizeMb ?? 0);
+			return Number(sizeMb.toFixed(2));
 		}
 	} catch {
 		return 0;

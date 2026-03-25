@@ -1,5 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeftIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	Clock3Icon,
+	DatabaseIcon,
+	MapPinIcon,
+	SparklesIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
@@ -105,24 +111,68 @@ function NewSandboxPage() {
 		(item) => item.id === templateId,
 	);
 	const retentionHours = RETENTION_MAP[retention] ?? 0;
+	const summaryItems = [
+		{
+			label: "Engine",
+			value: selectedEngine.label,
+			icon: <DatabaseIcon className="size-4" />,
+		},
+		{
+			label: "Region",
+			value: region.toUpperCase(),
+			icon: <MapPinIcon className="size-4" />,
+		},
+		{
+			label: "TTL",
+			value: `${retentionHours}h`,
+			icon: <Clock3Icon className="size-4" />,
+		},
+	];
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-xl font-semibold tracking-tight">
-						Create Sandbox
-					</h1>
-					<p className="text-sm text-muted-foreground">
-						Choose engine, region, and TTL. Credentials are generated instantly.
-					</p>
+			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
+				<div className="flex flex-col gap-5">
+					<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+						<div className="max-w-2xl">
+							<div className="flex flex-wrap items-center gap-2">
+								<Badge variant="outline">Sandbox Provisioning</Badge>
+								<Badge variant="secondary">Live Credentials After Create</Badge>
+							</div>
+							<h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
+								Create a fresh database sandbox
+							</h1>
+							<p className="mt-2 text-sm text-muted-foreground">
+								Choose an engine, retention window, and optional starter
+								template. PisangDB provisions the real database and credentials
+								on submit, then sends you straight to the detail page.
+							</p>
+						</div>
+						<Button asChild variant="outline" size="sm" className="gap-1.5">
+							<Link to="/dashboard/sandboxes">
+								<ArrowLeftIcon className="size-4" />
+								Back to Sandboxes
+							</Link>
+						</Button>
+					</div>
+
+					<div className="grid gap-3 sm:grid-cols-3">
+						{summaryItems.map((item) => (
+							<div
+								key={item.label}
+								className="rounded-xl border bg-background/80 p-3 shadow-sm"
+							>
+								<div className="flex items-center gap-2 text-xs text-muted-foreground">
+									{item.icon}
+									<span>{item.label}</span>
+								</div>
+								<p className="mt-2 text-sm font-semibold text-foreground">
+									{item.value}
+								</p>
+							</div>
+						))}
+					</div>
 				</div>
-				<Button asChild variant="outline" size="sm" className="gap-1.5">
-					<Link to="/dashboard/sandboxes">
-						<ArrowLeftIcon className="size-4" />
-						Back
-					</Link>
-				</Button>
 			</div>
 
 			<div className="grid gap-4 lg:grid-cols-5">
@@ -130,7 +180,7 @@ function NewSandboxPage() {
 					<CardHeader>
 						<CardTitle className="text-base">Sandbox Configuration</CardTitle>
 						<CardDescription>
-							Configure your database engine, region, and retention time.
+							Pick the database setup you want to launch in this workspace.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-5">
@@ -142,9 +192,9 @@ function NewSandboxPage() {
 										key={item.value}
 										type="button"
 										onClick={() => setEngine(item.value)}
-										className={`rounded-lg border p-3 text-left transition-colors ${
+										className={`rounded-xl border p-3 text-left transition-colors ${
 											engine === item.value
-												? "border-primary bg-primary/5"
+												? "border-primary bg-primary/5 shadow-sm"
 												: "hover:bg-muted/40"
 										}`}
 									>
@@ -168,9 +218,9 @@ function NewSandboxPage() {
 										type="button"
 										onClick={() => item.enabled && setRegion(item.value)}
 										disabled={!item.enabled}
-										className={`rounded-lg border p-3 text-left text-sm transition-colors ${
+										className={`rounded-xl border p-3 text-left text-sm transition-colors ${
 											region === item.value
-												? "border-primary bg-primary/5"
+												? "border-primary bg-primary/5 shadow-sm"
 												: "hover:bg-muted/40"
 										} disabled:cursor-not-allowed disabled:opacity-60`}
 									>
@@ -224,22 +274,25 @@ function NewSandboxPage() {
 								))}
 							</select>
 
-							{/* Template preview card */}
 							{templatesData && templatesData.length > 0 ? (
-								<div className="rounded-lg border p-3">
-									<Label className="text-sm font-medium">
-										Templates ({templatesData.length})
-									</Label>
-									<p className="text-xs text-muted-foreground">
-										{templatesData.map((t) => t.name).join(", ")}
+								<div className="rounded-xl border bg-muted/30 p-3">
+									<p className="text-sm font-medium text-foreground">
+										Starter templates
 									</p>
+									<div className="mt-2 flex flex-wrap gap-2">
+										{templatesData.map((t) => (
+											<Badge key={t.id} variant="outline">
+												{t.name}
+											</Badge>
+										))}
+									</div>
 								</div>
 							) : null}
 						</div>
 
 						<Button
 							size="lg"
-							className="w-full gap-2 sm:w-auto cursor-pointer disabled:cursor-not-allowed"
+							className="w-full gap-2 cursor-pointer disabled:cursor-not-allowed sm:w-auto"
 							disabled={!name.trim() || createSandbox.isPending}
 							onClick={handleCreate}
 						>
@@ -259,19 +312,38 @@ function NewSandboxPage() {
 					<CardHeader>
 						<CardTitle className="text-base">Creation Summary</CardTitle>
 						<CardDescription>
-							Credentials are generated on create and shown on the sandbox
-							detail page.
+							A quick preview of the configuration that will be provisioned.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3 text-sm">
-						<div className="grid gap-2 rounded-lg border p-3">
+						<div className="rounded-xl border bg-gradient-to-br from-primary/10 via-background to-muted p-4">
+							<div className="flex items-start gap-3">
+								<div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+									<SparklesIcon className="size-5" />
+								</div>
+								<div className="space-y-1">
+									<p className="font-medium text-foreground">
+										Provisioning happens after submit
+									</p>
+									<p className="text-xs text-muted-foreground">
+										Database name, username, password, and connection string are
+										generated server-side only after creation succeeds.
+									</p>
+								</div>
+							</div>
+						</div>
+
+						<div className="grid gap-2 rounded-xl border p-3">
 							<p>
 								Engine:{" "}
 								<span className="font-medium">{selectedEngine.label}</span>
 							</p>
 							<p>
 								Region:{" "}
-								<span className="font-medium">{region.toUpperCase()}</span>
+								<span className="font-medium">
+									{regionOptions.find((item) => item.value === region)?.label ??
+										region.toUpperCase()}
+								</span>
 							</p>
 							<p>
 								Region host:{" "}
@@ -296,14 +368,12 @@ function NewSandboxPage() {
 							</Badge>
 						</div>
 
-						<div className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-							<p>
-								Database name, username, password, and connection URL are
-								provisioned server-side after creation succeeds.
-							</p>
-							<p className="mt-2">
+						<div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+							<p className="font-medium text-foreground">What happens next</p>
+							<p className="mt-1">
 								After submit, you will be redirected to the sandbox detail page
-								with the real credentials.
+								where the real credentials, `.env` snippet, and connection
+								string are ready to copy.
 							</p>
 						</div>
 					</CardContent>
