@@ -59,15 +59,7 @@ export const $getMe = createServerFn({ method: "GET" }).handler(
 
 		if (!session?.user) return null;
 
-		const user = session.user as typeof session.user & { role?: string };
-
-		return {
-			id: user.id,
-			email: user.email,
-			name: user.name,
-			role: (user.role ?? "user") as UserRole,
-			image: user.image ?? null,
-		};
+		return mapSessionUserToAuthUser(session.user as SessionWithOptionalRole);
 	},
 );
 
@@ -104,6 +96,35 @@ export type WorkspaceStats = {
 	maxSizePerSandboxMb: number;
 };
 
+type SessionWithOptionalRole = Awaited<
+	ReturnType<typeof auth.api.getSession>
+>["user"] & {
+	role?: string;
+};
+
+function mapSessionUserToAuthUser(user: SessionWithOptionalRole): AuthUser {
+	return {
+		id: user.id,
+		email: user.email,
+		name: user.name,
+		role: (user.role ?? "user") as UserRole,
+		image: user.image ?? null,
+	};
+}
+
+function mapPreferences(
+	prefs: typeof userPreferences.$inferSelect | undefined,
+): UserSettings["preferences"] {
+	if (!prefs) {
+		return null;
+	}
+
+	return {
+		sandboxExpiryWarning: prefs.sandboxExpiryWarning,
+		productUpdates: prefs.productUpdates,
+	};
+}
+
 async function getCurrentSession() {
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
@@ -111,6 +132,11 @@ async function getCurrentSession() {
 		throw new Error("Unauthorized");
 	}
 	return { request, session, userId: session.user.id };
+}
+
+async function getCurrentSessionToken(headers: Headers) {
+	const currentSession = await auth.api.getSession({ headers });
+	return currentSession?.session?.token ?? null;
 }
 
 export const $getUserSettings = createServerFn({ method: "GET" }).handler(
@@ -133,23 +159,10 @@ export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 			.from(userPreferences)
 			.where(eq(userPreferences.userId, userId));
 
-		const user = session.user as typeof session.user & { role?: string };
-
 		return {
-			user: {
-				id: user.id,
-				email: user.email,
-				name: user.name,
-				role: (user.role ?? "user") as UserRole,
-				image: user.image ?? null,
-			},
+			user: mapSessionUserToAuthUser(session.user as SessionWithOptionalRole),
 			accounts: userAccounts,
-			preferences: prefs
-				? {
-						sandboxExpiryWarning: prefs.sandboxExpiryWarning,
-						productUpdates: prefs.productUpdates,
-					}
-				: null,
+			preferences: mapPreferences(prefs),
 		};
 	},
 );
@@ -202,12 +215,7 @@ export const $changePassword = createServerFn({ method: "POST" })
 export const $listSessions = createServerFn({ method: "GET" }).handler(
 	async (): Promise<SessionInfo[]> => {
 		const { request, userId } = await getCurrentSession();
-
-		// Get current session token
-		const currentSession = await auth.api.getSession({
-			headers: request.headers,
-		});
-		const currentToken = currentSession?.session?.token;
+		const currentToken = await getCurrentSessionToken(request.headers);
 
 		// Get all sessions for user
 		const userSessions = await db
@@ -252,12 +260,7 @@ export const $revokeSession = createServerFn({ method: "POST" })
 export const $revokeAllSessions = createServerFn({ method: "POST" }).handler(
 	async (): Promise<{ success: boolean }> => {
 		const { request, userId } = await getCurrentSession();
-
-		// Get current session token to preserve it
-		const currentSession = await auth.api.getSession({
-			headers: request.headers,
-		});
-		const currentToken = currentSession?.session?.token;
+		const currentToken = await getCurrentSessionToken(request.headers);
 
 		if (!currentToken) {
 			throw new Error("No current session found");
@@ -351,18 +354,12 @@ export const $getUserPreferences = createServerFn({ method: "GET" }).handler(
 			.from(userPreferences)
 			.where(eq(userPreferences.userId, userId));
 
-		if (!prefs) {
-			// Return defaults if no preferences exist
-			return {
+		return (
+			mapPreferences(prefs) ?? {
 				sandboxExpiryWarning: true,
 				productUpdates: false,
-			};
-		}
-
-		return {
-			sandboxExpiryWarning: prefs.sandboxExpiryWarning,
-			productUpdates: prefs.productUpdates,
-		};
+			}
+		);
 	},
 );
 
@@ -371,13 +368,12 @@ export const $updateUserPreferences = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
 		const { userId } = await getCurrentSession();
 
-		// Upsert preferences
-		const existing = await db
+		const [existingPreference] = await db
 			.select()
 			.from(userPreferences)
 			.where(eq(userPreferences.userId, userId));
 
-		if (existing.length > 0) {
+		if (existingPreference) {
 			await db
 				.update(userPreferences)
 				.set({

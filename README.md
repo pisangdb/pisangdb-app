@@ -30,6 +30,7 @@ PisangDB is a SaaS tool for developers who need a production-like database **imm
 | Auth | [better-auth](https://www.better-auth.com/) |
 | ORM | [Drizzle ORM](https://orm.drizzle.team/) |
 | Database | PostgreSQL 16 + MySQL 8 + MariaDB 11 |
+| AI | Configurable chat-completions API via env |
 | Icons | [Lucide React](https://lucide.dev/) |
 | Toast | [Sonner](https://sonner.emilkowal.ski/) |
 | Linter/Formatter | [Biome](https://biomejs.dev/) |
@@ -62,6 +63,11 @@ DATABASE_URL=postgresql://pisang:password@localhost:5432/pisangdb
 POSTGRES_SANDBOX_URL_ID=postgresql://pisang:password@localhost:5432/postgres
 MYSQL_SANDBOX_URL_ID=mysql://root:password@localhost:3306
 MARIADB_SANDBOX_URL_ID=mysql://root:password@localhost:3307
+
+# AI provider
+AI_API_URL=your-ai-api-url
+AI_API_TOKEN=your-ai-api-token
+AI_MODEL=your-ai-model-id
 
 # Optional — Google OAuth
 # GOOGLE_CLIENT_ID=
@@ -131,7 +137,6 @@ pnpm dev            # Start dev server with HMR
 pnpm build          # Build for production
 pnpm check          # Biome lint + format check
 pnpm check:write    # Biome auto-fix
-pnpm test           # Vitest
 ```
 
 ---
@@ -153,6 +158,9 @@ TanStack Router file-based routing. `_app.tsx` wraps all dashboard routes. Auth 
 ### Server Functions
 Backend logic lives in `src/modules/{feature}/serverFn.ts`. Use `createServerFn` from `@tanstack/react-start`. Always use `.inputValidator()` — not `.validator()`.
 
+### AI
+AI Seeder uses a configurable chat-completions provider. Configure it through `AI_API_URL`, `AI_API_TOKEN`, and `AI_MODEL`. Do not hardcode provider-specific values in the codebase.
+
 ### Linting & Formatting
 Biome only — no ESLint, no Prettier.
 
@@ -167,13 +175,17 @@ pnpm check:write    # auto-fix everything
 - [x] Project setup (TanStack Start + Drizzle + better-auth)
 - [x] Database schema (users, sandboxes, sessions, ai_logs, query_history, templates)
 - [x] Auth — email/password + Google SSO via better-auth
-- [x] Server functions scaffold (sandboxes, console, AI seeder)
-- [x] Dashboard UI (sidebar, sandbox cards, SQL console — static)
-- [ ] Sandbox provisioning (create/delete DB on Docker containers)
-- [ ] Ephemeral engine (TTL auto-cleanup scheduler)
-- [ ] SQL Console execution API
-- [ ] AI Seeder integration
-- [ ] Connect frontend to real backend
+- [x] Sandbox provisioning (create/delete DB on Docker containers)
+- [x] Ephemeral engine (TTL auto-cleanup scheduler)
+- [x] SQL Console execution API
+- [x] AI Seeder integration (provider configurable via env)
+- [x] Connect frontend to backend server functions
+- [ ] Google OAuth end-to-end verification
+- [ ] Email expiry warning
+- [ ] User-defined templates
+- [ ] Export sandbox as SQL dump
+- [ ] Multi-region activation
+- [ ] Worker heartbeat and operational observability
 
 ---
 

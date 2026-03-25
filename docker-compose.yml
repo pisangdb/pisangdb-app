@@ -33,10 +33,12 @@ services:
       # Google OAuth (opsional — aktif otomatis jika diisi)
       # GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       # GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      # AI Provider (pilih salah satu, uncomment sesuai provider)
-      # GEMINI_API_KEY: ${GEMINI_API_KEY}
-      # OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      # OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+      # AI Provider
+      AI_API_URL: ${AI_API_URL}
+      AI_API_TOKEN: ${AI_API_TOKEN}
+      AI_MODEL: ${AI_MODEL}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS}
+      AI_TEMPERATURE: ${AI_TEMPERATURE}
     deploy:
       resources:
         limits:

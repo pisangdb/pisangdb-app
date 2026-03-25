@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import { Pool } from "pg";
 import { db } from "#/db";
@@ -75,6 +75,17 @@ export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 		};
 	},
 );
+
+async function getDatabaseNow(): Promise<Date> {
+	const result = await db.execute(sql<{ now: Date }>`select now() as now`);
+	const currentTime = result.rows[0]?.now;
+
+	if (!(currentTime instanceof Date)) {
+		throw new Error("Failed to read current database time.");
+	}
+
+	return currentTime;
+}
 
 export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 	async (): Promise<SandboxListItem[]> => {
@@ -245,8 +256,9 @@ export const $createSandbox = createServerFn({ method: "POST" })
 				}
 			}
 
+			const databaseNow = await getDatabaseNow();
 			const expiredAt = new Date(
-				Date.now() + data.retentionHours * 60 * 60 * 1000,
+				databaseNow.getTime() + data.retentionHours * 60 * 60 * 1000,
 			);
 
 			const [created] = await db
