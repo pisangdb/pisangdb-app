@@ -11,7 +11,7 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import * as React from "react";
 import { Toaster } from "sonner";
 
-import appCss from "../styles.css?url";
+import "../styles.css";
 
 const getQueryClient = () => {
 	return new QueryClient({

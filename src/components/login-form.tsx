@@ -103,7 +103,7 @@ export function LoginForm({
 				});
 			} else {
 				// Fallback to direct OAuth URL
-				window.location.href = "/api/auth/oauth/google";
+				window.location.href = `/api/auth/sign-in/google?callbackURL=${encodeURIComponent(`${window.location.origin}/dashboard`)}`;
 			}
 		} catch (error) {
 			toast.error("Failed to sign in with Google");

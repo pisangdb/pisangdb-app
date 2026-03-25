@@ -37,6 +37,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
 
     steps:
       - name: Checkout repository
@@ -50,7 +52,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Extract metadata
         id: meta
@@ -62,6 +64,7 @@ jobs:
             type=sha,prefix=${{ github.ref_name }}-
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -85,6 +88,46 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Resolve image reference
+        id: resolve-image
+        env:
+          IMAGE_NAME: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        run: |
+          if [ "${{ github.event.inputs.skip_build }}" == "true" ]; then
+            DIGEST="$(docker buildx imagetools inspect "$IMAGE_NAME:latest" | awk '/^Digest:/ {print $2; exit}')"
+          else
+            DIGEST="${{ needs.build.outputs.digest }}"
+          fi
+
+          if [ -z "$DIGEST" ]; then
+            echo "Failed to resolve image digest" >&2
+            exit 1
+          fi
+
+          IMAGE_REF="$IMAGE_NAME@$DIGEST"
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "image_ref=$IMAGE_REF" >> $GITHUB_OUTPUT
+          echo "Resolved image reference: $IMAGE_REF"
+
+      - name: Remove old docker-compose.yml from VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            rm -f ${{ env.DEPLOY_DIR }}/docker-compose.yml
+
       - name: Copy docker-compose.yml to VPS
         uses: appleboy/scp-action@master
         with:
@@ -105,8 +148,11 @@ jobs:
             DEPLOY_DB="${{ github.event.inputs.deploy_database }}"
             IS_MANUAL="${{ github.event_name == 'workflow_dispatch' }}"
             DEPLOY_DIR="${{ env.DEPLOY_DIR }}"
+            IMAGE_DIGEST="${{ steps.resolve-image.outputs.digest }}"
+            IMAGE_REF="${{ steps.resolve-image.outputs.image_ref }}"
             
             echo "🚀 Starting deployment to $ENV..."
+            echo "📦 Using image: $IMAGE_REF"
             [ "$IS_MANUAL" == "true" ] && echo "📋 Manual deployment triggered"
             
             # Create app directory if not exists
@@ -123,10 +169,14 @@ jobs:
             docker network inspect integrate >/dev/null 2>&1 || docker network create integrate
             echo "✅ Network 'integrate' ready"
 
-            # Create .env file for docker compose
+            export APP_IMAGE="$IMAGE_REF"
+            export BUILD_TIMESTAMP="${{ github.run_id }}-${{ github.run_attempt }}"
+            export NETWORK_EXTERNAL="true"
+            
             echo "🔧 Creating environment file..."
             cat > .env << 'ENV_EOF'
-            APP_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            APP_IMAGE=${{ steps.resolve-image.outputs.image_ref }}
+            BUILD_TIMESTAMP=${{ github.run_id }}-${{ github.run_attempt }}
             NETWORK_EXTERNAL=true
             PG_APP_PASSWORD=${{ secrets.PG_APP_PASSWORD }}
             PG_SANDBOX_PASSWORD=${{ secrets.PG_SANDBOX_PASSWORD }}
@@ -144,28 +194,64 @@ jobs:
             SMTP_HOST=${{ secrets.SMTP_HOST }}
             SMTP_PORT=${{ secrets.SMTP_PORT }}
             SMTP_USER=${{ secrets.SMTP_USER }}
-            SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}
+            SMTP_PASS=${{ secrets.SMTP_PASS }}
             SMTP_FROM=${{ secrets.SMTP_FROM }}
             ENV_EOF
+
+            set -a
+            . ./.env
+            set +a
 
             # Deploy database if selected (manual only)
             if [ "$DEPLOY_DB" == "true" ]; then
               echo "🗄️ Deploying database containers..."
               docker compose pull postgres-app postgres-sandbox mysql mariadb
               docker compose up -d postgres-app postgres-sandbox mysql mariadb
-              echo "⏳ Waiting for databases to be ready..."
-              sleep 10
             fi
+
+            # App selalu butuh metadata DB + sandbox engines di network compose.
+            echo "🗄️ Ensuring required database containers are running..."
+            docker compose up -d postgres-app postgres-sandbox mysql mariadb
+            echo "⏳ Waiting for databases to be ready..."
+            sleep 10
 
             # Run database migrations using drizzle-kit
             echo "Running database migrations..."
             docker run --rm --network=integrate -v "$PWD/drizzle.config.ts:/app/drizzle.config.ts" -v "$PWD/src/db:/app/src/db" -e DATABASE_URL="postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb" node:22-alpine sh -c "corepack enable && pnpm install drizzle-kit@0.31.9 && npx drizzle-kit push" 2>/dev/null || echo "Migration may have already been applied"
 
-            # Deploy app
+            # Deploy app without tearing down stateful database containers.
             echo "📦 Deploying application..."
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose pull app
-            docker compose up -d app
+            echo "Expected Image: $IMAGE_REF"
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            echo "⬇️ Pulling specific image by digest..."
+            docker pull "$IMAGE_REF"
+
+            echo "🔍 Verifying pulled image..."
+            PULLED_SHA=$(docker image inspect "$IMAGE_REF" --format='{{index .RepoDigests 0}}' 2>/dev/null || echo "")
+            echo "Pulled image RepoDigest: $PULLED_SHA"
+
+            echo "🧹 Recreating app container only..."
+            docker compose rm -f -s app 2>/dev/null || true
+            docker container rm -f pisang-app 2>/dev/null || true
+
+            echo "🚀 Starting app with explicit digest..."
+            APP_IMAGE="$IMAGE_REF" docker compose up -d --force-recreate --no-deps app
+            sleep 3
+            
+            echo "✅ Verifying running container..."
+            RUNNING_IMAGE=$(docker inspect --format='{{.Config.Image}}' pisang-app 2>/dev/null || echo "not found")
+            RUNNING_SHA=$(docker inspect --format='{{.Image}}' pisang-app 2>/dev/null || echo "not found")
+            RUNNING_REPO_DIGESTS=$(docker image inspect "$RUNNING_IMAGE" --format='{{json .RepoDigests}}' 2>/dev/null || echo "[]")
+            echo "Running container image config: $RUNNING_IMAGE"
+            echo "Running container image SHA: $RUNNING_SHA"
+            echo "Running container RepoDigests: $RUNNING_REPO_DIGESTS"
+
+            if ! echo "$RUNNING_REPO_DIGESTS" | grep -q "$IMAGE_DIGEST"; then
+              echo "❌ Running container does not use expected digest: $IMAGE_DIGEST"
+              exit 1
+            fi
+
             docker logout ghcr.io
 
             # Cleanup old images
@@ -197,7 +283,7 @@ jobs:
   notify:
     name: Notify Status
     needs: deploy
-    if: always() && github.event_name == 'workflow_dispatch'
+    if: always()
     runs-on: ubuntu-latest
 
     steps:

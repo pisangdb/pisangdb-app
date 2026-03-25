@@ -134,7 +134,7 @@ export function SignupForm({
 			.catch((error) => {
 				console.error("Google OAuth error:", error);
 				// Fallback to direct OAuth initiation
-				window.location.href = `/api/auth/signin/google?callbackURL=${encodeURIComponent(`${window.location.origin}/dashboard`)}`;
+				window.location.href = `/api/auth/sign-in/google?callbackURL=${encodeURIComponent(`${window.location.origin}/dashboard`)}`;
 			});
 	};
 
