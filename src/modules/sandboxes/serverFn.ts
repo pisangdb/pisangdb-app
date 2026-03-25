@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
-import { Pool } from "pg";
+import type { Pool } from "pg";
 import {
 	type DashboardStats,
 	type DbEngine,
@@ -505,11 +505,15 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			const engine = sandbox.engine as DbEngine;
 
 			if (sandbox.engine === "postgresql") {
+				const [{ Pool: PgPool }, { getSandboxPort }] = await Promise.all([
+					import("pg"),
+					import("#/lib/sandbox-provisioning"),
+				]);
 				const { host, port } = {
 					host: process.env.SANDBOX_HOST ?? sandbox.host,
 					port: getSandboxPort(engine, sandbox.region),
 				};
-				const sandboxPool = new Pool({
+				const sandboxPool = new PgPool({
 					host,
 					port,
 					database: sandbox.dbName,
