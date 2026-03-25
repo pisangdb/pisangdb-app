@@ -1,6 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { BotIcon, SparklesIcon } from "lucide-react";
+import {
+	BotIcon,
+	ShieldCheckIcon,
+	SparklesIcon,
+	TerminalSquareIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "#/components/confirmation-dialog";
@@ -274,31 +279,98 @@ function AiSeederPage() {
 					<CardHeader>
 						<CardTitle className="text-base">AI Guardrails</CardTitle>
 						<CardDescription>
-							Built to generate cleaner SQL with safer execution boundaries.
+							Built to generate cleaner SQL, sharper prompts, and safer
+							execution boundaries.
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-3 text-sm text-muted-foreground">
-						<p className="flex items-center gap-1.5 text-foreground">
-							<BotIcon className="size-4" />
-							Engine-aware generation tuned for your selected sandbox
-						</p>
-						<ul className="list-disc space-y-1 pl-4 text-xs">
-							<li>
-								Understands PostgreSQL, MySQL, and MariaDB syntax differences
-							</li>
-							<li>
-								Stores prompts and generated SQL in your sandbox activity log
-							</li>
-							<li>Potentially risky SQL still requires your manual approval</li>
-						</ul>
-						<div className="rounded-md bg-muted p-3 text-xs">
-							<p className="font-medium text-foreground">
-								Better Prompt, Better SQL
-							</p>
-							<p className="mt-1">
-								Describe tables, relationships, constraints, and target data
-								volume to get more usable output on the first pass.
-							</p>
+					<CardContent className="space-y-4 text-sm text-muted-foreground">
+						<div className="rounded-xl border bg-gradient-to-br from-primary/10 via-background to-muted p-4">
+							<div className="flex items-start gap-3">
+								<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+									<BotIcon className="size-5" />
+								</div>
+								<div className="space-y-2">
+									<p className="font-medium text-foreground">
+										Engine-aware generation tuned for your selected sandbox
+									</p>
+									<div className="flex flex-wrap gap-2">
+										<Badge variant="secondary" className="gap-1">
+											<TerminalSquareIcon className="size-3" />
+											SQL-first
+										</Badge>
+										<Badge variant="secondary" className="gap-1">
+											<ShieldCheckIcon className="size-3" />
+											Manual review before execute
+										</Badge>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div className="grid gap-3">
+							<div className="rounded-lg border bg-muted/30 p-3">
+								<p className="text-xs font-medium uppercase tracking-[0.16em] text-foreground/80">
+									What It Enforces
+								</p>
+								<ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+									<li>
+										Understands PostgreSQL, MySQL, and MariaDB syntax
+										differences
+									</li>
+									<li>
+										Stores prompts and generated SQL in your sandbox activity
+										log
+									</li>
+									<li>
+										Potentially risky SQL still requires your manual approval
+									</li>
+								</ul>
+							</div>
+
+							<div className="rounded-lg border p-3">
+								<div className="flex items-center gap-2 text-foreground">
+									<SparklesIcon className="size-4 text-primary" />
+									<p className="text-sm font-medium">Prompt Tips</p>
+								</div>
+								<div className="mt-3 space-y-2 text-xs">
+									<div className="rounded-md bg-muted/40 p-2.5">
+										<p className="font-medium text-foreground">Mention shape</p>
+										<p className="mt-1">
+											State table names, key columns, and relationships you
+											expect.
+										</p>
+									</div>
+									<div className="rounded-md bg-muted/40 p-2.5">
+										<p className="font-medium text-foreground">
+											Specify constraints
+										</p>
+										<p className="mt-1">
+											Include uniqueness, foreign keys, nullable fields, and
+											default values.
+										</p>
+									</div>
+									<div className="rounded-md bg-muted/40 p-2.5">
+										<p className="font-medium text-foreground">
+											Set data volume
+										</p>
+										<p className="mt-1">
+											Say whether you want 10 rows, 100 rows, or only starter
+											seed data.
+										</p>
+									</div>
+								</div>
+							</div>
+
+							<div className="rounded-lg bg-muted p-3 text-xs">
+								<p className="font-medium text-foreground">
+									Example Prompt Formula
+								</p>
+								<p className="mt-2 font-mono leading-5 text-muted-foreground">
+									Create tables for users, products, and orders. Use UUID
+									primary keys, add foreign keys, keep price columns numeric,
+									and generate 25 realistic seed rows for each core table.
+								</p>
+							</div>
 						</div>
 					</CardContent>
 				</Card>
