@@ -31,6 +31,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { useDeleteSandbox, useExtendSandbox } from "#/lib/hooks/useSandboxes";
+import { useWorkspaceStats } from "#/lib/hooks/useUserSettings";
 import type {
 	AiGenerateResult,
 	AiLogItem,
@@ -693,6 +694,8 @@ function ConsoleTab({
 }
 
 function AiTab({ sandbox }: { sandbox: SandboxDetail }) {
+	const queryClient = useQueryClient();
+	const { data: workspaceStats } = useWorkspaceStats();
 	const [prompt, setPrompt] = useState("");
 	const [generated, setGenerated] = useState<AiGenerateResult | null>(null);
 	const [generatedSql, setGeneratedSql] = useState("");
@@ -715,6 +718,7 @@ function AiTab({ sandbox }: { sandbox: SandboxDetail }) {
 			});
 			setGenerated(result);
 			setGeneratedSql(result.sqlGenerated);
+			await queryClient.invalidateQueries({ queryKey: ["workspace-stats"] });
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Generation failed");
 		} finally {
@@ -770,7 +774,11 @@ function AiTab({ sandbox }: { sandbox: SandboxDetail }) {
 						<SparklesIcon className="size-4" />
 						{isLoading ? "Generating…" : "Generate SQL"}
 					</Button>
-					<Badge variant="outline">30 requests/day (free)</Badge>
+					<Badge variant="outline">
+						{workspaceStats
+							? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} requests today`
+							: "Loading AI usage…"}
+					</Badge>
 				</div>
 
 				{error && (

@@ -9,7 +9,7 @@ import {
 	ShieldCheckIcon,
 	UserIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DeleteAccountDialog } from "#/components/delete-account-dialog";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -33,7 +33,9 @@ import {
 	useUpdatePreferences,
 	useUpdateProfile,
 	useUserSettings,
+	useWorkspaceStats,
 } from "#/lib/hooks/useUserSettings";
+import { MAX_RETENTION_HOURS } from "#/lib/types";
 
 export const Route = createFileRoute("/_app/dashboard/settings")({
 	head: () => ({ meta: [{ title: "Settings — PisangDB" }] }),
@@ -427,11 +429,11 @@ function NotificationsCard() {
 	});
 
 	// Sync local state with server state
-	useState(() => {
+	useEffect(() => {
 		if (preferences) {
 			setLocalPrefs(preferences);
 		}
-	});
+	}, [preferences]);
 
 	const handleSave = () => {
 		updatePreferences.mutate(localPrefs);
@@ -518,9 +520,7 @@ function NotificationsCard() {
 // ─── Workspace Limits Card ──────────────────────────────────────────────────────
 
 function WorkspaceLimitsCard() {
-	const { isLoading } = useUserSettings();
-	// TODO: Create a dedicated $getWorkspaceStats endpoint
-	// For now, use placeholder data
+	const { data: workspaceStats, isLoading } = useWorkspaceStats();
 
 	if (isLoading) {
 		return (
@@ -552,15 +552,29 @@ function WorkspaceLimitsCard() {
 			<CardContent className="space-y-2 text-sm">
 				<div className="flex items-center justify-between rounded-md border p-2">
 					<span>Active sandboxes</span>
-					<span className="font-medium">0 / 5</span>
+					<span className="font-medium">
+						{workspaceStats?.activeSandboxes ?? 0} /{" "}
+						{workspaceStats?.maxSandboxes ?? 5}
+					</span>
 				</div>
 				<div className="flex items-center justify-between rounded-md border p-2">
 					<span>AI requests today</span>
-					<span className="font-medium">0 / 30</span>
+					<span className="font-medium">
+						{workspaceStats?.aiRequestsToday ?? 0} /{" "}
+						{workspaceStats?.maxAiRequestsPerDay ?? 30}
+					</span>
 				</div>
 				<div className="flex items-center justify-between rounded-md border p-2">
 					<span>Max size per sandbox</span>
-					<span className="font-medium">100 MB</span>
+					<span className="font-medium">
+						{workspaceStats?.maxSizePerSandboxMb ?? 100} MB
+					</span>
+				</div>
+				<div className="flex items-center justify-between rounded-md border p-2">
+					<span>Max retention</span>
+					<span className="font-medium">
+						{Math.floor(MAX_RETENTION_HOURS / 24)} days
+					</span>
 				</div>
 			</CardContent>
 		</Card>

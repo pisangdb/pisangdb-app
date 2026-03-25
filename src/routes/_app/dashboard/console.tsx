@@ -100,42 +100,18 @@ function SqlConsolePage() {
 				},
 			});
 			setQueryResult(result);
-
-			setHistory((prev) => [
-				{
-					id: crypto.randomUUID(),
-					query: query,
-					status: "success",
-					executionTimeMs: result.executionTimeMs,
-					rowsAffected: result.rowsAffected,
-					errorMessage: null,
-					createdAt: new Date().toISOString(),
-				},
-				...prev.slice(0, 4),
-			]);
+			await fetchHistory(selectedSandboxId);
 
 			await queryClient.invalidateQueries({ queryKey: ["sandboxes"] });
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Query failed";
 			setQueryError(errorMessage);
-
-			setHistory((prev) => [
-				{
-					id: crypto.randomUUID(),
-					query: query,
-					status: "error",
-					executionTimeMs: null,
-					rowsAffected: null,
-					errorMessage,
-					createdAt: new Date().toISOString(),
-				},
-				...prev.slice(0, 4),
-			]);
+			await fetchHistory(selectedSandboxId);
 		} finally {
 			setIsLoading(false);
 		}
-	}, [selectedSandboxId, query, queryClient]);
+	}, [fetchHistory, query, queryClient, selectedSandboxId]);
 
 	const handleClear = () => {
 		setHistoryQueryId("");
@@ -273,8 +249,10 @@ function SqlConsolePage() {
 													</tr>
 												</thead>
 												<tbody>
-													{queryResult.rows.map((row) => {
-														const rowId = crypto.randomUUID();
+													{queryResult.rows.map((row, index) => {
+														const rowId = `${index}-${queryResult.columns
+															.map((col) => String(row[col] ?? ""))
+															.join("|")}`;
 														return (
 															<tr key={rowId} className="border-t">
 																{queryResult.columns.map((col) => {

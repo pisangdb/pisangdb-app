@@ -118,8 +118,6 @@ function DashboardSkeleton() {
 	);
 }
 
-const MAX_ACTIVE_SANDBOXES = 5;
-
 const statusConfig: Record<
 	SandboxUiStatus,
 	{
@@ -248,7 +246,7 @@ export function DashboardHome() {
 		{
 			label: "Active Sandboxes",
 			value: String(stats.activeSandboxes),
-			sub: `of ${MAX_ACTIVE_SANDBOXES} max`,
+			sub: `of ${stats.maxSandboxes} max`,
 			icon: <DatabaseIcon className="size-4" />,
 			accent: "text-primary",
 			bg: "bg-primary/10",

@@ -1,7 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, eq, ne } from "drizzle-orm";
-import type { AuthUser, UserRole } from "#/lib/types";
+import { and, count, eq, gte, lt, ne } from "drizzle-orm";
+import {
+	type AuthUser,
+	DEFAULT_TIER,
+	MAX_SANDBOX_SIZE_MB,
+	TIER_LIMITS,
+	type UserRole,
+} from "#/lib/types";
 import {
 	changePasswordSchema,
 	deleteAccountSchema,
@@ -82,7 +88,9 @@ export const $getMe = createServerFn({ method: "GET" }).handler(
 );
 
 export type UserSettings = {
-	user: AuthUser;
+	user: AuthUser & {
+		createdAt: string | null;
+	};
 	accounts: Array<{
 		id: string;
 		providerId: string;
@@ -107,10 +115,23 @@ export type SessionInfo = {
 export type WorkspaceStats = {
 	activeSandboxes: number;
 	maxSandboxes: number;
+	totalCreated: number;
 	aiRequestsToday: number;
 	maxAiRequestsPerDay: number;
 	maxSizePerSandboxMb: number;
 };
+
+const AI_DAILY_LIMIT = 30;
+
+function getTodayUtcRange() {
+	const now = new Date();
+	const start = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+	);
+	const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+	return { end, start };
+}
 
 function mapSessionUserToAuthUser(user: SessionWithOptionalRole): AuthUser {
 	return {
@@ -158,7 +179,8 @@ async function getCurrentSessionToken(headers: Headers) {
 
 export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 	async (): Promise<UserSettings> => {
-		const { accounts, db, userPreferences } = await getAuthServerContext();
+		const { accounts, db, userPreferences, users } =
+			await getAuthServerContext();
 		const { session, userId } = await getCurrentSession();
 
 		const userAccounts = await db
@@ -175,8 +197,17 @@ export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 			.from(userPreferences)
 			.where(eq(userPreferences.userId, userId));
 
+		const [userRecord] = await db
+			.select({ createdAt: users.createdAt })
+			.from(users)
+			.where(eq(users.id, userId))
+			.limit(1);
+
 		return {
-			user: mapSessionUserToAuthUser(session.user as SessionWithOptionalRole),
+			user: {
+				...mapSessionUserToAuthUser(session.user as SessionWithOptionalRole),
+				createdAt: userRecord?.createdAt?.toISOString() ?? null,
+			},
 			accounts: userAccounts,
 			preferences: mapPreferences(prefs),
 		};
@@ -410,23 +441,36 @@ export const $getWorkspaceStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<WorkspaceStats> => {
 		const { aiLogs, db, sandboxes } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
+		const { end, start } = getTodayUtcRange();
 
 		const [activeResult] = await db
 			.select({ count: count() })
 			.from(sandboxes)
 			.where(and(eq(sandboxes.userId, userId), eq(sandboxes.status, "active")));
 
+		const [totalCreatedResult] = await db
+			.select({ count: count() })
+			.from(sandboxes)
+			.where(eq(sandboxes.userId, userId));
+
 		const [aiResult] = await db
 			.select({ count: count() })
 			.from(aiLogs)
-			.where(eq(aiLogs.userId, userId));
+			.where(
+				and(
+					eq(aiLogs.userId, userId),
+					gte(aiLogs.createdAt, start),
+					lt(aiLogs.createdAt, end),
+				),
+			);
 
 		return {
 			activeSandboxes: activeResult?.count ?? 0,
-			maxSandboxes: 5,
+			maxSandboxes: TIER_LIMITS[DEFAULT_TIER],
+			totalCreated: totalCreatedResult?.count ?? 0,
 			aiRequestsToday: aiResult?.count ?? 0,
-			maxAiRequestsPerDay: 30,
-			maxSizePerSandboxMb: 100,
+			maxAiRequestsPerDay: AI_DAILY_LIMIT,
+			maxSizePerSandboxMb: MAX_SANDBOX_SIZE_MB,
 		};
 	},
 );
