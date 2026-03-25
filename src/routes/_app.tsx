@@ -33,7 +33,7 @@ import {
 import { TooltipProvider } from "#/components/ui/tooltip";
 import { $getMe } from "#/modules/auth/serverFn";
 
-if (typeof window === "undefined") {
+if (import.meta.env.SSR) {
 	import("#/lib/ephemeral-engine").then(({ startEphemeralEngine }) => {
 		startEphemeralEngine();
 	});
