@@ -7,7 +7,7 @@
 | **Author**    | Kernix                                          |
 | **Created**   | 12 Maret 2026                                   |
 | **Teams**     | Satriyo @satrijo, Rizky @kidutpapuy, Trisna @trisna14 |
-| **Tech Stack**| TanStack Start · PostgreSQL · MySQL · MariaDB · Docker · Gemini AI|
+| **Tech Stack**| TanStack Start · PostgreSQL · MySQL · MariaDB · Docker · Configurable AI API|
 
 ---
 
@@ -138,7 +138,7 @@ PisangDB menyelesaikan **semua** masalah di atas dengan satu solusi: **database 
 | 📋 | **Credentials Dashboard** | Copy-paste connection string, credentials, dan `.env` snippet |
 | ⏰ | **Auto-Cleanup** | Database otomatis dihapus setelah TTL habis (1 jam - 7 hari) |
 | 💻 | **SQL Console** | Jalankan query langsung dari browser dengan syntax highlighting |
-| 🤖 | **AI SQL Seeder** | Generate schema + seed data dari prompt natural language (Gemini AI) |
+| 🤖 | **AI SQL Seeder** | Generate schema + seed data dari prompt natural language via AI provider yang dikonfigurasi |
 | 🔒 | **Isolated Users** | Setiap sandbox punya dedicated DB user yang hanya bisa akses DB-nya |
 
 ### Value Proposition
@@ -535,7 +535,7 @@ Untuk developer dengan laptop spesifikasi terbatas (8GB RAM), ini sangat terasa 
 
 ---
 
-### 6.5 AI SQL Seeder (Gemini AI Integration)
+### 6.5 AI SQL Seeder
 
 #### 6.5.1 Schema Generation
 - User mengetik prompt natural language, contoh:
@@ -632,7 +632,7 @@ Untuk developer dengan laptop spesifikasi terbatas (8GB RAM), ini sangat terasa 
 | **ORM** | Drizzle ORM | Type-safe, lightweight, great DX with PostgreSQL |
 | **Database Driver** | pg + mysql2 | Native drivers untuk PostgreSQL dan MySQL/MariaDB |
 | **Auth** | better-auth | Session-based auth, email/password + Google OAuth |
-| **AI** | TBD (Gemini / OpenRouter) | Belum final — keduanya dipertimbangkan |
+| **AI** | Configurable chat-completions API | Provider dipilih via environment deployment |
 | **SQL Editor** | CodeMirror 6 | Extensible, modern, great SQL support |
 | **Deployment** | Docker + Docker Compose | Konsisten environment, easy deployment |
 | **CI/CD** | GitHub Actions | Automasi build, test, deploy ke VPS |
@@ -671,7 +671,7 @@ Untuk developer dengan laptop spesifikasi terbatas (8GB RAM), ini sangat terasa 
        │           │            │        │
        ▼           ▼            ▼        ▼
 ┌────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐
-│ PostgreSQL │ │ MySQL    │ │ MariaDB  │ │ Gemini AI API    │
+│ PostgreSQL │ │ MySQL    │ │ MariaDB  │ │ AI Provider API  │
 │ (App DB +  │ │ (Sandbox)│ │ (Sandbox)│ │ (External)       │
 │  Sandbox)  │ │          │ │          │ └──────────────────┘
 │ • users    │ │          │ │          │
@@ -760,7 +760,7 @@ services:
       POSTGRES_SANDBOX_URL: postgresql://pisang:***@postgres:5432/postgres
       MYSQL_SANDBOX_URL: mysql://root:***@mysql:3306
       MARIADB_SANDBOX_URL: mysql://root:***@mariadb:3307
-      # AI_API_KEY: ${AI_API_KEY}  # TBD: Gemini atau OpenRouter
+      # AI_API_URL, AI_API_TOKEN, AI_MODEL disediakan via environment
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
 
@@ -1308,7 +1308,7 @@ DROP USER IF EXISTS 'sb_a1b2x8'@'%';
 ### 12.5 Input Validation
 - Semua input di-sanitize dan di-validasi menggunakan **Zod** schema
 - SQL Console: whitelist commands yang diizinkan, block system-level commands
-- AI prompt: max 1000 karakter, sanitize sebelum kirim ke Gemini API
+- AI prompt: max 1000 karakter, sanitize sebelum kirim ke AI provider
 
 ---
 
@@ -1322,7 +1322,7 @@ DROP USER IF EXISTS 'sb_a1b2x8'@'%';
 | R4 | AI menghasilkan SQL berbahaya | Medium | Medium | System prompt yang ketat, SQL validation sebelum execute, preview mode |
 | R5 | User menggunakan sandbox untuk menyimpan data sensitif | Medium | Medium | Clear warning bahwa sandbox bersifat temporary, no backup guarantee |
 | R6 | Disk space habis karena banyak sandbox | High | Medium | Max size 100MB per sandbox, monitoring disk usage, alert threshold |
-| R7 | Gemini API down / rate limited | Low | Medium | Graceful fallback, cache common templates, informasi error yang jelas |
+| R7 | AI provider down / rate limited | Low | Medium | Graceful fallback, cache common templates, informasi error yang jelas |
 | R8 | Brute force attack pada connection string | Medium | Low | Random password 32 char, rate limit pada database engine, monitoring |
 | R9 | Docker container crash (MySQL/MariaDB) | Medium | Low | Docker restart policy `unless-stopped`, health check per container |
 | R10 | Inconsistent SQL syntax antara engine | Low | High | AI system prompt menyesuaikan syntax per engine, SQL Console validates per engine |
@@ -1351,7 +1351,7 @@ DROP USER IF EXISTS 'sb_a1b2x8'@'%';
 |------|----------|-------------|
 | Dashboard UI (sandbox cards, stats, create modal) | 2 hari | Dashboard functional |
 | Sandbox detail page (info, SQL console, tables) | 1 hari | Detail page complete |
-| AI Seeder integration (Gemini API + preview + execute) | 1 hari | AI feature working |
+| AI Seeder integration (provider API + preview + execute) | 1 hari | AI feature working |
 
 ### Phase 4 — Polish & Deploy (27-28 Mar)
 | Task | Duration | Deliverable |
@@ -1553,7 +1553,7 @@ skip-show-database
 |------|----------|---------------|
 | VPS 4GB RAM | Hetzner CX22 | **€3.99** (~Rp 68.000) |
 | Domain `.com` | Namecheap | **~Rp 10.000** (amortized) |
-| Gemini AI API | Google (free tier) | **Rp 0** (1,500 req/day free) |
+| AI Provider API | Configurable | Mengikuti provider yang dipilih saat deployment |
 | GitHub Actions | GitHub (free tier) | **Rp 0** (2,000 min/month) |
 | **TOTAL** | | **~Rp 78.000 / bulan** |
 
@@ -1621,7 +1621,7 @@ Untuk MVP, cukup pakai **cron job + simple script** yang kirim notifikasi ke Dis
 - [MySQL CREATE DATABASE](https://dev.mysql.com/doc/refman/8.0/en/create-database.html)
 - [MariaDB CREATE DATABASE](https://mariadb.com/kb/en/create-database/)
 - [mysql2 npm package](https://www.npmjs.com/package/mysql2)
-- [Google Gemini API](https://ai.google.dev)
+- AI provider mengikuti environment deployment
 - [shadcn/ui Components](https://ui.shadcn.com)
 
 ---

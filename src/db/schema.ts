@@ -80,6 +80,26 @@ export const verifications = pgTable("verifications", {
 	updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+// ─── User preferences ────────────────────────────────────────────────────────
+
+export const userPreferences = pgTable("user_preferences", {
+	id: text("id").primaryKey(),
+	userId: text("user_id")
+		.notNull()
+		.unique()
+		.references(() => users.id, { onDelete: "cascade" }),
+	sandboxExpiryWarning: boolean("sandbox_expiry_warning")
+		.notNull()
+		.default(true),
+	productUpdates: boolean("product_updates").notNull().default(false),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});
+
 export const templates = pgTable("templates", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	name: varchar("name", { length: 50 }).notNull(),
@@ -88,7 +108,7 @@ export const templates = pgTable("templates", {
 	ddlSql: text("ddl_sql").notNull(),
 	seedSql: text("seed_sql"),
 	isBuiltin: boolean("is_builtin").notNull().default(false),
-	userId: text("user_id").references(() => users.id),
+	userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
@@ -100,7 +120,7 @@ export const sandboxes = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		userId: text("user_id")
 			.notNull()
-			.references(() => users.id),
+			.references(() => users.id, { onDelete: "cascade" }),
 		engine: varchar("engine", { length: 20 }).notNull(),
 		region: varchar("region", { length: 10 }).notNull().default("id"),
 		dbName: varchar("db_name", { length: 63 }).unique().notNull(),
@@ -134,7 +154,7 @@ export const queryHistory = pgTable("query_history", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	sandboxId: uuid("sandbox_id")
 		.notNull()
-		.references(() => sandboxes.id),
+		.references(() => sandboxes.id, { onDelete: "cascade" }),
 	query: text("query").notNull(),
 	status: varchar("status", { length: 20 }).notNull(),
 	executionTimeMs: integer("execution_time_ms"),
@@ -149,10 +169,10 @@ export const aiLogs = pgTable("ai_logs", {
 	id: uuid("id").primaryKey().defaultRandom(),
 	sandboxId: uuid("sandbox_id")
 		.notNull()
-		.references(() => sandboxes.id),
+		.references(() => sandboxes.id, { onDelete: "cascade" }),
 	userId: text("user_id")
 		.notNull()
-		.references(() => users.id),
+		.references(() => users.id, { onDelete: "cascade" }),
 	prompt: text("prompt").notNull(),
 	response: text("response").notNull(),
 	sqlGenerated: text("sql_generated"),
@@ -180,3 +200,6 @@ export type NewAiLog = typeof aiLogs.$inferInsert;
 
 export type Template = typeof templates.$inferSelect;
 export type NewTemplate = typeof templates.$inferInsert;
+
+export type UserPreferences = typeof userPreferences.$inferSelect;
+export type NewUserPreferences = typeof userPreferences.$inferInsert;

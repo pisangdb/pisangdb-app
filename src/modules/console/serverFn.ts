@@ -5,7 +5,10 @@ import mysql from "mysql2/promise";
 import { Pool } from "pg";
 import { db } from "#/db";
 import { aiLogs, queryHistory, sandboxes } from "#/db/schema";
+import { generateSQL, isAiConfigured } from "#/lib/ai";
 import { auth } from "#/lib/auth";
+import { NotFoundError, UnauthorizedError } from "#/lib/errors";
+import { checkAiRateLimit, recordAiRequest } from "#/lib/rate-limit";
 import { getSandboxConnection } from "#/lib/sandbox-provisioning";
 import type {
 	AiGenerateResult,
@@ -51,160 +54,178 @@ async function getCurrentUser() {
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
 	if (!session?.user) {
-		throw new Error("Unauthorized");
+		throw new UnauthorizedError();
 	}
 	return session.user;
+}
+
+async function getOwnedSandbox(sandboxId: string, userId: string) {
+	const [sandbox] = await db
+		.select()
+		.from(sandboxes)
+		.where(and(eq(sandboxes.id, sandboxId), eq(sandboxes.userId, userId)));
+
+	if (!sandbox) {
+		throw new NotFoundError("Sandbox not found");
+	}
+
+	if (sandbox.status !== "active") {
+		throw new Error("Sandbox is not active");
+	}
+
+	return sandbox;
+}
+
+async function insertQueryHistoryEntry(params: {
+	sandboxId: string;
+	query: string;
+	status: "success" | "error";
+	executionTimeMs: number;
+	rowsAffected?: number;
+	errorMessage?: string;
+}) {
+	await db.insert(queryHistory).values(params);
+}
+
+async function markAiLogExecuted(logId: number | null | undefined) {
+	if (!logId) {
+		return;
+	}
+
+	await db.update(aiLogs).set({ executed: true }).where(eq(aiLogs.id, logId));
+}
+
+async function executeSandboxQuery(params: {
+	sandbox: typeof sandboxes.$inferSelect;
+	query: string;
+}): Promise<QueryResult> {
+	const { sandbox, query } = params;
+	const start = Date.now();
+	let pool: Pool | mysql.Pool | undefined;
+
+	const { host, port } = getSandboxConnection(
+		sandbox.engine as DbEngine,
+		sandbox.region,
+		sandbox.host,
+	);
+
+	try {
+		if (sandbox.engine === "postgresql") {
+			pool = new Pool({
+				host,
+				port,
+				database: sandbox.dbName,
+				user: sandbox.dbUser,
+				password: sandbox.dbPassword,
+				max: 5,
+			});
+
+			await pool.query("SET statement_timeout = '30s'");
+
+			const result = await pool.query(query);
+			const executionTimeMs = Date.now() - start;
+			const columns = result.fields?.map((field) => field.name) ?? [];
+			const rows = result.rows ?? [];
+			const rowsAffected = result.rowCount ?? 0;
+
+			await insertQueryHistoryEntry({
+				sandboxId: sandbox.id,
+				query,
+				status: "success",
+				executionTimeMs,
+				rowsAffected,
+			});
+
+			return { columns, rows, rowsAffected, executionTimeMs };
+		}
+
+		pool = mysql.createPool({
+			host,
+			port,
+			database: sandbox.dbName,
+			user: sandbox.dbUser,
+			password: sandbox.dbPassword,
+			waitForConnections: true,
+			connectionLimit: 5,
+		});
+
+		await pool.query("SET SESSION MAX_EXECUTION_TIME=30000");
+
+		const [rows] = await pool.query(query);
+		const executionTimeMs = Date.now() - start;
+
+		if (Array.isArray(rows) && rows.length > 0) {
+			const columns = Object.keys(rows[0] as Record<string, unknown>);
+			const rowsAffected = rows.length;
+
+			await insertQueryHistoryEntry({
+				sandboxId: sandbox.id,
+				query,
+				status: "success",
+				executionTimeMs,
+				rowsAffected,
+			});
+
+			return {
+				columns,
+				rows: rows as Record<string, string | number | boolean | null>[],
+				rowsAffected,
+				executionTimeMs,
+			};
+		}
+
+		const result = rows as mysql.ResultSetHeader;
+		const rowsAffected = result.affectedRows ?? 0;
+
+		await insertQueryHistoryEntry({
+			sandboxId: sandbox.id,
+			query,
+			status: "success",
+			executionTimeMs,
+			rowsAffected,
+		});
+
+		return { columns: [], rows: [], rowsAffected, executionTimeMs };
+	} catch (error) {
+		const executionTimeMs = Date.now() - start;
+		const errorMessage =
+			error instanceof Error ? error.message : "Unknown error";
+
+		await insertQueryHistoryEntry({
+			sandboxId: sandbox.id,
+			query,
+			status: "error",
+			executionTimeMs,
+			errorMessage,
+		});
+
+		throw error;
+	} finally {
+		if (pool) {
+			await pool.end();
+		}
+	}
 }
 
 export const $executeQuery = createServerFn({ method: "POST" })
 	.inputValidator(executeQuerySchema)
 	.handler(async ({ data }): Promise<QueryResult> => {
 		const user = await getCurrentUser();
-
-		const sandbox = await db
-			.select()
-			.from(sandboxes)
-			.where(
-				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
-			)
-			.then((rows) => rows[0]);
-
-		if (!sandbox) {
-			throw new Error("Sandbox not found");
-		}
-
-		if (sandbox.status !== "active") {
-			throw new Error("Sandbox is not active");
-		}
+		const sandbox = await getOwnedSandbox(data.sandboxId, user.id);
 
 		checkForbiddenCommands(data.query);
 
-		const start = Date.now();
-		let pool: Pool | mysql.Pool | undefined;
-
-		// Use dev host/port override for local development
-		const { host, port } = getSandboxConnection(
-			sandbox.engine as DbEngine,
-			sandbox.region,
-			sandbox.host,
-		);
-
-		try {
-			if (sandbox.engine === "postgresql") {
-				pool = new Pool({
-					host,
-					port,
-					database: sandbox.dbName,
-					user: sandbox.dbUser,
-					password: sandbox.dbPassword,
-					max: 5,
-				});
-
-				await pool.query("SET statement_timeout = '30s'");
-
-				const result = await pool.query(data.query);
-				const executionTimeMs = Date.now() - start;
-
-				const columns = result.fields?.map((f) => f.name) ?? [];
-				const rows = result.rows ?? [];
-				const rowsAffected = result.rowCount ?? 0;
-
-				await db.insert(queryHistory).values({
-					sandboxId: sandbox.id,
-					query: data.query,
-					status: "success",
-					executionTimeMs,
-					rowsAffected,
-				});
-
-				return { columns, rows, rowsAffected, executionTimeMs };
-			}
-
-			pool = mysql.createPool({
-				host,
-				port,
-				database: sandbox.dbName,
-				user: sandbox.dbUser,
-				password: sandbox.dbPassword,
-				waitForConnections: true,
-				connectionLimit: 5,
-			});
-
-			await pool.query("SET SESSION MAX_EXECUTION_TIME=30000");
-
-			const [rows] = await pool.query(data.query);
-			const executionTimeMs = Date.now() - start;
-
-			if (Array.isArray(rows) && rows.length > 0) {
-				const columns = Object.keys(rows[0] as Record<string, unknown>);
-
-				await db.insert(queryHistory).values({
-					sandboxId: sandbox.id,
-					query: data.query,
-					status: "success",
-					executionTimeMs,
-					rowsAffected: Array.isArray(rows) ? rows.length : 0,
-				});
-
-				return {
-					columns,
-					rows: rows as unknown as Record<
-						string,
-						string | number | boolean | null
-					>[],
-					rowsAffected: Array.isArray(rows) ? rows.length : 0,
-					executionTimeMs,
-				};
-			}
-
-			const result = rows as mysql.ResultSetHeader;
-			const rowsAffected = result.affectedRows ?? 0;
-
-			await db.insert(queryHistory).values({
-				sandboxId: sandbox.id,
-				query: data.query,
-				status: "success",
-				executionTimeMs,
-				rowsAffected,
-			});
-
-			return { columns: [], rows: [], rowsAffected, executionTimeMs };
-		} catch (error) {
-			const executionTimeMs = Date.now() - start;
-			const errorMessage =
-				error instanceof Error ? error.message : "Unknown error";
-
-			await db.insert(queryHistory).values({
-				sandboxId: sandbox.id,
-				query: data.query,
-				status: "error",
-				executionTimeMs,
-				errorMessage,
-			});
-
-			throw error;
-		} finally {
-			if (pool) {
-				await pool.end();
-			}
-		}
+		return executeSandboxQuery({
+			sandbox,
+			query: data.query,
+		});
 	});
 
 export const $getQueryHistory = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<QueryHistoryItem[]> => {
 		const user = await getCurrentUser();
-
-		const [sandbox] = await db
-			.select()
-			.from(sandboxes)
-			.where(
-				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
-			);
-
-		if (!sandbox) {
-			throw new Error("Sandbox not found");
-		}
+		await getOwnedSandbox(data.sandboxId, user.id);
 
 		const history = await db
 			.select()
@@ -226,18 +247,64 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 
 export const $aiGenerate = createServerFn({ method: "POST" })
 	.inputValidator(aiGenerateSchema)
-	.handler(async ({ data: _data }): Promise<AiGenerateResult> => {
-		throw new Error(
-			"AI Generate not yet implemented - Gemini API not configured",
-		);
+	.handler(async ({ data }): Promise<AiGenerateResult> => {
+		const user = await getCurrentUser();
+
+		// Check AI rate limit (30 req/day/user per PRD)
+		const rateLimit = checkAiRateLimit(user.id);
+		if (!rateLimit.allowed) {
+			throw new Error(
+				`AI rate limit exceeded. Try again at ${rateLimit.resetAt.toLocaleTimeString()}.`,
+			);
+		}
+
+		const sandbox = await getOwnedSandbox(data.sandboxId, user.id);
+
+		const { sql, explanation, tokensUsed } = await generateSQL({
+			prompt: data.prompt,
+			engine: data.engine,
+			sandboxDbName: sandbox.dbName,
+		});
+
+		// Record successful AI request for rate limiting
+		recordAiRequest(user.id);
+
+		const [log] = await db
+			.insert(aiLogs)
+			.values({
+				sandboxId: sandbox.id,
+				userId: user.id,
+				prompt: data.prompt,
+				response: explanation,
+				sqlGenerated: sql,
+				executed: false,
+				tokensUsed,
+			})
+			.returning();
+
+		return {
+			logId: log.id.toString(),
+			sqlGenerated: sql,
+			explanation,
+			tokensUsed,
+		};
 	});
 
 export const $aiExecute = createServerFn({ method: "POST" })
 	.inputValidator(aiExecuteSchema)
-	.handler(async ({ data: _data }): Promise<QueryResult> => {
-		throw new Error(
-			"AI Execute not yet implemented - Gemini API not configured",
-		);
+	.handler(async ({ data }): Promise<QueryResult> => {
+		const user = await getCurrentUser();
+		const sandbox = await getOwnedSandbox(data.sandboxId, user.id);
+
+		checkForbiddenCommands(data.sql);
+		const result = await executeSandboxQuery({
+			sandbox,
+			query: data.sql,
+		});
+
+		await markAiLogExecuted(data.logId);
+
+		return result;
 	});
 
 export const $getAiLogs = createServerFn({ method: "GET" })
@@ -246,22 +313,10 @@ export const $getAiLogs = createServerFn({ method: "GET" })
 		// Return empty array if AI is not configured - graceful degradation
 		// so the sandbox detail page can still load
 		const user = await getCurrentUser();
-
-		// Verify sandbox belongs to this user
-		const [sandbox] = await db
-			.select()
-			.from(sandboxes)
-			.where(
-				and(eq(sandboxes.id, data.sandboxId), eq(sandboxes.userId, user.id)),
-			);
-
-		if (!sandbox) {
-			throw new Error("Sandbox not found");
-		}
+		await getOwnedSandbox(data.sandboxId, user.id);
 
 		// Check if AI is configured
-		const apiKey = process.env.GEMINI_API_KEY;
-		if (!apiKey) {
+		if (!isAiConfigured()) {
 			// Return empty array if no API key - graceful degradation
 			return [];
 		}

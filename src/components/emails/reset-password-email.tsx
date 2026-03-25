@@ -34,7 +34,7 @@ export function ResetPasswordEmail({ resetLink }: ResetPasswordEmailProps) {
 					<Container className="mx-auto my-10 max-w-[580px] rounded bg-white p-8">
 						<Section>
 							<Img
-								src={`${baseUrl}/logo.png`}
+								src={`${baseUrl}/logo.svg`}
 								width="40"
 								height="40"
 								alt="PisangDB"

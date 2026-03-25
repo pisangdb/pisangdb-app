@@ -261,7 +261,7 @@ function AiSeederPage() {
 					<CardContent className="space-y-3 text-sm text-muted-foreground">
 						<p className="flex items-center gap-1.5 text-foreground">
 							<BotIcon className="size-4" />
-							Current model: Gemini
+							Current model: configured via `AI_MODEL`
 						</p>
 						<ul className="list-disc space-y-1 pl-4 text-xs">
 							<li>Prompt length up to 1000 chars</li>

@@ -1,10 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import { Pool } from "pg";
 import { db } from "#/db";
-import { sandboxes } from "#/db/schema";
+import { sandboxes, templates } from "#/db/schema";
 import { auth } from "#/lib/auth";
 import {
 	deprovisionMariaDB,
@@ -33,6 +33,7 @@ import {
 	extendSandboxSchema,
 	sandboxIdSchema,
 } from "./schema";
+import { executeTemplateSql } from "./template-helper";
 
 export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<DashboardStats> => {
@@ -74,6 +75,17 @@ export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 		};
 	},
 );
+
+async function getDatabaseNow(): Promise<Date> {
+	const result = await db.execute(sql<{ now: Date }>`select now() as now`);
+	const currentTime = result.rows[0]?.now;
+
+	if (!(currentTime instanceof Date)) {
+		throw new Error("Failed to read current database time.");
+	}
+
+	return currentTime;
+}
 
 export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 	async (): Promise<SandboxListItem[]> => {
@@ -187,14 +199,14 @@ export const $createSandbox = createServerFn({ method: "POST" })
 
 		const userId = session.user.id;
 
-		const MAX_ACTIVE = 5;
+		const maxActive = TIER_LIMITS[DEFAULT_TIER];
 		const [activeResult] = await db
 			.select({ count: count() })
 			.from(sandboxes)
 			.where(and(eq(sandboxes.userId, userId), eq(sandboxes.status, "active")));
 
-		if ((activeResult?.count ?? 0) >= MAX_ACTIVE) {
-			throw new Error(`Maximum of ${MAX_ACTIVE} active sandboxes allowed`);
+		if ((activeResult?.count ?? 0) >= maxActive) {
+			throw new Error(`Maximum of ${maxActive} active sandboxes allowed`);
 		}
 
 		const { dbName, dbUser, dbPassword, host, port, connectionUrl } =
@@ -216,8 +228,37 @@ export const $createSandbox = createServerFn({ method: "POST" })
 				await provisionMariaDB(adminPool, dbName, dbUser, dbPassword);
 			}
 
+			// Execute template SQL if provided
+			let templateId: string | null = null;
+			if (data.templateId) {
+				const [template] = await db
+					.select()
+					.from(templates)
+					.where(
+						and(
+							eq(templates.id, data.templateId),
+							eq(templates.engine, data.engine),
+						),
+					)
+					.limit(1);
+
+				if (template) {
+					templateId = template.id;
+					await executeTemplateSql(
+						engine,
+						data.region,
+						dbName,
+						dbUser,
+						dbPassword,
+						template.ddlSql,
+						template.seedSql,
+					);
+				}
+			}
+
+			const databaseNow = await getDatabaseNow();
 			const expiredAt = new Date(
-				Date.now() + data.retentionHours * 60 * 60 * 1000,
+				databaseNow.getTime() + data.retentionHours * 60 * 60 * 1000,
 			);
 
 			const [created] = await db
@@ -235,6 +276,7 @@ export const $createSandbox = createServerFn({ method: "POST" })
 					displayName: data.displayName,
 					status: "active",
 					expiredAt,
+					templateId,
 				})
 				.returning();
 
@@ -377,15 +419,14 @@ async function getSandboxDatabaseSize(
 	region: string,
 	dbName: string,
 ): Promise<number> {
+	const adminPool = getAdminPool(engine, region);
 	try {
-		const adminPool = getAdminPool(engine, region);
 		if (engine === "postgresql") {
 			const pool = adminPool as Pool;
 			const result = await pool.query<{ pg_database_size: string }>(
 				`SELECT pg_database_size($1) AS pg_database_size`,
 				[dbName],
 			);
-			await pool.end();
 			const bytes = parseInt(result.rows[0]?.pg_database_size ?? "0", 10);
 			return Math.round(bytes / (1024 * 1024));
 		} else {
@@ -403,7 +444,6 @@ async function getSandboxDatabaseSize(
 				}[],
 				unknown,
 			];
-			await pool.end();
 			return Math.round(
 				result[0]?.[
 					"ROUND(SUM(Data_length + Index_length) / 1024 / 1024, 2)"
@@ -412,6 +452,8 @@ async function getSandboxDatabaseSize(
 		}
 	} catch {
 		return 0;
+	} finally {
+		await adminPool.end();
 	}
 }
 

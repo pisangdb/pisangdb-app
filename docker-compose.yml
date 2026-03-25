@@ -31,7 +31,7 @@ services:
       POSTGRES_SANDBOX_URL_ID: postgresql://pisang:${PG_SANDBOX_PASSWORD}@postgres-sandbox:5432/postgres
       MYSQL_SANDBOX_URL_ID: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306
       MARIADB_SANDBOX_URL_ID: mysql://root:${MARIADB_ROOT_PASSWORD}@mariadb:3306
-      # Google OAuth
+      # Google OAuth (opsional — aktif otomatis jika diisi)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       # SMTP (password reset / transactional email)
@@ -40,10 +40,12 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM}
-      # AI Provider (pilih salah satu, uncomment sesuai provider)
-      # GEMINI_API_KEY: ${GEMINI_API_KEY}
-      # OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      # OPENROUTER_MODEL: ${OPENROUTER_MODEL}
+      # AI Provider
+      AI_API_URL: ${AI_API_URL}
+      AI_API_TOKEN: ${AI_API_TOKEN}
+      AI_MODEL: ${AI_MODEL}
+      AI_MAX_TOKENS: ${AI_MAX_TOKENS}
+      AI_TEMPERATURE: ${AI_TEMPERATURE}
     deploy:
       resources:
         limits:

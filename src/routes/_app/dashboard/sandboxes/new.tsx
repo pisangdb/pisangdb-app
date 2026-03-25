@@ -14,6 +14,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { useCreateSandbox } from "#/lib/hooks/useSandboxes";
+import { useTemplates } from "#/lib/hooks/useTemplates";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/new")({
 	head: () => ({ meta: [{ title: "New Sandbox — PisangDB" }] }),
@@ -52,7 +53,6 @@ const retentionOptions = [
 	"3 days",
 	"7 days",
 ];
-const templateOptions = ["Blank", "E-commerce", "Blog", "Inventory"];
 
 function NewSandboxPage() {
 	const navigate = useNavigate();
@@ -61,8 +61,11 @@ function NewSandboxPage() {
 	const [region, setRegion] = useState<Region>("id");
 	const [name, setName] = useState("my-project-db");
 	const [retention, setRetention] = useState("6 hours");
-	const [template, setTemplate] = useState("Blank");
+	const [templateId, setTemplateId] = useState<string | null>(null);
 	const [copied, setCopied] = useState(false);
+
+	// Fetch templates filtered by selected engine
+	const { data: templatesData } = useTemplates(engine);
 
 	const RETENTION_MAP: Record<string, number> = {
 		"1 hour": 1,
@@ -85,6 +88,7 @@ function NewSandboxPage() {
 				engine,
 				region,
 				retentionHours: retentionHours as 1 | 6 | 12 | 24 | 72 | 168,
+				templateId: templateId ?? undefined,
 			});
 			toast.success("Sandbox created!");
 			void navigate({ to: "/dashboard/sandboxes" });
@@ -101,7 +105,7 @@ function NewSandboxPage() {
 			name
 				.toLowerCase()
 				.trim()
-				.replaceAll(/[^a-z0-9-]/g, "-")
+				.replaceAll(/[^a-z0-9]/g, "-")
 				.replaceAll(/-{2,}/g, "-") || "sandbox";
 
 		const dbName = `pisang_a1b2_${normalizedName}_x8k2m9`;
@@ -122,6 +126,7 @@ function NewSandboxPage() {
 			await navigator.clipboard.writeText(
 				`DATABASE_URL=${generated.connectionUrl}`,
 			);
+			toast.success("Copied to clipboard!");
 			setCopied(true);
 			setTimeout(() => {
 				setCopied(false);
@@ -210,6 +215,7 @@ function NewSandboxPage() {
 								<Label htmlFor="sandbox-name">Sandbox name</Label>
 								<Input
 									id="sandbox-name"
+									name="sandbox-name"
 									value={name}
 									onChange={(event) => setName(event.target.value)}
 									placeholder="my-project-db"
@@ -236,16 +242,29 @@ function NewSandboxPage() {
 							<Label htmlFor="template">Template</Label>
 							<select
 								id="template"
-								value={template}
-								onChange={(event) => setTemplate(event.target.value)}
+								value={templateId ?? ""}
+								onChange={(event) => setTemplateId(event.target.value || null)}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
 							>
-								{templateOptions.map((option) => (
-									<option key={option} value={option}>
-										{option}
+								<option value="">Blank</option>
+								{templatesData?.map((t) => (
+									<option key={t.id} value={t.id}>
+										{t.name}
 									</option>
 								))}
 							</select>
+
+							{/* Template preview card */}
+							{templatesData && templatesData.length > 0 ? (
+								<div className="rounded-lg border p-3">
+									<Label className="text-sm font-medium">
+										Templates ({templatesData.length})
+									</Label>
+									<p className="text-xs text-muted-foreground">
+										{templatesData.map((t) => t.name).join(", ")}
+									</p>
+								</div>
+							) : null}
 						</div>
 
 						<Button
@@ -286,9 +305,7 @@ function NewSandboxPage() {
 							<p>
 								Host: <span className="font-medium">{generated.host}</span>
 							</p>
-							<p>
-								Port: <span className="font-medium">{selectedEngine.port}</span>
-							</p>
+							<p className="font-medium">Port: {selectedEngine.port}</p>
 							<p>
 								Database:{" "}
 								<span className="font-mono text-xs">{generated.dbName}</span>
