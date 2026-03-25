@@ -1,16 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, eq, ne } from "drizzle-orm";
-import { db } from "#/db";
-import {
-	accounts,
-	aiLogs,
-	sandboxes,
-	sessions,
-	userPreferences,
-	users,
-} from "#/db/schema";
-import { auth } from "#/lib/auth";
 import type { AuthUser, UserRole } from "#/lib/types";
 import {
 	changePasswordSchema,
@@ -21,6 +11,25 @@ import {
 	updatePreferencesSchema,
 	updateProfileSchema,
 } from "./schema";
+
+async function getAuthServerContext() {
+	const [{ db }, schema, { auth }] = await Promise.all([
+		import("#/db"),
+		import("#/db/schema"),
+		import("#/lib/auth"),
+	]);
+
+	return {
+		auth,
+		db,
+		accounts: schema.accounts,
+		aiLogs: schema.aiLogs,
+		sandboxes: schema.sandboxes,
+		sessions: schema.sessions,
+		userPreferences: schema.userPreferences,
+		users: schema.users,
+	};
+}
 
 export const $register = createServerFn({ method: "POST" })
 	.inputValidator(registerSchema)
@@ -50,8 +59,17 @@ export const $logout = createServerFn({ method: "POST" }).handler(
 	async (): Promise<void> => {},
 );
 
+type SessionWithOptionalRole = {
+	id: string;
+	email: string;
+	name: string;
+	image?: string | null;
+	role?: string;
+};
+
 export const $getMe = createServerFn({ method: "GET" }).handler(
 	async (): Promise<AuthUser | null> => {
+		const { auth } = await getAuthServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({
 			headers: request.headers,
@@ -62,8 +80,6 @@ export const $getMe = createServerFn({ method: "GET" }).handler(
 		return mapSessionUserToAuthUser(session.user as SessionWithOptionalRole);
 	},
 );
-
-// ─── User Settings ────────────────────────────────────────────────────────────
 
 export type UserSettings = {
 	user: AuthUser;
@@ -96,12 +112,6 @@ export type WorkspaceStats = {
 	maxSizePerSandboxMb: number;
 };
 
-type SessionWithOptionalRole = Awaited<
-	ReturnType<typeof auth.api.getSession>
->["user"] & {
-	role?: string;
-};
-
 function mapSessionUserToAuthUser(user: SessionWithOptionalRole): AuthUser {
 	return {
 		id: user.id,
@@ -113,7 +123,12 @@ function mapSessionUserToAuthUser(user: SessionWithOptionalRole): AuthUser {
 }
 
 function mapPreferences(
-	prefs: typeof userPreferences.$inferSelect | undefined,
+	prefs:
+		| {
+				sandboxExpiryWarning: boolean;
+				productUpdates: boolean;
+		  }
+		| undefined,
 ): UserSettings["preferences"] {
 	if (!prefs) {
 		return null;
@@ -126,6 +141,7 @@ function mapPreferences(
 }
 
 async function getCurrentSession() {
+	const { auth } = await getAuthServerContext();
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
 	if (!session?.user) {
@@ -135,15 +151,16 @@ async function getCurrentSession() {
 }
 
 async function getCurrentSessionToken(headers: Headers) {
+	const { auth } = await getAuthServerContext();
 	const currentSession = await auth.api.getSession({ headers });
 	return currentSession?.session?.token ?? null;
 }
 
 export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 	async (): Promise<UserSettings> => {
+		const { accounts, db, userPreferences } = await getAuthServerContext();
 		const { session, userId } = await getCurrentSession();
 
-		// Get user's connected accounts
 		const userAccounts = await db
 			.select({
 				id: accounts.id,
@@ -153,7 +170,6 @@ export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 			.from(accounts)
 			.where(eq(accounts.userId, userId));
 
-		// Get user preferences
 		const [prefs] = await db
 			.select()
 			.from(userPreferences)
@@ -170,6 +186,7 @@ export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 export const $updateProfile = createServerFn({ method: "POST" })
 	.inputValidator(updateProfileSchema)
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
+		const { db, users } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
 
 		await db
@@ -183,9 +200,9 @@ export const $updateProfile = createServerFn({ method: "POST" })
 export const $changePassword = createServerFn({ method: "POST" })
 	.inputValidator(changePasswordSchema)
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
+		const { accounts, auth, db } = await getAuthServerContext();
 		const { request, userId } = await getCurrentSession();
 
-		// Check if user has credential account
 		const [credentialAccount] = await db
 			.select()
 			.from(accounts)
@@ -199,7 +216,6 @@ export const $changePassword = createServerFn({ method: "POST" })
 			);
 		}
 
-		// Use better-auth API to change password
 		await auth.api.changePassword({
 			body: {
 				currentPassword: data.currentPassword,
@@ -214,24 +230,24 @@ export const $changePassword = createServerFn({ method: "POST" })
 
 export const $listSessions = createServerFn({ method: "GET" }).handler(
 	async (): Promise<SessionInfo[]> => {
+		const { db, sessions } = await getAuthServerContext();
 		const { request, userId } = await getCurrentSession();
 		const currentToken = await getCurrentSessionToken(request.headers);
 
-		// Get all sessions for user
 		const userSessions = await db
 			.select()
 			.from(sessions)
 			.where(eq(sessions.userId, userId))
 			.orderBy(sessions.createdAt);
 
-		return userSessions.map((s) => ({
-			id: s.id,
-			token: s.token,
-			ipAddress: s.ipAddress,
-			userAgent: s.userAgent,
-			createdAt: s.createdAt,
-			expiresAt: s.expiresAt,
-			isCurrent: s.token === currentToken,
+		return userSessions.map((session) => ({
+			id: session.id,
+			token: session.token,
+			ipAddress: session.ipAddress,
+			userAgent: session.userAgent,
+			createdAt: session.createdAt,
+			expiresAt: session.expiresAt,
+			isCurrent: session.token === currentToken,
 		}));
 	},
 );
@@ -239,9 +255,9 @@ export const $listSessions = createServerFn({ method: "GET" }).handler(
 export const $revokeSession = createServerFn({ method: "POST" })
 	.inputValidator(revokeSessionSchema)
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
+		const { db, sessions } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
 
-		// Verify the session belongs to the current user
 		const [targetSession] = await db
 			.select()
 			.from(sessions)
@@ -251,7 +267,6 @@ export const $revokeSession = createServerFn({ method: "POST" })
 			throw new Error("Session not found");
 		}
 
-		// Delete the session
 		await db.delete(sessions).where(eq(sessions.token, data.token));
 
 		return { success: true };
@@ -259,6 +274,7 @@ export const $revokeSession = createServerFn({ method: "POST" })
 
 export const $revokeAllSessions = createServerFn({ method: "POST" }).handler(
 	async (): Promise<{ success: boolean }> => {
+		const { db, sessions } = await getAuthServerContext();
 		const { request, userId } = await getCurrentSession();
 		const currentToken = await getCurrentSessionToken(request.headers);
 
@@ -266,7 +282,6 @@ export const $revokeAllSessions = createServerFn({ method: "POST" }).handler(
 			throw new Error("No current session found");
 		}
 
-		// Delete all sessions except current
 		await db
 			.delete(sessions)
 			.where(
@@ -280,44 +295,41 @@ export const $revokeAllSessions = createServerFn({ method: "POST" }).handler(
 export const $deleteAccount = createServerFn({ method: "POST" })
 	.inputValidator(deleteAccountSchema)
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
+		const { auth, db, sandboxes, users } = await getAuthServerContext();
 		const { request, userId } = await getCurrentSession();
 		const currentSession = await auth.api.getSession({
 			headers: request.headers,
 		});
 		const userEmail = currentSession?.user?.email;
 
-		// Verify email confirmation
 		if (data.confirmationEmail !== userEmail) {
 			throw new Error("Email confirmation does not match");
 		}
 
-		// Get all user's sandboxes that need cleanup
 		const userSandboxes = await db
 			.select()
 			.from(sandboxes)
 			.where(eq(sandboxes.userId, userId));
 
-		// Cleanup each sandbox (drop database and user)
 		for (const sandbox of userSandboxes) {
 			if (sandbox.status === "active") {
 				try {
-					const { getAdminPool } = await import("#/lib/sandbox-provisioning");
 					const {
-						deprovisionPostgreSQL,
-						deprovisionMySQL,
 						deprovisionMariaDB,
+						deprovisionMySQL,
+						deprovisionPostgreSQL,
+						getAdminPool,
 					} = await import("#/lib/sandbox-provisioning");
 
 					const engine = sandbox.engine as "postgresql" | "mysql" | "mariadb";
-					const region = sandbox.region;
-					const adminPool = getAdminPool(engine, region);
+					const adminPool = getAdminPool(engine, sandbox.region);
 
 					if (engine === "postgresql") {
 						await deprovisionPostgreSQL(
 							adminPool,
 							sandbox.dbName,
 							sandbox.dbUser,
-							region,
+							sandbox.region,
 						);
 					} else if (engine === "mysql") {
 						await deprovisionMySQL(
@@ -325,7 +337,7 @@ export const $deleteAccount = createServerFn({ method: "POST" })
 							sandbox.dbName,
 							sandbox.dbUser,
 						);
-					} else if (engine === "mariadb") {
+					} else {
 						await deprovisionMariaDB(
 							adminPool as import("mysql2/promise").Pool,
 							sandbox.dbName,
@@ -334,12 +346,10 @@ export const $deleteAccount = createServerFn({ method: "POST" })
 					}
 				} catch (error) {
 					console.error(`Failed to cleanup sandbox ${sandbox.id}:`, error);
-					// Continue with deletion even if cleanup fails
 				}
 			}
 		}
 
-		// Delete user (cascade will handle sessions, accounts, sandboxes, etc.)
 		await db.delete(users).where(eq(users.id, userId));
 
 		return { success: true };
@@ -347,6 +357,7 @@ export const $deleteAccount = createServerFn({ method: "POST" })
 
 export const $getUserPreferences = createServerFn({ method: "GET" }).handler(
 	async (): Promise<UserSettings["preferences"]> => {
+		const { db, userPreferences } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
 
 		const [prefs] = await db
@@ -366,6 +377,7 @@ export const $getUserPreferences = createServerFn({ method: "GET" }).handler(
 export const $updateUserPreferences = createServerFn({ method: "POST" })
 	.inputValidator(updatePreferencesSchema)
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
+		const { db, userPreferences } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
 
 		const [existingPreference] = await db
@@ -396,24 +408,18 @@ export const $updateUserPreferences = createServerFn({ method: "POST" })
 
 export const $getWorkspaceStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<WorkspaceStats> => {
+		const { aiLogs, db, sandboxes } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
 
-		// Get active sandbox count
 		const [activeResult] = await db
 			.select({ count: count() })
 			.from(sandboxes)
 			.where(and(eq(sandboxes.userId, userId), eq(sandboxes.status, "active")));
 
-		// Get AI requests today
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-
 		const [aiResult] = await db
 			.select({ count: count() })
 			.from(aiLogs)
 			.where(eq(aiLogs.userId, userId));
-
-		// TODO: Filter by created_at >= today when needed
 
 		return {
 			activeSandboxes: activeResult?.count ?? 0,

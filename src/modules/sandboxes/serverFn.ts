@@ -3,20 +3,6 @@ import { getRequest } from "@tanstack/react-start/server";
 import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import { Pool } from "pg";
-import { db } from "#/db";
-import { sandboxes, templates } from "#/db/schema";
-import { auth } from "#/lib/auth";
-import {
-	deprovisionMariaDB,
-	deprovisionMySQL,
-	deprovisionPostgreSQL,
-	generateSandboxCredentials,
-	getAdminPool,
-	getSandboxPort,
-	provisionMariaDB,
-	provisionMySQL,
-	provisionPostgreSQL,
-} from "#/lib/sandbox-provisioning";
 import {
 	type DashboardStats,
 	type DbEngine,
@@ -33,10 +19,25 @@ import {
 	extendSandboxSchema,
 	sandboxIdSchema,
 } from "./schema";
-import { executeTemplateSql } from "./template-helper";
+
+async function getSandboxesServerContext() {
+	const [{ db }, schema, { auth }] = await Promise.all([
+		import("#/db"),
+		import("#/db/schema"),
+		import("#/lib/auth"),
+	]);
+
+	return {
+		auth,
+		db,
+		sandboxes: schema.sandboxes,
+		templates: schema.templates,
+	};
+}
 
 export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<DashboardStats> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {
@@ -77,6 +78,7 @@ export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 );
 
 async function getDatabaseNow(): Promise<Date> {
+	const { db } = await getSandboxesServerContext();
 	const result = await db.execute(sql<{ now: Date }>`select now() as now`);
 	const currentTime = result.rows[0]?.now;
 
@@ -89,6 +91,7 @@ async function getDatabaseNow(): Promise<Date> {
 
 export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 	async (): Promise<SandboxListItem[]> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {
@@ -123,32 +126,23 @@ export const $getSandboxes = createServerFn({ method: "GET" }).handler(
 			)
 			.orderBy(desc(sandboxes.createdAt));
 
-		const sandboxesWithSizes = await Promise.all(
-			rows.map(async (row) => {
-				const sizeMb = await getSandboxDatabaseSize(
-					row.engine as DbEngine,
-					row.region,
-					row.dbName,
-				);
-				return {
-					...row,
-					engine: row.engine as DbEngine,
-					region: row.region as DbRegion,
-					status: row.status as SandboxStatus,
-					sizeMb,
-					createdAt: row.createdAt.toISOString(),
-					expiredAt: row.expiredAt.toISOString(),
-				};
-			}),
-		);
-
-		return sandboxesWithSizes;
+		return rows.map((row) => ({
+			...row,
+			engine: row.engine as DbEngine,
+			region: row.region as DbRegion,
+			status: row.status as SandboxStatus,
+			// Avoid per-sandbox admin DB queries on list page.
+			sizeMb: 0,
+			createdAt: row.createdAt.toISOString(),
+			expiredAt: row.expiredAt.toISOString(),
+		}));
 	},
 );
 
 export const $getSandboxById = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {
@@ -191,6 +185,8 @@ export const $getSandboxById = createServerFn({ method: "GET" })
 export const $createSandbox = createServerFn({ method: "POST" })
 	.inputValidator(createSandboxSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
+		const { auth, db, sandboxes, templates } =
+			await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {
@@ -209,14 +205,24 @@ export const $createSandbox = createServerFn({ method: "POST" })
 			throw new Error(`Maximum of ${maxActive} active sandboxes allowed`);
 		}
 
-		const { dbName, dbUser, dbPassword, host, port, connectionUrl } =
-			generateSandboxCredentials(
-				userId,
-				data.displayName,
-				data.engine as DbEngine,
-			);
+		const { dbName, dbUser, dbPassword, host, port, connectionUrl } = (
+			await import("#/lib/sandbox-provisioning")
+		).generateSandboxCredentials(
+			userId,
+			data.displayName,
+			data.engine as DbEngine,
+		);
 
 		const engine = data.engine as DbEngine;
+		const {
+			getAdminPool,
+			provisionMariaDB,
+			provisionMySQL,
+			provisionPostgreSQL,
+			deprovisionMariaDB,
+			deprovisionMySQL,
+			deprovisionPostgreSQL,
+		} = await import("#/lib/sandbox-provisioning");
 		const adminPool = getAdminPool(engine, data.region);
 
 		try {
@@ -244,7 +250,7 @@ export const $createSandbox = createServerFn({ method: "POST" })
 
 				if (template) {
 					templateId = template.id;
-					await executeTemplateSql(
+					await (await import("./template-helper")).executeTemplateSql(
 						engine,
 						data.region,
 						dbName,
@@ -310,6 +316,7 @@ export const $createSandbox = createServerFn({ method: "POST" })
 export const $extendSandbox = createServerFn({ method: "POST" })
 	.inputValidator(extendSandboxSchema)
 	.handler(async ({ data }): Promise<SandboxDetail> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {
@@ -356,6 +363,7 @@ export const $extendSandbox = createServerFn({ method: "POST" })
 export const $deleteSandbox = createServerFn({ method: "POST" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<void> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {
@@ -383,6 +391,12 @@ export const $deleteSandbox = createServerFn({ method: "POST" })
 			.where(eq(sandboxes.id, data.sandboxId));
 
 		const engine = sandbox.engine as DbEngine;
+		const {
+			getAdminPool,
+			deprovisionMariaDB,
+			deprovisionMySQL,
+			deprovisionPostgreSQL,
+		} = await import("#/lib/sandbox-provisioning");
 		const adminPool = getAdminPool(engine, sandbox.region);
 
 		try {
@@ -419,6 +433,7 @@ async function getSandboxDatabaseSize(
 	region: string,
 	dbName: string,
 ): Promise<number> {
+	const { getAdminPool } = await import("#/lib/sandbox-provisioning");
 	const adminPool = getAdminPool(engine, region);
 	try {
 		if (engine === "postgresql") {
@@ -453,7 +468,9 @@ async function getSandboxDatabaseSize(
 	} catch {
 		return 0;
 	} finally {
-		await adminPool.end();
+		if ("end" in adminPool && typeof adminPool.end === "function") {
+			await adminPool.end();
+		}
 	}
 }
 
@@ -462,6 +479,7 @@ async function getSandboxDatabaseSize(
 export const $getSandboxTables = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<SandboxTable[]> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {

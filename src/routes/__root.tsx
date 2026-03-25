@@ -79,25 +79,7 @@ export const Route = createRootRoute({
 				title: "PisangDB",
 			},
 		],
-		links: [
-			{
-				rel: "stylesheet",
-				href: appCss,
-			},
-			{
-				rel: "icon",
-				type: "image/svg+xml",
-				href: "/favicon.svg",
-			},
-			{
-				rel: "apple-touch-icon",
-				href: "/favicon.svg",
-			},
-			{
-				rel: "manifest",
-				href: "/manifest.json",
-			},
-		],
+		links: [],
 	}),
 	shellComponent: RootDocument,
 	component: () => <Outlet />,
@@ -110,6 +92,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 		<QueryClientProvider client={queryClient}>
 			<html lang="en" suppressHydrationWarning>
 				<head>
+					<link rel="stylesheet" href={appCss} />
+					<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+					<link rel="apple-touch-icon" href="/favicon.svg" />
+					<link rel="manifest" href="/manifest.json" />
 					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: theme init script is static and trusted */}
 					<script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
 					<HeadContent />
