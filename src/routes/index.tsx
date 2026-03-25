@@ -3,7 +3,6 @@ import {
 	BotIcon,
 	CheckIcon,
 	ClockIcon,
-	CodeXmlIcon,
 	CopyIcon,
 	DatabaseIcon,
 	GraduationCapIcon,
@@ -50,7 +49,7 @@ const features = [
 		bg: "bg-green-500/10",
 	},
 	{
-		icon: CodeXmlIcon,
+		icon: CopyIcon,
 		title: "SQL Console",
 		desc: "Run queries directly in the browser — no external client needed.",
 		color: "text-purple-500",
@@ -124,114 +123,106 @@ const useCases = [
 
 const SCENARIOS = [
 	{
-		command: "pisangdb create --engine postgresql",
 		name: "migration-check",
+		engine: "PostgreSQL 16",
+		region: "Indonesia",
 		url: "DATABASE_URL=postgresql://sb_a1b2x8:s3cr3t@id.pisangdb.com:5432/pisang_a1b2_migration_x8k2m9",
 		ttl: "6h",
 	},
 	{
-		command: "pisangdb create --engine mysql --ttl 24h",
 		name: "bootcamp-prisma",
+		engine: "MySQL 8",
+		region: "Indonesia",
 		url: "DATABASE_URL=mysql://sb_c3d4y9:s3cr3t@id.pisangdb.com:3306/pisang_c3d4_bootcamp_prisma_z7j1",
 		ttl: "24h",
 	},
 	{
-		command: "pisangdb create --engine mariadb --ttl 1h",
 		name: "quick-test",
+		engine: "MariaDB 11",
+		region: "Indonesia",
 		url: "DATABASE_URL=mysql://sb_e5f6z1:s3cr3t@id.pisangdb.com:3307/pisang_e5f6_quick_test_q2w3",
 		ttl: "1h",
 	},
 ];
 
-function TerminalHero() {
+function SandboxPreviewHero() {
 	const [scenarioIdx, setScenarioIdx] = useState(0);
-	const [typed, setTyped] = useState("");
-	const [showOutput, setShowOutput] = useState(false);
-	const [showUrl, setShowUrl] = useState(false);
 
 	useEffect(() => {
-		const scenario = SCENARIOS[scenarioIdx];
-		if (!scenario) return;
+		const interval = setInterval(() => {
+			setScenarioIdx((cur) => (cur + 1) % SCENARIOS.length);
+		}, 3200);
 
-		let i = 0;
-		setTyped("");
-		setShowOutput(false);
-		setShowUrl(false);
-
-		const typing = setInterval(() => {
-			setTyped(scenario.command.slice(0, i + 1));
-			i++;
-			if (i >= scenario.command.length) {
-				clearInterval(typing);
-				const t1 = setTimeout(() => setShowOutput(true), 400);
-				const t2 = setTimeout(() => setShowUrl(true), 900);
-				// After showing for 2.5s, cycle to next scenario
-				const t3 = setTimeout(() => {
-					setScenarioIdx((cur) => (cur + 1) % SCENARIOS.length);
-				}, 3500);
-				return () => {
-					clearTimeout(t1);
-					clearTimeout(t2);
-					clearTimeout(t3);
-				};
-			}
-		}, 40);
-
-		return () => clearInterval(typing);
-	}, [scenarioIdx]);
+		return () => clearInterval(interval);
+	}, []);
 
 	const scenario = SCENARIOS[scenarioIdx];
 	if (!scenario) return null;
 
 	return (
-		<div className="w-full max-w-2xl overflow-hidden rounded-xl border bg-[#0d1117] text-left shadow-xl">
-			<div className="flex items-center gap-1.5 border-b border-white/10 px-4 py-2.5">
-				<span className="size-3 rounded-full bg-red-500/70" />
-				<span className="size-3 rounded-full bg-yellow-500/70" />
-				<span className="size-3 rounded-full bg-green-500/70" />
-				<span className="ml-2 text-xs text-white/30">pisangdb — terminal</span>
-				<span className="ml-auto flex gap-1">
+		<div className="w-full max-w-2xl overflow-hidden rounded-2xl border bg-card text-left shadow-xl">
+			<div className="flex items-center border-b bg-muted/40 px-4 py-3">
+				<div>
+					<p className="text-sm font-medium">Sandbox credentials preview</p>
+					<p className="text-xs text-muted-foreground">
+						Copy the connection string and start building immediately.
+					</p>
+				</div>
+				<span className="ml-auto flex gap-1.5">
 					{SCENARIOS.map((s, idx) => (
 						<span
 							key={s.name}
-							className={`size-1.5 rounded-full transition-colors duration-300 ${idx === scenarioIdx ? "bg-primary" : "bg-white/20"}`}
+							className={`size-2 rounded-full transition-colors duration-300 ${idx === scenarioIdx ? "bg-primary" : "bg-border"}`}
 						/>
 					))}
 				</span>
 			</div>
-			<div className="space-y-1 p-4 font-mono text-sm">
-				<p className="text-white/40">
-					# Your sandbox credentials appear instantly
-				</p>
-				<p>
-					<span className="text-green-400">$</span>{" "}
-					<span className="text-white/90">
-						{typed}
-						{typed.length < scenario.command.length && (
-							<span className="animate-pulse text-primary">▊</span>
-						)}
-					</span>
-				</p>
-				{showOutput && (
-					<p className="text-primary/80 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
-						✓ Sandbox created:{" "}
-						<span className="text-white/70">{scenario.name}</span>
-					</p>
-				)}
-				{showUrl && (
-					<>
-						<p className="mt-2 break-all rounded-md bg-white/5 p-2 text-xs text-green-300 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500">
-							{scenario.url}
-						</p>
-						<div className="mt-1 flex items-center gap-1.5 text-xs text-white/40 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-700">
-							<CopyIcon className="size-3" />
-							<span>Copy to clipboard</span>
-							<span className="ml-auto">
-								TTL: {scenario.ttl} · Size: 0 / 100 MB
-							</span>
+			<div className="space-y-4 p-4">
+				<div className="grid gap-3 sm:grid-cols-3">
+					<div className="rounded-xl border bg-background p-3">
+						<p className="text-xs text-muted-foreground">Sandbox</p>
+						<p className="mt-1 text-sm font-medium">{scenario.name}</p>
+					</div>
+					<div className="rounded-xl border bg-background p-3">
+						<p className="text-xs text-muted-foreground">Engine</p>
+						<p className="mt-1 text-sm font-medium">{scenario.engine}</p>
+					</div>
+					<div className="rounded-xl border bg-background p-3">
+						<p className="text-xs text-muted-foreground">TTL</p>
+						<p className="mt-1 text-sm font-medium">{scenario.ttl}</p>
+					</div>
+				</div>
+				<div className="rounded-xl border bg-background p-3">
+					<div className="flex items-center justify-between gap-3">
+						<div>
+							<p className="text-xs text-muted-foreground">Connection string</p>
+							<p className="mt-1 text-xs text-muted-foreground">
+								Region {scenario.region} · Ready to copy
+							</p>
 						</div>
-					</>
-				)}
+						<Badge variant="secondary" className="shrink-0">
+							<CopyIcon className="mr-1 size-3" />
+							Copy
+						</Badge>
+					</div>
+					<p className="mt-3 break-all rounded-lg bg-muted/50 p-3 font-mono text-xs text-foreground">
+						{scenario.url}
+					</p>
+				</div>
+				<div className="grid gap-3 sm:grid-cols-2">
+					<div className="rounded-xl border bg-background p-3">
+						<p className="text-xs text-muted-foreground">Retention</p>
+						<p className="mt-1 text-sm font-medium">
+							Auto-cleanup enabled after {scenario.ttl}
+						</p>
+					</div>
+					<div className="rounded-xl border bg-background p-3">
+						<p className="text-xs text-muted-foreground">Isolation</p>
+						<p className="mt-1 text-sm font-medium">
+							Dedicated DB user and sandbox credentials
+						</p>
+					</div>
+				</div>
 			</div>
 		</div>
 	);
@@ -285,8 +276,7 @@ function LandingPage() {
 						</Button>
 					</div>
 
-					{/* Mock connection string terminal */}
-					<TerminalHero />
+					<SandboxPreviewHero />
 				</section>
 
 				{/* ── Stats bar ── */}
