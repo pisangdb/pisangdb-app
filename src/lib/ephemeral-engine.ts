@@ -117,6 +117,18 @@ async function cleanupSandbox(
 export function startEphemeralEngine(): () => void {
 	console.log("[EphemeralEngine] Starting ephemeral engine...");
 
+	import("#/lib/template-seeding")
+		.then(({ ensureBuiltinTemplatesSeeded }) => ensureBuiltinTemplatesSeeded())
+		.then(() => {
+			console.log("[EphemeralEngine] Built-in templates are ready");
+		})
+		.catch((error) => {
+			console.error(
+				"[EphemeralEngine] Failed to seed built-in templates:",
+				error,
+			);
+		});
+
 	cleanupExpiredSandboxes();
 
 	const intervalId = setInterval(cleanupExpiredSandboxes, CLEANUP_INTERVAL_MS);
