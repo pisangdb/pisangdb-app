@@ -1,7 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { PlayIcon, ShieldIcon, Trash2Icon } from "lucide-react";
-import { useCallback, useState } from "react";
+import {
+	ActivityIcon,
+	Clock3Icon,
+	DatabaseIcon,
+	PlayIcon,
+	ShieldIcon,
+	Trash2Icon,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -27,6 +34,13 @@ const ENGINE_LABELS: Record<string, string> = {
 	mariadb: "MariaDB",
 };
 
+const LAST_SANDBOX_STORAGE_KEY = "pisangdb-console-last-sandbox";
+const QUERY_DRAFT_PREFIX = "pisangdb-console-draft:";
+
+function getDraftStorageKey(sandboxId: string) {
+	return `${QUERY_DRAFT_PREFIX}${sandboxId}`;
+}
+
 function SqlConsolePage() {
 	const { data: sandboxes = [], isPending: sandboxesLoading } = useSandboxes();
 	const [selectedSandboxId, setSelectedSandboxId] = useState<string>("");
@@ -51,10 +65,37 @@ function SqlConsolePage() {
 	>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const queryClient = useQueryClient();
+	const shortcutLabel = useMemo(() => {
+		if (typeof navigator === "undefined") return "Ctrl + Enter";
+		return navigator.platform?.includes("Mac") ? "⌘ + Enter" : "Ctrl + Enter";
+	}, []);
 
 	const activeSandboxes = (sandboxes ?? []).filter(
 		(s: SandboxListItem) => s.status === "active",
 	) as SandboxListItem[];
+	const selectedSandbox = activeSandboxes.find(
+		(sandbox) => sandbox.id === selectedSandboxId,
+	);
+	const recentHistory = history.slice(0, 5);
+	const heroStats = [
+		{
+			label: "Active Sandboxes",
+			value: String(activeSandboxes.length),
+			icon: <DatabaseIcon className="size-4" />,
+		},
+		{
+			label: "Selected Engine",
+			value: selectedSandbox
+				? ENGINE_LABELS[selectedSandbox.engine]
+				: "Choose sandbox",
+			icon: <ActivityIcon className="size-4" />,
+		},
+		{
+			label: "Recent Queries",
+			value: String(recentHistory.length),
+			icon: <Clock3Icon className="size-4" />,
+		},
+	];
 
 	const fetchHistory = useCallback(async (sandboxId: string) => {
 		try {
@@ -76,7 +117,15 @@ function SqlConsolePage() {
 			if (sandboxId) {
 				const sandbox = activeSandboxes.find((s) => s.id === sandboxId);
 				setSelectedEngine(sandbox?.engine || "postgresql");
-				setQuery("SELECT 1 as test;");
+				if (typeof window !== "undefined") {
+					const savedDraft = window.sessionStorage.getItem(
+						getDraftStorageKey(sandboxId),
+					);
+					setQuery(savedDraft || "SELECT 1 as test;");
+					window.sessionStorage.setItem(LAST_SANDBOX_STORAGE_KEY, sandboxId);
+				} else {
+					setQuery("SELECT 1 as test;");
+				}
 				await fetchHistory(sandboxId);
 			} else {
 				setHistory([]);
@@ -119,6 +168,9 @@ function SqlConsolePage() {
 		setQueryResult(null);
 		setQueryError(null);
 		setResetKey((k) => k + 1);
+		if (typeof window !== "undefined" && selectedSandboxId) {
+			window.sessionStorage.removeItem(getDraftStorageKey(selectedSandboxId));
+		}
 	};
 
 	const handleHistoryClick = (q: string, id: string) => {
@@ -131,14 +183,75 @@ function SqlConsolePage() {
 		queryResult &&
 		queryResult.columns.length === 0 &&
 		queryResult.rowsAffected >= 0;
+	const starterQueries = [
+		"SELECT * FROM information_schema.tables LIMIT 10;",
+		"SELECT NOW() AS current_time;",
+		"SELECT COUNT(*) AS total_rows FROM information_schema.tables;",
+	];
+
+	useEffect(() => {
+		if (typeof window === "undefined" || !selectedSandboxId) return;
+		window.sessionStorage.setItem(getDraftStorageKey(selectedSandboxId), query);
+	}, [query, selectedSandboxId]);
+
+	useEffect(() => {
+		if (
+			typeof window === "undefined" ||
+			selectedSandboxId ||
+			activeSandboxes.length === 0
+		) {
+			return;
+		}
+
+		const storedSandboxId = window.sessionStorage.getItem(
+			LAST_SANDBOX_STORAGE_KEY,
+		);
+		const nextSandboxId = activeSandboxes.some(
+			(sandbox) => sandbox.id === storedSandboxId,
+		)
+			? (storedSandboxId ?? "")
+			: (activeSandboxes[0]?.id ?? "");
+
+		if (nextSandboxId) {
+			void handleSandboxChange(nextSandboxId);
+		}
+	}, [activeSandboxes, handleSandboxChange, selectedSandboxId]);
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div>
-				<h1 className="text-xl font-semibold tracking-tight">SQL Console</h1>
-				<p className="text-sm text-muted-foreground">
-					Run queries directly from dashboard with sandbox-safe access.
-				</p>
+			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
+				<div className="flex flex-col gap-5">
+					<div className="max-w-2xl">
+						<div className="flex flex-wrap items-center gap-2">
+							<Badge variant="outline">Interactive SQL Console</Badge>
+							<Badge variant="secondary">Sandbox-Safe Execution</Badge>
+						</div>
+						<h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
+							Run live queries without leaving the dashboard
+						</h1>
+						<p className="mt-2 text-sm text-muted-foreground">
+							Inspect schema, test queries, and review recent executions against
+							your active sandboxes with built-in safety limits.
+						</p>
+					</div>
+
+					<div className="grid gap-3 sm:grid-cols-3">
+						{heroStats.map((stat) => (
+							<div
+								key={stat.label}
+								className="rounded-xl border bg-background/80 p-3 shadow-sm"
+							>
+								<div className="flex items-center gap-2 text-xs text-muted-foreground">
+									{stat.icon}
+									<span>{stat.label}</span>
+								</div>
+								<p className="mt-2 text-sm font-semibold text-foreground">
+									{stat.value}
+								</p>
+							</div>
+						))}
+					</div>
+				</div>
 			</div>
 
 			<div className="grid gap-4 lg:grid-cols-3">
@@ -146,7 +259,7 @@ function SqlConsolePage() {
 					<CardHeader>
 						<CardTitle className="text-base">Query Editor</CardTitle>
 						<CardDescription>
-							Write and run SQL queries against your selected sandbox.
+							Write and run SQL against a selected active sandbox.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3">
@@ -172,6 +285,26 @@ function SqlConsolePage() {
 									</option>
 								))}
 							</select>
+						</div>
+
+						<div className="rounded-xl border bg-muted/30 p-3">
+							<div className="flex flex-wrap items-center gap-2">
+								<p className="text-xs font-medium text-foreground">
+									Starter Queries
+								</p>
+								{starterQueries.map((snippet) => (
+									<button
+										key={snippet}
+										type="button"
+										className="rounded-full border bg-background px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+										onClick={() => setQuery(snippet)}
+									>
+										{snippet.length > 38
+											? `${snippet.slice(0, 38)}...`
+											: snippet}
+									</button>
+								))}
+							</div>
 						</div>
 
 						<SqlEditor
@@ -204,11 +337,7 @@ function SqlConsolePage() {
 								<Trash2Icon className="size-4" />
 								Clear
 							</Button>
-							<Badge variant="outline">
-								{navigator.platform?.includes("Mac")
-									? "⌘ + Enter"
-									: "Ctrl + Enter"}
-							</Badge>
+							<Badge variant="outline">{shortcutLabel}</Badge>
 						</div>
 
 						{queryError && (
@@ -249,10 +378,10 @@ function SqlConsolePage() {
 													</tr>
 												</thead>
 												<tbody>
-													{queryResult.rows.map((row, index) => {
-														const rowId = `${index}-${queryResult.columns
+													{queryResult.rows.map((row) => {
+														const rowId = queryResult.columns
 															.map((col) => String(row[col] ?? ""))
-															.join("|")}`;
+															.join("|");
 														return (
 															<tr key={rowId} className="border-t">
 																{queryResult.columns.map((col) => {
@@ -308,11 +437,11 @@ function SqlConsolePage() {
 					<CardHeader>
 						<CardTitle className="text-base">Safety & History</CardTitle>
 						<CardDescription>
-							Read timeout and blocked commands are enforced per sandbox.
+							Query safeguards and recent executions for the selected sandbox.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						<div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+						<div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
 							<p className="flex items-center gap-1.5 font-medium text-foreground">
 								<ShieldIcon className="size-3.5" />
 								Guards
@@ -326,14 +455,14 @@ function SqlConsolePage() {
 
 						<div className="space-y-2">
 							<p className="text-sm font-medium">Recent Queries</p>
-							{history.length > 0 ? (
-								<div className="max-h-48 overflow-y-auto rounded-md border pr-3">
+							{recentHistory.length > 0 ? (
+								<div className="max-h-48 overflow-y-auto rounded-xl border pr-3">
 									<div className="flex flex-col gap-2">
-										{history.slice(0, 5).map((item) => (
+										{recentHistory.map((item) => (
 											<button
 												key={item.id}
 												type="button"
-												className="w-full cursor-pointer rounded-md border bg-background p-2 text-left hover:bg-muted/50"
+												className="w-full cursor-pointer rounded-xl border bg-background p-2.5 text-left hover:bg-muted/50"
 												onClick={() => handleHistoryClick(item.query, item.id)}
 											>
 												<p className="line-clamp-1 font-mono text-xs">
@@ -346,6 +475,11 @@ function SqlConsolePage() {
 														: `${item.executionTimeMs ?? 0}ms`}
 													• {new Date(item.createdAt).toLocaleTimeString()}
 												</p>
+												{item.errorMessage ? (
+													<p className="mt-2 line-clamp-2 text-[11px] text-destructive">
+														{item.errorMessage}
+													</p>
+												) : null}
 											</button>
 										))}
 									</div>

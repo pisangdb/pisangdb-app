@@ -161,6 +161,13 @@ function mapPreferences(
 	};
 }
 
+function getDefaultPreferences(): NonNullable<UserSettings["preferences"]> {
+	return {
+		sandboxExpiryWarning: true,
+		productUpdates: false,
+	};
+}
+
 async function getCurrentSession() {
 	const { auth } = await getAuthServerContext();
 	const request = getRequest();
@@ -181,7 +188,7 @@ export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 	async (): Promise<UserSettings> => {
 		const { accounts, db, userPreferences, users } =
 			await getAuthServerContext();
-		const { session, userId } = await getCurrentSession();
+		const { userId } = await getCurrentSession();
 
 		const userAccounts = await db
 			.select({
@@ -192,24 +199,52 @@ export const $getUserSettings = createServerFn({ method: "GET" }).handler(
 			.from(accounts)
 			.where(eq(accounts.userId, userId));
 
-		const [prefs] = await db
-			.select()
-			.from(userPreferences)
-			.where(eq(userPreferences.userId, userId));
+		let prefs:
+			| {
+					sandboxExpiryWarning: boolean;
+					productUpdates: boolean;
+			  }
+			| undefined;
+		try {
+			[prefs] = await db
+				.select()
+				.from(userPreferences)
+				.where(eq(userPreferences.userId, userId));
+		} catch (error) {
+			console.warn(
+				"[auth] Failed to load user_preferences in $getUserSettings, using defaults",
+				error,
+			);
+		}
 
 		const [userRecord] = await db
-			.select({ createdAt: users.createdAt })
+			.select({
+				createdAt: users.createdAt,
+				email: users.email,
+				id: users.id,
+				image: users.image,
+				name: users.name,
+				role: users.role,
+			})
 			.from(users)
 			.where(eq(users.id, userId))
 			.limit(1);
 
+		if (!userRecord) {
+			throw new Error("User not found");
+		}
+
 		return {
 			user: {
-				...mapSessionUserToAuthUser(session.user as SessionWithOptionalRole),
-				createdAt: userRecord?.createdAt?.toISOString() ?? null,
+				email: userRecord.email,
+				id: userRecord.id,
+				image: userRecord.image ?? null,
+				name: userRecord.name,
+				role: userRecord.role as UserRole,
+				createdAt: userRecord.createdAt?.toISOString() ?? null,
 			},
 			accounts: userAccounts,
-			preferences: mapPreferences(prefs),
+			preferences: mapPreferences(prefs) ?? getDefaultPreferences(),
 		};
 	},
 );
@@ -391,17 +426,20 @@ export const $getUserPreferences = createServerFn({ method: "GET" }).handler(
 		const { db, userPreferences } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
 
-		const [prefs] = await db
-			.select()
-			.from(userPreferences)
-			.where(eq(userPreferences.userId, userId));
+		try {
+			const [prefs] = await db
+				.select()
+				.from(userPreferences)
+				.where(eq(userPreferences.userId, userId));
 
-		return (
-			mapPreferences(prefs) ?? {
-				sandboxExpiryWarning: true,
-				productUpdates: false,
-			}
-		);
+			return mapPreferences(prefs) ?? getDefaultPreferences();
+		} catch (error) {
+			console.warn(
+				"[auth] Failed to load user_preferences in $getUserPreferences, using defaults",
+				error,
+			);
+			return getDefaultPreferences();
+		}
 	},
 );
 

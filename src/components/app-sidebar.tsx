@@ -1,6 +1,8 @@
 import { Link, useRouteContext } from "@tanstack/react-router";
 import {
+	BadgeCheckIcon,
 	BotIcon,
+	CircleHelpIcon,
 	DatabaseIcon,
 	LayoutDashboardIcon,
 	Settings2Icon,
@@ -9,6 +11,7 @@ import {
 import type * as React from "react";
 import { Logo } from "#/components/logo";
 import { NavMain } from "#/components/nav-main";
+import { NavSecondary } from "#/components/nav-secondary";
 import { NavUsage } from "#/components/nav-usage";
 import { NavUser } from "#/components/nav-user";
 import {
@@ -53,21 +56,29 @@ const navData = {
 			url: "/dashboard/ai-seeder",
 			icon: <BotIcon />,
 		},
+	],
+	navSecondary: [
+		{
+			title: "Account",
+			url: "/dashboard/account",
+			icon: <BadgeCheckIcon />,
+		},
 		{
 			title: "Settings",
 			url: "/dashboard/settings",
 			icon: <Settings2Icon />,
+		},
+		{
+			title: "Help",
+			url: "/dashboard/help",
+			icon: <CircleHelpIcon />,
 		},
 	],
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const context = useRouteContext({ from: "/_app" });
-	const user = context?.user || {
-		name: "User",
-		email: "user@example.com",
-		image: null,
-	};
+	const user = context?.user;
 
 	return (
 		<Sidebar collapsible="icon" {...props}>
@@ -95,15 +106,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 				</SidebarMenu>
 			</SidebarHeader>
 			<SidebarContent>
-				<NavMain items={navData.navMain} />
+				<NavMain label="Workspace" items={navData.navMain} />
+				<NavSecondary label="Account" items={navData.navSecondary} />
 				<NavUsage />
 			</SidebarContent>
 			<SidebarFooter>
 				<NavUser
 					user={{
-						name: user.name || "User",
-						email: user.email || "user@example.com",
-						avatar: user.image || "",
+						name: user?.name || "Account",
+						email: user?.email || "",
+						avatar: user?.image || "",
 					}}
 				/>
 			</SidebarFooter>

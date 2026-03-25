@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { ChevronRightIcon } from "lucide-react";
 import {
 	Collapsible,
@@ -7,6 +7,7 @@ import {
 } from "#/components/ui/collapsible";
 import {
 	SidebarGroup,
+	SidebarGroupLabel,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
@@ -22,8 +23,10 @@ import {
 } from "#/components/ui/tooltip";
 
 export function NavMain({
+	label,
 	items,
 }: {
+	label?: string;
 	items: {
 		title: string;
 		url: string;
@@ -37,21 +40,38 @@ export function NavMain({
 }) {
 	const { state } = useSidebar();
 	const isCollapsed = state === "collapsed";
+	const pathname = useLocation({
+		select: (location) => location.pathname,
+	});
+	const isItemActive = (url: string) =>
+		url === "/dashboard"
+			? pathname === url
+			: pathname === url || pathname.startsWith(`${url}/`);
+	const isSubItemActive = (url: string) => pathname === url;
 
 	return (
 		<SidebarGroup>
+			{label ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
 			<SidebarMenu>
-				{items.map((item) =>
-					item.items?.length ? (
+				{items.map((item) => {
+					const childIsActive = Boolean(
+						item.items?.some((subItem) => isSubItemActive(subItem.url)),
+					);
+					const itemIsActive = isItemActive(item.url);
+
+					return item.items?.length ? (
 						<Collapsible
 							key={item.title}
 							asChild
-							defaultOpen={!isCollapsed}
+							defaultOpen={!isCollapsed || childIsActive || itemIsActive}
 							className="group/collapsible"
 						>
 							<SidebarMenuItem>
 								<CollapsibleTrigger asChild>
-									<SidebarMenuButton tooltip={item.title}>
+									<SidebarMenuButton
+										tooltip={item.title}
+										isActive={childIsActive || itemIsActive}
+									>
 										{item.icon}
 										<span>{item.title}</span>
 										<ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
@@ -64,7 +84,10 @@ export function NavMain({
 												<Tooltip key={subItem.title} delayDuration={0}>
 													<TooltipTrigger asChild>
 														<SidebarMenuSubItem>
-															<SidebarMenuSubButton asChild>
+															<SidebarMenuSubButton
+																asChild
+																data-active={isSubItemActive(subItem.url)}
+															>
 																<Link to={subItem.url}>
 																	<span>{subItem.title}</span>
 																</Link>
@@ -77,7 +100,10 @@ export function NavMain({
 												</Tooltip>
 											) : (
 												<SidebarMenuSubItem key={subItem.title}>
-													<SidebarMenuSubButton asChild>
+													<SidebarMenuSubButton
+														asChild
+														data-active={isSubItemActive(subItem.url)}
+													>
 														<Link to={subItem.url}>
 															<span>{subItem.title}</span>
 														</Link>
@@ -91,15 +117,19 @@ export function NavMain({
 						</Collapsible>
 					) : (
 						<SidebarMenuItem key={item.title}>
-							<SidebarMenuButton asChild tooltip={item.title}>
+							<SidebarMenuButton
+								asChild
+								tooltip={item.title}
+								isActive={itemIsActive}
+							>
 								<Link to={item.url}>
 									{item.icon}
 									<span>{item.title}</span>
 								</Link>
 							</SidebarMenuButton>
 						</SidebarMenuItem>
-					),
-				)}
+					);
+				})}
 			</SidebarMenu>
 		</SidebarGroup>
 	);

@@ -51,7 +51,7 @@ function DashboardSkeleton() {
 				<Skeleton className="h-8 w-28" />
 			</div>
 
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{Array.from({ length: 4 }).map(() => (
 					<div
 						key={generateKey()}
@@ -235,7 +235,16 @@ function formatCreatedAgo(createdAt: string): string {
 }
 
 export function DashboardHome() {
-	const { sandboxes, stats } = Route.useLoaderData();
+	const loaderData = Route.useLoaderData();
+	const sandboxes = loaderData?.sandboxes ?? [];
+	const stats = {
+		activeSandboxes: loaderData?.stats?.activeSandboxes ?? 0,
+		totalCreated: loaderData?.stats?.totalCreated ?? 0,
+		autoCleaned: loaderData?.stats?.autoCleaned ?? 0,
+		aiQueriesThisMonth: loaderData?.stats?.aiQueriesThisMonth ?? 0,
+		tier: loaderData?.stats?.tier ?? "free",
+		maxSandboxes: loaderData?.stats?.maxSandboxes ?? 5,
+	};
 	const [copiedId, setCopiedId] = useState<string | null>(null);
 	const [actionResult, setActionResult] = useState<{
 		id: string;
@@ -243,14 +252,6 @@ export function DashboardHome() {
 	} | null>(null);
 
 	const statsCards = [
-		{
-			label: "Active Sandboxes",
-			value: String(stats.activeSandboxes),
-			sub: `of ${stats.maxSandboxes} max`,
-			icon: <DatabaseIcon className="size-4" />,
-			accent: "text-primary",
-			bg: "bg-primary/10",
-		},
 		{
 			label: "Total Created",
 			value: String(stats.totalCreated),
@@ -302,27 +303,72 @@ export function DashboardHome() {
 				new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
 		)
 		.slice(0, 5);
+	const activePct =
+		stats.maxSandboxes > 0
+			? Math.round((stats.activeSandboxes / stats.maxSandboxes) * 100)
+			: 0;
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-					<p className="text-sm text-muted-foreground">
-						Monitor your sandbox activity and quick actions.
-					</p>
+			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
+				<div className="flex flex-col gap-5">
+					<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+						<div className="max-w-2xl">
+							<div className="flex flex-wrap items-center gap-2">
+								<Badge variant="outline">Workspace Overview</Badge>
+								<Badge variant="secondary">Free Tier</Badge>
+							</div>
+							<h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
+								Your sandbox control center
+							</h1>
+							<p className="mt-2 text-sm text-muted-foreground">
+								Create, inspect, seed, and query sandbox databases from one
+								workspace surface with live usage, limits, and recent activity.
+							</p>
+						</div>
+						<div className="flex flex-wrap gap-2 lg:justify-end">
+							<Button asChild size="sm" className="gap-1.5">
+								<Link to="/dashboard/sandboxes/new">
+									<PlusIcon className="size-4" />
+									New Sandbox
+								</Link>
+							</Button>
+							<Button asChild size="sm" variant="outline" className="gap-1.5">
+								<Link to="/dashboard/sandboxes">
+									<DatabaseIcon className="size-4" />
+									View Sandboxes
+								</Link>
+							</Button>
+						</div>
+					</div>
+
+					<div className="rounded-xl border bg-background/70 p-4">
+						<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+							<div className="space-y-1">
+								<p className="text-sm font-medium">Sandbox Capacity</p>
+								<p className="text-xs text-muted-foreground">
+									{stats.activeSandboxes} active sandboxes currently running.
+									You still have {stats.maxSandboxes - stats.activeSandboxes}{" "}
+									slot(s) available in the current workspace tier.
+								</p>
+							</div>
+							<Badge variant="outline" className="w-fit">
+								{activePct}% used
+							</Badge>
+						</div>
+						<div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+							<div
+								className="h-full rounded-full bg-primary transition-all"
+								style={{ width: `${Math.min(100, activePct)}%` }}
+							/>
+						</div>
+					</div>
 				</div>
-				<Button asChild size="sm" className="gap-1.5">
-					<Link to="/dashboard/sandboxes/new">
-						<PlusIcon className="size-4" />
-						New Sandbox
-					</Link>
-				</Button>
 			</div>
 
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{statsCards.map((stat) => (
-					<Card key={stat.label} className="gap-3">
+					<Card key={stat.label} className="gap-3 rounded-xl">
 						<CardHeader className="flex flex-row items-center justify-between pb-0">
 							<CardDescription className="text-xs font-medium">
 								{stat.label}
@@ -351,13 +397,16 @@ export function DashboardHome() {
 						<CardTitle className="text-sm font-semibold">
 							Quick Actions
 						</CardTitle>
+						<CardDescription className="text-xs">
+							Jump straight into the next thing you want to do.
+						</CardDescription>
 					</CardHeader>
 					<CardContent className="flex flex-col gap-2">
 						{quickActions.map((action) => (
 							<Link
 								key={action.label}
 								to={action.href}
-								className="flex items-center gap-3 rounded-lg border border-transparent p-2.5 transition-colors hover:border-border hover:bg-muted/50"
+								className="flex items-center gap-3 rounded-xl border p-3 transition-colors hover:border-border hover:bg-muted/50"
 							>
 								<div
 									className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${action.accent}`}
@@ -382,7 +431,7 @@ export function DashboardHome() {
 								Recent Sandboxes
 							</CardTitle>
 							<CardDescription className="text-xs">
-								Your latest database sandboxes
+								Your latest database sandboxes.
 							</CardDescription>
 						</div>
 						<Button asChild variant="ghost" size="sm" className="text-xs">
@@ -391,7 +440,7 @@ export function DashboardHome() {
 					</CardHeader>
 					<CardContent className="flex flex-col gap-2">
 						{recentSandboxes.length === 0 ? (
-							<div className="rounded-lg border border-dashed p-6 text-center">
+							<div className="rounded-xl border border-dashed p-6 text-center">
 								<p className="text-sm font-medium">No sandbox yet</p>
 								<p className="mt-1 text-xs text-muted-foreground">
 									Create your first sandbox to start testing quickly.
@@ -410,7 +459,7 @@ export function DashboardHome() {
 								return (
 									<div
 										key={sb.id}
-										className={`flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40 ${
+										className={`flex items-center gap-3 rounded-xl border p-3 transition-colors hover:bg-muted/40 ${
 											uiStatus === "expired" || uiStatus === "destroying"
 												? "opacity-50 grayscale"
 												: ""
@@ -421,6 +470,9 @@ export function DashboardHome() {
 										</div>
 
 										<div className="min-w-0 flex-1">
+											<p className="mb-1 text-xs text-muted-foreground">
+												{sb.displayName}
+											</p>
 											<Link
 												to="/dashboard/sandboxes/$id"
 												params={{ id: sb.id }}
