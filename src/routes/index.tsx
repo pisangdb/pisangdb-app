@@ -59,7 +59,7 @@ const features = [
 	{
 		icon: BotIcon,
 		title: "AI Seeder",
-		desc: "Generate schema and seed data using natural language. Powered by Gemini.",
+		desc: "Generate schema and seed data using natural language with configurable AI provider.",
 		color: "text-pink-500",
 		bg: "bg-pink-500/10",
 	},

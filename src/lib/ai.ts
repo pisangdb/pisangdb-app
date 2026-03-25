@@ -1,6 +1,5 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-export const GEMINI_MODEL = "gemini-2.0-flash";
+const DEFAULT_AI_MAX_TOKENS = 1000;
+const DEFAULT_AI_TEMPERATURE = 0.2;
 
 export interface AiGenerateParams {
 	prompt: string;
@@ -14,7 +13,18 @@ export interface GenerateSQLResult {
 	tokensUsed: number;
 }
 
-const SYSTEM_PROMPT = `You are a PostgreSQL/MySQL/MariaDB SQL expert for an ephemeral database service called PisangDB.
+type ChatCompletionResponse = {
+	choices?: Array<{
+		message?: {
+			content?: string | Array<{ type?: string; text?: string }>;
+		};
+	}>;
+	usage?: {
+		total_tokens?: number;
+	};
+};
+
+const SYSTEM_PROMPT = `You are a SQL generation assistant for PisangDB, an ephemeral database service.
 
 RULES:
 1. Generate ONLY valid SQL for the specified engine (PostgreSQL 16, MySQL 8, or MariaDB 11)
@@ -30,6 +40,44 @@ RULES:
 
 USER REQUEST ENGINE: {engine}
 USER DATABASE NAME: {sandboxDbName}`;
+
+function getAiConfig() {
+	const apiUrl = process.env.AI_API_URL;
+	const apiToken = process.env.AI_API_TOKEN;
+	const model = process.env.AI_MODEL;
+	const maxTokens = Number(process.env.AI_MAX_TOKENS ?? DEFAULT_AI_MAX_TOKENS);
+	const temperature = Number(
+		process.env.AI_TEMPERATURE ?? DEFAULT_AI_TEMPERATURE,
+	);
+
+	if (!apiUrl) {
+		throw new Error("AI_API_URL environment variable is not set.");
+	}
+
+	if (!apiToken) {
+		throw new Error("AI_API_TOKEN environment variable is not set.");
+	}
+
+	if (!model) {
+		throw new Error("AI_MODEL environment variable is not set.");
+	}
+
+	return {
+		apiUrl,
+		apiToken,
+		model,
+		maxTokens: Number.isFinite(maxTokens) ? maxTokens : DEFAULT_AI_MAX_TOKENS,
+		temperature: Number.isFinite(temperature)
+			? temperature
+			: DEFAULT_AI_TEMPERATURE,
+	};
+}
+
+export function isAiConfigured() {
+	return Boolean(
+		process.env.AI_API_URL && process.env.AI_API_TOKEN && process.env.AI_MODEL,
+	);
+}
 
 function parseSQLFromResponse(text: string): {
 	sql: string;
@@ -57,43 +105,76 @@ function validateGeneratedSQL(sql: string): void {
 	if (upper.includes("TRUNCATE") && !upper.includes("WHERE")) {
 		throw new Error("Generated SQL contains TRUNCATE without WHERE clause.");
 	}
+	if (upper.includes("ALTER USER") || upper.includes("CREATE USER")) {
+		throw new Error("Generated SQL contains forbidden user management.");
+	}
+}
+
+function extractResponseText(response: ChatCompletionResponse): string {
+	const content = response.choices?.[0]?.message?.content;
+
+	if (typeof content === "string") {
+		return content;
+	}
+
+	if (Array.isArray(content)) {
+		return content
+			.map((item) => item.text ?? "")
+			.join("")
+			.trim();
+	}
+
+	return "";
 }
 
 export async function generateSQL(
 	params: AiGenerateParams,
 ): Promise<GenerateSQLResult> {
-	const apiKey = process.env.GEMINI_API_KEY;
-	if (!apiKey) {
-		throw new Error("GEMINI_API_KEY environment variable is not set.");
-	}
+	const { apiUrl, apiToken, model, maxTokens, temperature } = getAiConfig();
+	const systemPrompt = SYSTEM_PROMPT.replace("{engine}", params.engine).replace(
+		"{sandboxDbName}",
+		params.sandboxDbName,
+	);
 
-	const genAI = new GoogleGenerativeAI(apiKey);
-	const model = genAI.getGenerativeModel({
-		model: GEMINI_MODEL,
-		systemInstruction: SYSTEM_PROMPT.replace("{engine}", params.engine).replace(
-			"{sandboxDbName}",
-			params.sandboxDbName,
-		),
+	const response = await fetch(apiUrl, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${apiToken}`,
+		},
+		body: JSON.stringify({
+			model,
+			messages: [
+				{ role: "system", content: systemPrompt },
+				{ role: "user", content: params.prompt },
+			],
+			max_tokens: maxTokens,
+			temperature,
+		}),
 	});
 
-	const result = await model.generateContent(params.prompt);
-	const response = result.response;
-	const text = response.text();
+	if (!response.ok) {
+		throw new Error(
+			`AI provider request failed with status ${response.status}.`,
+		);
+	}
+
+	const payload = (await response.json()) as ChatCompletionResponse;
+	const text = extractResponseText(payload);
 
 	if (!text || text.trim().length === 0) {
-		throw new Error("Gemini returned an empty response.");
+		throw new Error("AI provider returned an empty response.");
 	}
 
 	const { sql, explanation } = parseSQLFromResponse(text);
 
 	if (!sql || sql.trim().length === 0) {
-		throw new Error("Could not extract SQL from Gemini response.");
+		throw new Error("Could not extract SQL from AI provider response.");
 	}
 
 	validateGeneratedSQL(sql);
 
-	const usageMetadata = response.usageMetadata;
-	const tokensUsed = usageMetadata?.totalTokenCount ?? 0;
+	const tokensUsed = payload.usage?.total_tokens ?? 0;
 
 	return { sql, explanation, tokensUsed };
 }
