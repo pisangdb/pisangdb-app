@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeftIcon, CopyIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeftIcon } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -62,7 +62,6 @@ function NewSandboxPage() {
 	const [name, setName] = useState("my-project-db");
 	const [retention, setRetention] = useState("6 hours");
 	const [templateId, setTemplateId] = useState<string | null>(null);
-	const [copied, setCopied] = useState(false);
 
 	// Fetch templates filtered by selected engine
 	const { data: templatesData } = useTemplates(engine);
@@ -83,7 +82,7 @@ function NewSandboxPage() {
 			return;
 		}
 		try {
-			await createSandbox.mutateAsync({
+			const created = await createSandbox.mutateAsync({
 				displayName: name,
 				engine,
 				region,
@@ -91,7 +90,10 @@ function NewSandboxPage() {
 				templateId: templateId ?? undefined,
 			});
 			toast.success("Sandbox created!");
-			void navigate({ to: "/dashboard/sandboxes" });
+			void navigate({
+				to: "/dashboard/sandboxes/$id",
+				params: { id: created.id },
+			});
 		} catch {
 			// Error toast already shown by useCreateSandbox
 		}
@@ -99,42 +101,10 @@ function NewSandboxPage() {
 
 	const selectedEngine =
 		engineOptions.find((item) => item.value === engine) ?? engineOptions[0];
-
-	const generated = useMemo(() => {
-		const normalizedName =
-			name
-				.toLowerCase()
-				.trim()
-				.replaceAll(/[^a-z0-9]/g, "-")
-				.replaceAll(/-{2,}/g, "-") || "sandbox";
-
-		const dbName = `pisang_a1b2_${normalizedName}_x8k2m9`;
-		const dbUser = "sb_a1b2x8";
-		const host = `${region}.pisangdb.com`;
-		const protocol = engine === "postgresql" ? "postgresql" : "mysql";
-		const connectionUrl = `${protocol}://${dbUser}:***@${host}:${selectedEngine.port}/${dbName}`;
-
-		return { dbName, dbUser, host, connectionUrl };
-	}, [engine, name, region, selectedEngine.port]);
-
-	const copyEnv = async () => {
-		if (typeof navigator === "undefined" || !navigator.clipboard) {
-			toast.error("Clipboard not available");
-			return;
-		}
-		try {
-			await navigator.clipboard.writeText(
-				`DATABASE_URL=${generated.connectionUrl}`,
-			);
-			toast.success("Copied to clipboard!");
-			setCopied(true);
-			setTimeout(() => {
-				setCopied(false);
-			}, 1200);
-		} catch {
-			toast.error("Failed to copy to clipboard");
-		}
-	};
+	const selectedTemplate = templatesData?.find(
+		(item) => item.id === templateId,
+	);
+	const retentionHours = RETENTION_MAP[retention] ?? 0;
 
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
@@ -287,9 +257,10 @@ function NewSandboxPage() {
 
 				<Card className="lg:col-span-2">
 					<CardHeader>
-						<CardTitle className="text-base">Credentials Preview</CardTitle>
+						<CardTitle className="text-base">Creation Summary</CardTitle>
 						<CardDescription>
-							Matches PisangDB output format for quick copy-paste.
+							Credentials are generated on create and shown on the sandbox
+							detail page.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3 text-sm">
@@ -303,44 +274,38 @@ function NewSandboxPage() {
 								<span className="font-medium">{region.toUpperCase()}</span>
 							</p>
 							<p>
-								Host: <span className="font-medium">{generated.host}</span>
+								Region host:{" "}
+								<span className="font-medium">{region}.pisangdb.com</span>
 							</p>
 							<p className="font-medium">Port: {selectedEngine.port}</p>
 							<p>
-								Database:{" "}
-								<span className="font-mono text-xs">{generated.dbName}</span>
+								Sandbox name:{" "}
+								<span className="font-medium">{name.trim() || "Untitled"}</span>
 							</p>
 							<p>
-								Username:{" "}
-								<span className="font-mono text-xs">{generated.dbUser}</span>
+								Retention: <span className="font-medium">{retention}</span>
 							</p>
 							<p>
-								Password:{" "}
-								<span className="font-mono text-xs">••••••••••••••••</span>
+								Template:{" "}
+								<span className="font-medium">
+									{selectedTemplate?.name ?? "Blank"}
+								</span>
 							</p>
 							<Badge variant="outline" className="w-fit text-[10px]">
-								TTL: {retention}
+								TTL: {retentionHours}h
 							</Badge>
 						</div>
 
-						<div className="rounded-lg bg-muted p-3 text-xs font-mono text-muted-foreground">
-							<p className="break-all">{generated.connectionUrl}</p>
-						</div>
-
-						<Button
-							variant="outline"
-							className="w-full gap-1.5"
-							onClick={copyEnv}
-						>
-							<CopyIcon className="size-4" />
-							Copy .env Snippet
-						</Button>
-
-						{copied ? (
-							<p className="text-xs text-muted-foreground">
-								Copied: DATABASE_URL={generated.connectionUrl}
+						<div className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
+							<p>
+								Database name, username, password, and connection URL are
+								provisioned server-side after creation succeeds.
 							</p>
-						) : null}
+							<p className="mt-2">
+								After submit, you will be redirected to the sandbox detail page
+								with the real credentials.
+							</p>
+						</div>
 					</CardContent>
 				</Card>
 			</div>

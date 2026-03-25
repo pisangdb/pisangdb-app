@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, desc, eq, ne, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, ne, sql } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import type { Pool } from "pg";
 import {
@@ -29,15 +29,26 @@ async function getSandboxesServerContext() {
 
 	return {
 		auth,
+		aiLogs: schema.aiLogs,
 		db,
 		sandboxes: schema.sandboxes,
 		templates: schema.templates,
 	};
 }
 
+function getCurrentUtcMonthRange() {
+	const now = new Date();
+	const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+	const end = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+	);
+
+	return { end, start };
+}
+
 export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<DashboardStats> => {
-		const { auth, db, sandboxes } = await getSandboxesServerContext();
+		const { aiLogs, auth, db, sandboxes } = await getSandboxesServerContext();
 		const request = getRequest();
 		const session = await auth.api.getSession({ headers: request.headers });
 		if (!session?.user) {
@@ -63,6 +74,18 @@ export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 				and(eq(sandboxes.userId, userId), eq(sandboxes.status, "expired")),
 			);
 
+		const { end, start } = getCurrentUtcMonthRange();
+		const [aiResult] = await db
+			.select({ count: count() })
+			.from(aiLogs)
+			.where(
+				and(
+					eq(aiLogs.userId, userId),
+					gte(aiLogs.createdAt, start),
+					lt(aiLogs.createdAt, end),
+				),
+			);
+
 		const tier = DEFAULT_TIER;
 		const maxSandboxes = TIER_LIMITS[tier];
 
@@ -70,7 +93,7 @@ export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 			activeSandboxes: activeResult?.count ?? 0,
 			totalCreated: totalResult?.count ?? 0,
 			autoCleaned: expiredResult?.count ?? 0,
-			aiQueriesThisMonth: 0,
+			aiQueriesThisMonth: aiResult?.count ?? 0,
 			tier,
 			maxSandboxes,
 		};
@@ -82,6 +105,15 @@ async function getDatabaseNow(): Promise<Date> {
 	const result =
 		await db.execute(sql<{ now: Date | string }>`select now() as now`);
 	const currentTime = result.rows[0]?.now;
+	if (
+		!(
+			currentTime instanceof Date ||
+			typeof currentTime === "string" ||
+			typeof currentTime === "number"
+		)
+	) {
+		throw new Error("Failed to read current database time.");
+	}
 
 	const parsedTime =
 		currentTime instanceof Date ? currentTime : new Date(currentTime);
@@ -558,16 +590,20 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 				}
 				await sandboxPool.end();
 			} else {
+				const [{ getAdminPool }] = await Promise.all([
+					import("#/lib/sandbox-provisioning"),
+				]);
 				const pool = getAdminPool(engine, sandbox.region) as MySqlPool;
 				const [result] = (await pool.query(
 					`SHOW TABLE STATUS FROM \`${sandbox.dbName}\``,
 				)) as [Record<string, number | string>[], unknown];
 				tables = result.map((row) => ({
-					name: row.Tables_in_db as string,
+					name: String(row.Name ?? "unknown"),
 					rows: (row.Rows as number) || 0,
 					sizeKb:
 						Math.round(
-							parseInt((row.Data_length as string) || "0", 10) / 1024,
+							(Number(row.Data_length ?? 0) + Number(row.Index_length ?? 0)) /
+								1024,
 						) || 0,
 				}));
 				await pool.end();

@@ -22,6 +22,8 @@ export const TIER_LIMITS: Record<UserTier, number> = {
 };
 
 export const DEFAULT_TIER: UserTier = "free";
+export const MAX_SANDBOX_SIZE_MB = 100;
+export const MAX_RETENTION_HOURS = 168;
 
 export function computeSandboxUiStatus(
 	status: SandboxStatus,

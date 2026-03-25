@@ -12,6 +12,7 @@ import {
 	$deleteAccount,
 	$getUserPreferences,
 	$getUserSettings,
+	$getWorkspaceStats,
 	$listSessions,
 	$revokeAllSessions,
 	$revokeSession,
@@ -27,6 +28,7 @@ type UpdatePreferencesData = z.infer<typeof updatePreferencesSchema>;
 const USER_SETTINGS_QUERY_KEY = ["user-settings"] as const;
 const USER_SESSIONS_QUERY_KEY = ["user-sessions"] as const;
 const USER_PREFERENCES_QUERY_KEY = ["user-preferences"] as const;
+const WORKSPACE_STATS_QUERY_KEY = ["workspace-stats"] as const;
 
 // ─── User Settings ────────────────────────────────────────────────────────────
 
@@ -115,6 +117,14 @@ export function usePreferences() {
 	return useQuery({
 		queryKey: USER_PREFERENCES_QUERY_KEY,
 		queryFn: () => $getUserPreferences(),
+	});
+}
+
+export function useWorkspaceStats() {
+	return useQuery({
+		queryKey: WORKSPACE_STATS_QUERY_KEY,
+		queryFn: () => $getWorkspaceStats(),
+		refetchInterval: 30_000,
 	});
 }
 

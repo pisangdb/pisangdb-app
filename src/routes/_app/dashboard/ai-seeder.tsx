@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { BotIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
@@ -13,6 +14,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card";
 import { useSandboxes } from "#/lib/hooks/useSandboxes";
+import { useWorkspaceStats } from "#/lib/hooks/useUserSettings";
 import type { AiGenerateResult } from "#/lib/types";
 import { $aiExecute, $aiGenerate } from "#/modules/console/serverFn";
 
@@ -46,7 +48,12 @@ const modeConfig: {
 ];
 
 function AiSeederPage() {
+	const queryClient = useQueryClient();
 	const { data: sandboxes, isLoading: sandboxesLoading } = useSandboxes();
+	const { data: workspaceStats } = useWorkspaceStats();
+	const activeSandboxes = (sandboxes ?? []).filter(
+		(sandbox) => sandbox.status === "active",
+	);
 	const [selectedSandbox, setSelectedSandbox] = useState("");
 	const [mode, setMode] = useState<Mode>("schema");
 	const [prompt, setPrompt] = useState("");
@@ -72,12 +79,16 @@ function AiSeederPage() {
 		setExecuteError(null);
 		try {
 			const selected = sandboxes?.find((s) => s.id === selectedSandbox);
+			if (selected?.status !== "active") {
+				throw new Error("Selected sandbox is not active");
+			}
 			const engine = selected?.engine ?? "postgresql";
 			const result = await $aiGenerate({
 				data: { sandboxId: selectedSandbox, prompt, engine },
 			});
 			setGenerated(result);
 			setSqlText(result.sqlGenerated);
+			await queryClient.invalidateQueries({ queryKey: ["workspace-stats"] });
 		} catch (err) {
 			const message =
 				err instanceof Error ? err.message : "Failed to generate SQL";
@@ -143,13 +154,13 @@ function AiSeederPage() {
 								disabled={sandboxesLoading}
 							>
 								<option value="">Select a sandbox…</option>
-								{sandboxes?.map((sandbox) => (
+								{activeSandboxes.map((sandbox) => (
 									<option key={sandbox.id} value={sandbox.id}>
 										{sandbox.displayName} ({sandbox.engine})
 									</option>
 								))}
 							</select>
-							{!sandboxesLoading && sandboxes && sandboxes.length === 0 && (
+							{!sandboxesLoading && activeSandboxes.length === 0 && (
 								<p className="text-xs text-muted-foreground">
 									No sandboxes found.{" "}
 									<a href="/dashboard/sandboxes" className="underline">
@@ -197,12 +208,20 @@ function AiSeederPage() {
 								size="sm"
 								className="gap-1.5"
 								onClick={handleGenerate}
-								disabled={isGenerating || sandboxesLoading}
+								disabled={
+									isGenerating ||
+									sandboxesLoading ||
+									activeSandboxes.length === 0
+								}
 							>
 								<SparklesIcon className="size-4" />
 								{isGenerating ? "Generating…" : "Generate SQL"}
 							</Button>
-							<Badge variant="outline">30 requests/day (free)</Badge>
+							<Badge variant="outline">
+								{workspaceStats
+									? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} requests today`
+									: "Loading AI usage…"}
+							</Badge>
 						</div>
 
 						{generated ? (
@@ -255,24 +274,30 @@ function AiSeederPage() {
 					<CardHeader>
 						<CardTitle className="text-base">AI Guardrails</CardTitle>
 						<CardDescription>
-							Configured for engine-specific SQL and safer generation.
+							Built to generate cleaner SQL with safer execution boundaries.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-3 text-sm text-muted-foreground">
 						<p className="flex items-center gap-1.5 text-foreground">
 							<BotIcon className="size-4" />
-							Current model: configured via `AI_MODEL`
+							Engine-aware generation tuned for your selected sandbox
 						</p>
 						<ul className="list-disc space-y-1 pl-4 text-xs">
-							<li>Prompt length up to 1000 chars</li>
-							<li>Prompt and SQL output saved to AI logs</li>
-							<li>Potentially unsafe SQL requires manual review</li>
+							<li>
+								Understands PostgreSQL, MySQL, and MariaDB syntax differences
+							</li>
+							<li>
+								Stores prompts and generated SQL in your sandbox activity log
+							</li>
+							<li>Potentially risky SQL still requires your manual approval</li>
 						</ul>
 						<div className="rounded-md bg-muted p-3 text-xs">
-							<p className="font-medium text-foreground">Tip</p>
+							<p className="font-medium text-foreground">
+								Better Prompt, Better SQL
+							</p>
 							<p className="mt-1">
-								Be specific about tables, constraints, and data volume to get
-								better SQL output.
+								Describe tables, relationships, constraints, and target data
+								volume to get more usable output on the first pass.
 							</p>
 						</div>
 					</CardContent>

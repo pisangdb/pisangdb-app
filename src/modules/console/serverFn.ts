@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import type mysql from "mysql2/promise";
 import type { Pool } from "pg";
 import { NotFoundError, UnauthorizedError } from "#/lib/errors";
@@ -47,6 +47,18 @@ const FORBIDDEN_PATTERNS = [
 	/KILL\s+/i,
 	/SHUTDOWN/i,
 ];
+
+const AI_DAILY_LIMIT = 30;
+
+function getTodayUtcRange() {
+	const now = new Date();
+	const start = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+	);
+	const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+	return { end, start };
+}
 
 function checkForbiddenCommands(query: string): void {
 	const upperQuery = query.toUpperCase();
@@ -115,7 +127,7 @@ async function insertQueryHistoryEntry(params: {
 	await db.insert(queryHistory).values(params);
 }
 
-async function markAiLogExecuted(logId: number | null | undefined) {
+async function markAiLogExecuted(logId: string | null | undefined) {
 	if (!logId) {
 		return;
 	}
@@ -286,15 +298,23 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 	.inputValidator(aiGenerateSchema)
 	.handler(async ({ data }): Promise<AiGenerateResult> => {
 		const { aiLogs, db } = await getConsoleServerContext();
-		const [{ checkAiRateLimit, recordAiRequest }, { generateSQL }] =
-			await Promise.all([import("#/lib/rate-limit"), import("#/lib/ai")]);
+		const [{ generateSQL }] = await Promise.all([import("#/lib/ai")]);
 		const user = await getCurrentUser();
+		const { end, start } = getTodayUtcRange();
 
-		const rateLimit = checkAiRateLimit(user.id);
-		if (!rateLimit.allowed) {
-			throw new Error(
-				`AI rate limit exceeded. Try again at ${rateLimit.resetAt.toLocaleTimeString()}.`,
+		const [usageResult] = await db
+			.select({ count: count() })
+			.from(aiLogs)
+			.where(
+				and(
+					eq(aiLogs.userId, user.id),
+					gte(aiLogs.createdAt, start),
+					lt(aiLogs.createdAt, end),
+				),
 			);
+
+		if ((usageResult?.count ?? 0) >= AI_DAILY_LIMIT) {
+			throw new Error("AI daily limit reached. Try again tomorrow.");
 		}
 
 		const sandbox = await getOwnedSandbox(data.sandboxId, user.id);
@@ -304,8 +324,6 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 			engine: data.engine,
 			sandboxDbName: sandbox.dbName,
 		});
-
-		recordAiRequest(user.id);
 
 		const [log] = await db
 			.insert(aiLogs)

@@ -13,26 +13,21 @@ import {
 	Card,
 	CardContent,
 	CardDescription,
+	CardFooter,
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Skeleton } from "#/components/ui/skeleton";
+import {
+	useUserSettings,
+	useWorkspaceStats,
+} from "#/lib/hooks/useUserSettings";
+import { MAX_RETENTION_HOURS } from "#/lib/types";
 
 export const Route = createFileRoute("/_app/dashboard/account")({
 	head: () => ({ meta: [{ title: "Account — PisangDB" }] }),
 	component: AccountPage,
 });
-
-const dummyUser = {
-	name: "Rio Developer",
-	email: "rio@example.com",
-	role: "user",
-	joinedAt: "12 March 2026",
-	activeSandboxes: 2,
-	maxSandboxes: 5,
-	totalCreated: 14,
-	aiRequestsToday: 8,
-	maxAiRequestsPerDay: 30,
-};
 
 function UsageBar({
 	value,
@@ -62,7 +57,72 @@ function UsageBar({
 	);
 }
 
+function formatJoinedAt(createdAt: string | null | undefined) {
+	if (!createdAt) {
+		return "Unknown";
+	}
+
+	return new Date(createdAt).toLocaleDateString("id-ID", {
+		day: "numeric",
+		month: "long",
+		year: "numeric",
+	});
+}
+
 function AccountPage() {
+	const { data: settings, isLoading: settingsLoading } = useUserSettings();
+	const { data: workspaceStats, isLoading: statsLoading } = useWorkspaceStats();
+	const profileSkeletonKeys = [
+		"profile-name",
+		"profile-email",
+		"profile-role",
+		"profile-joined",
+	];
+
+	if (settingsLoading || statsLoading) {
+		return (
+			<div className="flex flex-col gap-6 p-4 md:p-6">
+				<div>
+					<h1 className="text-xl font-semibold tracking-tight">Account</h1>
+					<p className="text-sm text-muted-foreground">
+						Your profile, plan, and usage overview.
+					</p>
+				</div>
+
+				<div className="grid gap-4 lg:grid-cols-2">
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-5 w-24" />
+							<Skeleton className="h-4 w-44" />
+						</CardHeader>
+						<CardContent className="grid gap-3 sm:grid-cols-2">
+							{profileSkeletonKeys.map((key) => (
+								<div key={key} className="rounded-md border p-3 text-sm">
+									<Skeleton className="h-4 w-20" />
+									<Skeleton className="mt-2 h-4 w-28" />
+								</div>
+							))}
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<Skeleton className="h-5 w-20" />
+							<Skeleton className="h-4 w-56" />
+						</CardHeader>
+						<CardContent className="space-y-5">
+							<Skeleton className="h-14 w-full" />
+							<Skeleton className="h-14 w-full" />
+							<Skeleton className="h-14 w-full" />
+						</CardContent>
+					</Card>
+				</div>
+			</div>
+		);
+	}
+
+	const user = settings?.user;
+	const stats = workspaceStats;
+
 	return (
 		<div className="flex flex-col gap-6 p-4 md:p-6">
 			<div>
@@ -87,14 +147,14 @@ function AccountPage() {
 								<UserIcon className="size-4" />
 								Name
 							</p>
-							<p className="mt-1 text-muted-foreground">{dummyUser.name}</p>
+							<p className="mt-1 text-muted-foreground">{user?.name}</p>
 						</div>
 						<div className="rounded-md border p-3 text-sm">
 							<p className="flex items-center gap-1.5 font-medium">
 								<MailIcon className="size-4" />
 								Email
 							</p>
-							<p className="mt-1 text-muted-foreground">{dummyUser.email}</p>
+							<p className="mt-1 text-muted-foreground">{user?.email}</p>
 						</div>
 						<div className="rounded-md border p-3 text-sm">
 							<p className="flex items-center gap-1.5 font-medium">
@@ -102,7 +162,7 @@ function AccountPage() {
 								Role
 							</p>
 							<p className="mt-1 capitalize text-muted-foreground">
-								{dummyUser.role} — Free tier
+								{user?.role ?? "user"}
 							</p>
 						</div>
 						<div className="rounded-md border p-3 text-sm">
@@ -110,14 +170,16 @@ function AccountPage() {
 								<CalendarIcon className="size-4" />
 								Joined
 							</p>
-							<p className="mt-1 text-muted-foreground">{dummyUser.joinedAt}</p>
-						</div>
-						<div className="sm:col-span-2">
-							<Button asChild size="sm" className="w-fit">
-								<Link to="/dashboard/settings">Edit account settings</Link>
-							</Button>
+							<p className="mt-1 text-muted-foreground">
+								{formatJoinedAt(user?.createdAt)}
+							</p>
 						</div>
 					</CardContent>
+					<CardFooter className="pt-0">
+						<Button asChild size="sm" className="w-fit">
+							<Link to="/dashboard/settings">Edit account settings</Link>
+						</Button>
+					</CardFooter>
 				</Card>
 
 				{/* Usage card */}
@@ -135,8 +197,8 @@ function AccountPage() {
 								Sandboxes
 							</div>
 							<UsageBar
-								value={dummyUser.activeSandboxes}
-								max={dummyUser.maxSandboxes}
+								value={stats?.activeSandboxes ?? 0}
+								max={stats?.maxSandboxes ?? 5}
 								label="Active sandboxes"
 							/>
 						</div>
@@ -147,8 +209,8 @@ function AccountPage() {
 								AI Seeder
 							</div>
 							<UsageBar
-								value={dummyUser.aiRequestsToday}
-								max={dummyUser.maxAiRequestsPerDay}
+								value={stats?.aiRequestsToday ?? 0}
+								max={stats?.maxAiRequestsPerDay ?? 30}
 								label="AI requests today"
 							/>
 						</div>
@@ -162,14 +224,22 @@ function AccountPage() {
 								<span className="text-muted-foreground">
 									Total sandboxes created
 								</span>
-								<span className="font-semibold">{dummyUser.totalCreated}</span>
+								<span className="font-semibold">
+									{stats?.totalCreated ?? 0}
+								</span>
 							</div>
 						</div>
 
 						<p className="text-xs text-muted-foreground">
-							Max size per sandbox: <span className="font-medium">100 MB</span>
+							Max size per sandbox:{" "}
+							<span className="font-medium">
+								{stats?.maxSizePerSandboxMb ?? 0} MB
+							</span>
 							{" · "}
-							Max retention: <span className="font-medium">7 days</span>
+							Max retention:{" "}
+							<span className="font-medium">
+								{Math.floor(MAX_RETENTION_HOURS / 24)} days
+							</span>
 						</p>
 					</CardContent>
 				</Card>
