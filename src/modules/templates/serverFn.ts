@@ -1,9 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
 import { and, eq } from "drizzle-orm";
-import { db } from "#/db";
-import { templates } from "#/db/schema";
 import type { DbEngine } from "#/lib/types";
 import { getTemplatesSchema } from "./schema";
+
+async function getTemplatesServerContext() {
+	const [{ db }, schema] = await Promise.all([
+		import("#/db"),
+		import("#/db/schema"),
+	]);
+
+	return {
+		db,
+		templates: schema.templates,
+	};
+}
 
 export type TemplateListItem = {
 	id: string;
@@ -16,6 +26,7 @@ export type TemplateListItem = {
 export const $getTemplates = createServerFn({ method: "GET" })
 	.inputValidator(getTemplatesSchema)
 	.handler(async ({ data }): Promise<TemplateListItem[]> => {
+		const { db, templates } = await getTemplatesServerContext();
 		const engineFilter = data?.engine;
 
 		const conditions = [eq(templates.isBuiltin, true)];

@@ -1,15 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, desc, eq } from "drizzle-orm";
-import mysql from "mysql2/promise";
-import { Pool } from "pg";
-import { db } from "#/db";
-import { aiLogs, queryHistory, sandboxes } from "#/db/schema";
-import { generateSQL, isAiConfigured } from "#/lib/ai";
-import { auth } from "#/lib/auth";
+import type mysql from "mysql2/promise";
+import type { Pool } from "pg";
 import { NotFoundError, UnauthorizedError } from "#/lib/errors";
-import { checkAiRateLimit, recordAiRequest } from "#/lib/rate-limit";
-import { getSandboxConnection } from "#/lib/sandbox-provisioning";
 import type {
 	AiGenerateResult,
 	AiLogItem,
@@ -23,6 +17,22 @@ import {
 	executeQuerySchema,
 	sandboxIdSchema,
 } from "./schema";
+
+async function getConsoleServerContext() {
+	const [{ db }, schema, { auth }] = await Promise.all([
+		import("#/db"),
+		import("#/db/schema"),
+		import("#/lib/auth"),
+	]);
+
+	return {
+		auth,
+		db,
+		aiLogs: schema.aiLogs,
+		queryHistory: schema.queryHistory,
+		sandboxes: schema.sandboxes,
+	};
+}
 
 const FORBIDDEN_PATTERNS = [
 	/DROP\s+DATABASE/i,
@@ -50,7 +60,20 @@ function checkForbiddenCommands(query: string): void {
 	}
 }
 
+type SandboxRow = {
+	id: string;
+	userId: string;
+	engine: string;
+	region: string;
+	status: string;
+	host: string;
+	dbName: string;
+	dbUser: string;
+	dbPassword: string;
+};
+
 async function getCurrentUser() {
+	const { auth } = await getConsoleServerContext();
 	const request = getRequest();
 	const session = await auth.api.getSession({ headers: request.headers });
 	if (!session?.user) {
@@ -59,7 +82,11 @@ async function getCurrentUser() {
 	return session.user;
 }
 
-async function getOwnedSandbox(sandboxId: string, userId: string) {
+async function getOwnedSandbox(
+	sandboxId: string,
+	userId: string,
+): Promise<SandboxRow> {
+	const { db, sandboxes } = await getConsoleServerContext();
 	const [sandbox] = await db
 		.select()
 		.from(sandboxes)
@@ -73,7 +100,7 @@ async function getOwnedSandbox(sandboxId: string, userId: string) {
 		throw new Error("Sandbox is not active");
 	}
 
-	return sandbox;
+	return sandbox as SandboxRow;
 }
 
 async function insertQueryHistoryEntry(params: {
@@ -84,6 +111,7 @@ async function insertQueryHistoryEntry(params: {
 	rowsAffected?: number;
 	errorMessage?: string;
 }) {
+	const { db, queryHistory } = await getConsoleServerContext();
 	await db.insert(queryHistory).values(params);
 }
 
@@ -92,16 +120,24 @@ async function markAiLogExecuted(logId: number | null | undefined) {
 		return;
 	}
 
+	const { aiLogs, db } = await getConsoleServerContext();
 	await db.update(aiLogs).set({ executed: true }).where(eq(aiLogs.id, logId));
 }
 
 async function executeSandboxQuery(params: {
-	sandbox: typeof sandboxes.$inferSelect;
+	sandbox: SandboxRow;
 	query: string;
 }): Promise<QueryResult> {
 	const { sandbox, query } = params;
 	const start = Date.now();
 	let pool: Pool | mysql.Pool | undefined;
+
+	const [{ Pool: PgPool }, mysqlModule, { getSandboxConnection }] =
+		await Promise.all([
+			import("pg"),
+			import("mysql2/promise"),
+			import("#/lib/sandbox-provisioning"),
+		]);
 
 	const { host, port } = getSandboxConnection(
 		sandbox.engine as DbEngine,
@@ -111,7 +147,7 @@ async function executeSandboxQuery(params: {
 
 	try {
 		if (sandbox.engine === "postgresql") {
-			pool = new Pool({
+			pool = new PgPool({
 				host,
 				port,
 				database: sandbox.dbName,
@@ -139,7 +175,7 @@ async function executeSandboxQuery(params: {
 			return { columns, rows, rowsAffected, executionTimeMs };
 		}
 
-		pool = mysql.createPool({
+		pool = mysqlModule.createPool({
 			host,
 			port,
 			database: sandbox.dbName,
@@ -224,6 +260,7 @@ export const $executeQuery = createServerFn({ method: "POST" })
 export const $getQueryHistory = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<QueryHistoryItem[]> => {
+		const { db, queryHistory } = await getConsoleServerContext();
 		const user = await getCurrentUser();
 		await getOwnedSandbox(data.sandboxId, user.id);
 
@@ -234,23 +271,25 @@ export const $getQueryHistory = createServerFn({ method: "GET" })
 			.orderBy(desc(queryHistory.createdAt))
 			.limit(50);
 
-		return history.map((h) => ({
-			id: h.id,
-			query: h.query,
-			status: h.status as "success" | "error",
-			executionTimeMs: h.executionTimeMs,
-			rowsAffected: h.rowsAffected,
-			errorMessage: h.errorMessage,
-			createdAt: h.createdAt.toISOString(),
+		return history.map((entry) => ({
+			id: entry.id,
+			query: entry.query,
+			status: entry.status as "success" | "error",
+			executionTimeMs: entry.executionTimeMs,
+			rowsAffected: entry.rowsAffected,
+			errorMessage: entry.errorMessage,
+			createdAt: entry.createdAt.toISOString(),
 		}));
 	});
 
 export const $aiGenerate = createServerFn({ method: "POST" })
 	.inputValidator(aiGenerateSchema)
 	.handler(async ({ data }): Promise<AiGenerateResult> => {
+		const { aiLogs, db } = await getConsoleServerContext();
+		const [{ checkAiRateLimit, recordAiRequest }, { generateSQL }] =
+			await Promise.all([import("#/lib/rate-limit"), import("#/lib/ai")]);
 		const user = await getCurrentUser();
 
-		// Check AI rate limit (30 req/day/user per PRD)
 		const rateLimit = checkAiRateLimit(user.id);
 		if (!rateLimit.allowed) {
 			throw new Error(
@@ -266,7 +305,6 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 			sandboxDbName: sandbox.dbName,
 		});
 
-		// Record successful AI request for rate limiting
 		recordAiRequest(user.id);
 
 		const [log] = await db
@@ -310,18 +348,15 @@ export const $aiExecute = createServerFn({ method: "POST" })
 export const $getAiLogs = createServerFn({ method: "GET" })
 	.inputValidator(sandboxIdSchema)
 	.handler(async ({ data }): Promise<AiLogItem[]> => {
-		// Return empty array if AI is not configured - graceful degradation
-		// so the sandbox detail page can still load
+		const { aiLogs, db } = await getConsoleServerContext();
+		const { isAiConfigured } = await import("#/lib/ai");
 		const user = await getCurrentUser();
 		await getOwnedSandbox(data.sandboxId, user.id);
 
-		// Check if AI is configured
 		if (!isAiConfigured()) {
-			// Return empty array if no API key - graceful degradation
 			return [];
 		}
 
-		// Fetch AI logs for this sandbox
 		const logs = await db
 			.select()
 			.from(aiLogs)
