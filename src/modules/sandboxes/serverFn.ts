@@ -79,14 +79,18 @@ export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
 
 async function getDatabaseNow(): Promise<Date> {
 	const { db } = await getSandboxesServerContext();
-	const result = await db.execute(sql<{ now: Date }>`select now() as now`);
+	const result =
+		await db.execute(sql<{ now: Date | string }>`select now() as now`);
 	const currentTime = result.rows[0]?.now;
 
-	if (!(currentTime instanceof Date)) {
+	const parsedTime =
+		currentTime instanceof Date ? currentTime : new Date(currentTime);
+
+	if (Number.isNaN(parsedTime.getTime())) {
 		throw new Error("Failed to read current database time.");
 	}
 
-	return currentTime;
+	return parsedTime;
 }
 
 export const $getSandboxes = createServerFn({ method: "GET" }).handler(
