@@ -215,9 +215,16 @@ jobs:
             echo "⏳ Waiting for databases to be ready..."
             sleep 10
 
-            # Run database migrations using drizzle-kit
+            # Run versioned database migrations using drizzle-kit
             echo "Running database migrations..."
-            docker run --rm --network=integrate -v "$PWD/drizzle.config.ts:/app/drizzle.config.ts" -v "$PWD/src/db:/app/src/db" -e DATABASE_URL="postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb" node:22-alpine sh -c "corepack enable && pnpm install drizzle-kit@0.31.9 && npx drizzle-kit push" 2>/dev/null || echo "Migration may have already been applied"
+            docker run --rm \
+              --network=integrate \
+              -v "$PWD/drizzle.config.ts:/app/drizzle.config.ts" \
+              -v "$PWD/src/db:/app/src/db" \
+              -e DATABASE_URL="postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb" \
+              -w /app \
+              node:22-alpine \
+              sh -c "corepack enable && pnpm add -g drizzle-kit@0.31.9 && drizzle-kit migrate"
 
             # Deploy app without tearing down stateful database containers.
             echo "📦 Deploying application..."

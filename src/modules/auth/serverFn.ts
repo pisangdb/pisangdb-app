@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, eq, gte, lt, ne } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import {
 	type AuthUser,
 	DEFAULT_TIER,
@@ -361,7 +361,12 @@ export const $revokeAllSessions = createServerFn({ method: "POST" }).handler(
 export const $deleteAccount = createServerFn({ method: "POST" })
 	.inputValidator(deleteAccountSchema)
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
-		const { auth, db, sandboxes, users } = await getAuthServerContext();
+		const [{ db }, schema] = await Promise.all([
+			import("#/db"),
+			import("#/db/schema"),
+		]);
+		const { auth, sandboxes, users } = await getAuthServerContext();
+		const { queryHistory, aiLogs, templates } = schema;
 		const { request, userId } = await getCurrentSession();
 		const currentSession = await auth.api.getSession({
 			headers: request.headers,
@@ -416,7 +421,26 @@ export const $deleteAccount = createServerFn({ method: "POST" })
 			}
 		}
 
-		await db.delete(users).where(eq(users.id, userId));
+		const userSandboxIds = userSandboxes.map((s) => s.id);
+		await db.transaction(async (tx) => {
+			// Defensive cleanup for environments where FK cascade migration is not yet applied.
+			if (userSandboxIds.length > 0) {
+				await tx
+					.delete(queryHistory)
+					.where(inArray(queryHistory.sandboxId, userSandboxIds));
+			}
+
+			if (userSandboxIds.length > 0) {
+				await tx
+					.delete(aiLogs)
+					.where(inArray(aiLogs.sandboxId, userSandboxIds));
+			}
+
+			await tx.delete(aiLogs).where(eq(aiLogs.userId, userId));
+			await tx.delete(sandboxes).where(eq(sandboxes.userId, userId));
+			await tx.delete(templates).where(eq(templates.userId, userId));
+			await tx.delete(users).where(eq(users.id, userId));
+		});
 
 		return { success: true };
 	});
