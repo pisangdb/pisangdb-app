@@ -188,6 +188,20 @@ function buildAiSeederCacheKey(params: {
 	return `${params.sandboxId}::${params.mode}::${params.prompt.trim()}`;
 }
 
+function isIncompleteAiResponseError(message: string | null | undefined) {
+	if (!message) {
+		return false;
+	}
+
+	const normalized = message.toLowerCase();
+	return (
+		normalized.includes("truncated") ||
+		normalized.includes("incomplete") ||
+		normalized.includes("malformed") ||
+		normalized.includes("not closed with a semicolon")
+	);
+}
+
 function AiSeederPage() {
 	const queryClient = useQueryClient();
 	const { data: sandboxes, isLoading: sandboxesLoading } = useSandboxes();
@@ -204,6 +218,7 @@ function AiSeederPage() {
 	const [isEditing, setIsEditing] = useState(false);
 	const [confirmExecute, setConfirmExecute] = useState(false);
 	const [isExecuting, setIsExecuting] = useState(false);
+	const [generateError, setGenerateError] = useState<string | null>(null);
 	const [executeError, setExecuteError] = useState<string | null>(null);
 	const [generationElapsed, setGenerationElapsed] = useState(0);
 	const [loadedFromCache, setLoadedFromCache] = useState(false);
@@ -271,6 +286,7 @@ function AiSeederPage() {
 		}
 
 		setIsGenerating(true);
+		setGenerateError(null);
 		setExecuteError(null);
 		setLoadedFromCache(false);
 		try {
@@ -297,6 +313,7 @@ function AiSeederPage() {
 				setGenerated(cachedEntry.result);
 				setSqlText(cachedEntry.result.sqlGenerated);
 				setLoadedFromCache(true);
+				setGenerateError(null);
 				toast.success("Loaded cached SQL for the same prompt");
 				return;
 			}
@@ -306,6 +323,7 @@ function AiSeederPage() {
 			});
 			setGenerated(result);
 			setSqlText(result.sqlGenerated);
+			setGenerateError(null);
 			const nextCacheEntries = [
 				{
 					cachedAt: new Date().toISOString(),
@@ -330,6 +348,9 @@ function AiSeederPage() {
 		} catch (err) {
 			const message =
 				err instanceof Error ? err.message : "Failed to generate SQL";
+			setGenerated(null);
+			setSqlText("");
+			setGenerateError(message);
 			toast.error(message);
 		} finally {
 			setIsGenerating(false);
@@ -598,7 +619,7 @@ function AiSeederPage() {
 											: "Sandbox selected"}
 									</Badge>
 									<Badge variant="outline" className="rounded-full px-3 py-1">
-										Expected wait: 10-30s
+										Expected wait: 15-60s
 									</Badge>
 								</div>
 							</div>
@@ -703,6 +724,42 @@ function AiSeederPage() {
 										disabled={isExecuting}
 									>
 										{isExecuting ? "Executing…" : "Execute SQL"}
+									</Button>
+								</div>
+							</div>
+						) : generateError ? (
+							<div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+								<div className="flex flex-wrap items-center gap-2">
+									<p className="font-medium">
+										{isIncompleteAiResponseError(generateError)
+											? "Incomplete response detected"
+											: "Generation failed"}
+									</p>
+									{isIncompleteAiResponseError(generateError) && (
+										<Badge
+											variant="outline"
+											className="rounded-full border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-100"
+										>
+											Retry recommended
+										</Badge>
+									)}
+								</div>
+								<p>{generateError}</p>
+								{isIncompleteAiResponseError(generateError) && (
+									<p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+										The model likely stopped before finishing the SQL. Generate
+										a fresh response or shorten the prompt slightly.
+									</p>
+								)}
+								<div className="flex flex-wrap items-center gap-2">
+									<Button
+										size="sm"
+										onClick={() => {
+											void handleGenerate({ forceFresh: true });
+										}}
+										disabled={isGenerating}
+									>
+										Generate Fresh
 									</Button>
 								</div>
 							</div>

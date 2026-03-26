@@ -28,12 +28,16 @@
 - AI provider dikonfigurasi via environment variable (`AI_API_URL`, `AI_API_TOKEN`, `AI_MODEL`) — jangan hardcode provider, URL, model, atau token di codebase
 - Jangan gunakan non-null assertion (`!`) — gunakan runtime guard yang throw error deskriptif
 
-## Navigasi Sidebar (sesuai PRD)
-- **Dashboard** → `/dashboard` — overview sandbox aktif
-- **Sandboxes** → `/dashboard/sandboxes` — daftar + buat sandbox baru
-- **SQL Console** → `/dashboard/console` — query editor
+## Navigasi Sidebar (implementasi saat ini)
+- **Workspace**
+- **Dashboard** → `/dashboard` — overview workspace, capacity, recent sandboxes
+- **Sandboxes** → `/dashboard/sandboxes` — daftar sandbox + storage overview
+- **SQL Console** → `/dashboard/console` — query editor lintas sandbox aktif
 - **AI Seeder** → `/dashboard/ai-seeder` — generate schema + seed data via AI provider yang dikonfigurasi
-- **Settings** → `/dashboard/settings`
+- **Account**
+- **Account** → `/dashboard/account` — account overview
+- **Settings** → `/dashboard/settings` — profile, security, preferences
+- **Help** → `/dashboard/help` — quick-start + troubleshooting
 
 ---
 
@@ -49,16 +53,18 @@ Track implementasi fitur berdasarkan PRD. Update section ini saat fitur diimplem
 | Sandbox CRUD (create, list, detail, extend, delete) | ✅ Done | Full lifecycle management |
 | Multi-engine support (PostgreSQL, MySQL, MariaDB) | ✅ Done | Provisioning per engine |
 | Auto-cleanup (ephemeral engine) | ✅ Done | Background worker |
-| SQL Console | ✅ Done | Query execution + history |
+| SQL Console | ✅ Done | Query execution + history + draft persistence |
+| Dashboard workspace UI | ✅ Done | Dashboard, sandboxes, detail, account, settings, help sudah usable |
 | Template selector (create sandbox) | ✅ Done | US-40 |
 | Built-in templates (E-commerce, Blog, Inventory, HR) | ✅ Done | US-40 |
 | Template SQL execution (DDL + seed) | ✅ Done | 10-20 rows per table |
+| Storage visibility | ✅ Done | Live storage di list, detail, dan workspace overview |
 
 ### ⚠️ Belum Diimplementasi / Partial
 
 | Fitur | Status | Catatan |
 |-------|--------|---------|
-| AI SQL Seeder | ⚠️ Partial | Provider configurable via env, perlu hardening + sinkronisasi docs |
+| AI SQL Seeder | ⚠️ Partial | Runtime/UI sudah jauh lebih matang; observability dan evaluasi provider masih perlu |
 | Google OAuth | ⚠️ Partial | Wiring ada, perlu verifikasi E2E |
 | Email notification (expiry warning) | ⚠️ Not started | US-17 |
 | User-defined templates | ⚠️ Not started | US-41 |

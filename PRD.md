@@ -1173,24 +1173,22 @@ User mendaftar / login
 ### 11.2 Key UI Components
 
 #### Dashboard
-- **Header**: Logo PisangDB 🍌, user avatar, logout button
-- **Stats Bar**: Jumlah sandbox aktif, total sandbox dibuat, sisa quota
-- **Sandbox Cards Grid**: Card untuk setiap sandbox aktif
-  - Nama sandbox
-  - Status badge (color-coded)
-  - TTL countdown (real-time)
-  - Quick actions: Copy URL, Extend, Delete
-- **"+ New Sandbox" Card**: CTA untuk membuat sandbox baru
+- **Sidebar Workspace**: Dashboard, Sandboxes, SQL Console, AI Seeder
+- **Sidebar Account**: Account, Settings, Help
+- **Overview Cards**: Jumlah sandbox aktif, total dibuat, AI usage, capacity
+- **Recent Sandbox Surface**: Card sandbox dengan status, TTL, storage, dan quick actions
+- **Workspace CTA**: Jalur cepat ke create sandbox, console, dan AI seeder
 
 #### Sandbox Detail Page
-- **Info Section**: Connection string (click-to-copy), status, TTL, size, created date
+- **Top Summary Card**: Engine, status, region, TTL, storage, tables, query history, AI runs
 - **Tab Navigation**:
-  - **SQL Console** — Query editor + result table
-  - **AI Seeder** — Prompt input + generated SQL preview
-  - **Tables** — List tabel beserta jumlah row
-  - **History** — Query history log
+  - **Info** — Connection kit, env snippet, metadata, runtime notes
+  - **SQL Console** — Query editor + result table + starter queries
+  - **AI Seeder** — Prompt input, generated SQL preview, recent prompts, loading states
+  - **Tables** — List tabel beserta jumlah row dan ukuran
+  - **History** — Query history log yang mudah discan
 
-#### Create Sandbox Modal
+#### Create Sandbox Page
 - **Select: Database Engine** (card selector dengan icon):
   - 🐘 **PostgreSQL 16** — Recommended for most projects
   - 🐬 **MySQL 8** — Popular choice for PHP/Laravel/WordPress
@@ -1202,6 +1200,7 @@ User mendaftar / login
 - Input: Nama sandbox (text input dengan validasi)
 - Select: Durasi (dropdown: 1h, 6h, 12h, 24h, 3d, 7d)
 - Select: Template (dropdown: Blank, E-commerce, Blog, dll. — filtered by engine)
+- **Summary Panel**: Ringkasan engine, region, TTL, template, dan next-step provisioning
 - Button: "Buat Sandbox 🍌"
 
 ---
