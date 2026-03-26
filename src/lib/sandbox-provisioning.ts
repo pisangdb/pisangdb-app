@@ -338,7 +338,7 @@ export async function provisionMariaDB(
 	const escapedPassword = dbPassword.replace(/'/g, "''");
 	await withTimeout(
 		mysqlPool.query(
-			`CREATE USER '${escapedUser}'@'%' IDENTIFIED BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+			`CREATE USER '${escapedUser}'@'%' IDENTIFIED WITH mysql_native_password BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
 		),
 		PROVISION_TIMEOUT_MS,
 	);
