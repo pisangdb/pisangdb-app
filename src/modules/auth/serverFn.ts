@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, eq, gte, lt, ne } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import {
 	type AuthUser,
 	DEFAULT_TIER,
@@ -361,7 +361,12 @@ export const $revokeAllSessions = createServerFn({ method: "POST" }).handler(
 export const $deleteAccount = createServerFn({ method: "POST" })
 	.inputValidator(deleteAccountSchema)
 	.handler(async ({ data }): Promise<{ success: boolean }> => {
-		const { auth, db, sandboxes, users } = await getAuthServerContext();
+		const [{ db }, schema] = await Promise.all([
+			import("#/db"),
+			import("#/db/schema"),
+		]);
+		const { auth, sandboxes, users } = await getAuthServerContext();
+		const { queryHistory, aiLogs, templates } = schema;
 		const { request, userId } = await getCurrentSession();
 		const currentSession = await auth.api.getSession({
 			headers: request.headers,
@@ -416,6 +421,32 @@ export const $deleteAccount = createServerFn({ method: "POST" })
 			}
 		}
 
+		// Manual cleanup of related records (defensive, in case migration not yet applied)
+		// Delete in correct order respecting FK dependencies
+		const userSandboxIds = userSandboxes.map((s) => s.id);
+
+		// Delete query_history (depends on sandboxes)
+		if (userSandboxIds.length > 0) {
+			await db
+				.delete(queryHistory)
+				.where(inArray(queryHistory.sandboxId, userSandboxIds));
+		}
+
+		// Delete ai_logs (depends on sandboxes and users)
+		// Delete by sandbox IDs first
+		if (userSandboxIds.length > 0) {
+			await db.delete(aiLogs).where(inArray(aiLogs.sandboxId, userSandboxIds));
+		}
+		// Then by user ID (handles any remaining ai_logs not linked to sandboxes)
+		await db.delete(aiLogs).where(eq(aiLogs.userId, userId));
+
+		// Delete sandboxes metadata (depends on users)
+		await db.delete(sandboxes).where(eq(sandboxes.userId, userId));
+
+		// Delete templates (depends on users)
+		await db.delete(templates).where(eq(templates.userId, userId));
+
+		// Delete user (accounts, sessions, user_preferences cascade automatically via FK)
 		await db.delete(users).where(eq(users.id, userId));
 
 		return { success: true };
