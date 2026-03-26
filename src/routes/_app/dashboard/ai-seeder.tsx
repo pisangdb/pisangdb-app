@@ -5,11 +5,12 @@ import {
 	BotIcon,
 	DatabaseIcon,
 	LayoutTemplateIcon,
+	Loader2Icon,
 	ShieldCheckIcon,
 	SparklesIcon,
 	TerminalSquareIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmationDialog } from "#/components/confirmation-dialog";
 import { Badge } from "#/components/ui/badge";
@@ -21,6 +22,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Progress } from "#/components/ui/progress";
 import { useSandboxes } from "#/lib/hooks/useSandboxes";
 import { useWorkspaceStats } from "#/lib/hooks/useUserSettings";
 import type { AiGenerateResult } from "#/lib/types";
@@ -32,6 +34,17 @@ export const Route = createFileRoute("/_app/dashboard/ai-seeder")({
 });
 
 type Mode = "schema" | "seed" | "helper";
+
+type CachedAiResult = {
+	cachedAt: string;
+	engine: string;
+	mode: Mode;
+	prompt: string;
+	result: AiGenerateResult;
+	sandboxId: string;
+};
+
+const AI_SEEDER_CACHE_KEY = "pisangdb.ai-seeder.cache.v1";
 
 const modeConfig: {
 	key: Mode;
@@ -55,6 +68,126 @@ const modeConfig: {
 	},
 ];
 
+function getGenerationStatus(elapsedSeconds: number) {
+	if (elapsedSeconds < 3) {
+		return {
+			detail: "Preparing your prompt and contacting the AI model.",
+			label: "Starting generation",
+			progress: 18,
+		};
+	}
+
+	if (elapsedSeconds < 10) {
+		return {
+			detail: "Drafting SQL for the selected engine and sandbox.",
+			label: "Generating SQL",
+			progress: 52,
+		};
+	}
+
+	if (elapsedSeconds < 20) {
+		return {
+			detail: "Parsing the response and extracting executable SQL.",
+			label: "Reviewing the output",
+			progress: 78,
+		};
+	}
+
+	return {
+		detail:
+			"This prompt is taking longer than usual. Keep the tab open while generation finishes.",
+		label: "Still working",
+		progress: 90,
+	};
+}
+
+function getPromptComplexity(mode: Mode, prompt: string) {
+	const promptLength = prompt.trim().length;
+
+	if (mode === "helper") {
+		if (promptLength > 220) {
+			return {
+				label: "Long helper request",
+				tone: "warning" as const,
+				value: "Usually slower than a normal query hint",
+			};
+		}
+
+		return {
+			label: "Light request",
+			tone: "neutral" as const,
+			value: "Usually returns fastest",
+		};
+	}
+
+	if (mode === "schema") {
+		if (promptLength > 180) {
+			return {
+				label: "Large schema request",
+				tone: "warning" as const,
+				value: "May take longer and return more SQL",
+			};
+		}
+
+		return {
+			label: "Standard schema request",
+			tone: "neutral" as const,
+			value: "Expected wait is moderate",
+		};
+	}
+
+	if (promptLength > 180) {
+		return {
+			label: "Large seed request",
+			tone: "warning" as const,
+			value: "May take longer because of output volume",
+		};
+	}
+
+	return {
+		label: "Standard seed request",
+		tone: "neutral" as const,
+		value: "Expected wait is moderate",
+	};
+}
+
+function readAiSeederCache(): CachedAiResult[] {
+	if (typeof window === "undefined") {
+		return [];
+	}
+
+	try {
+		const raw = window.sessionStorage.getItem(AI_SEEDER_CACHE_KEY);
+		if (!raw) {
+			return [];
+		}
+
+		const parsed = JSON.parse(raw) as CachedAiResult[];
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+
+function writeAiSeederCache(entries: CachedAiResult[]) {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	window.sessionStorage.setItem(
+		AI_SEEDER_CACHE_KEY,
+		JSON.stringify(entries.slice(0, 12)),
+	);
+}
+
+function buildAiSeederCacheKey(params: {
+	mode: Mode;
+	prompt: string;
+	sandboxId: string;
+}) {
+	return `${params.sandboxId}::${params.mode}::${params.prompt.trim()}`;
+}
+
 function AiSeederPage() {
 	const queryClient = useQueryClient();
 	const { data: sandboxes, isLoading: sandboxesLoading } = useSandboxes();
@@ -72,19 +205,12 @@ function AiSeederPage() {
 	const [confirmExecute, setConfirmExecute] = useState(false);
 	const [isExecuting, setIsExecuting] = useState(false);
 	const [executeError, setExecuteError] = useState<string | null>(null);
+	const [generationElapsed, setGenerationElapsed] = useState(0);
+	const [loadedFromCache, setLoadedFromCache] = useState(false);
+	const [cachedEntries, setCachedEntries] = useState<CachedAiResult[]>([]);
 	const selectedSandboxDetails = activeSandboxes.find(
 		(sandbox) => sandbox.id === selectedSandbox,
 	);
-	const usageRatio = workspaceStats
-		? Math.min(
-				100,
-				Math.round(
-					(workspaceStats.aiRequestsToday /
-						Math.max(workspaceStats.maxAiRequestsPerDay, 1)) *
-						100,
-				),
-			)
-		: 0;
 	const promptIdeas =
 		mode === "schema"
 			? [
@@ -103,7 +229,38 @@ function AiSeederPage() {
 						"Show how to join users, orders, and payments with a failed-payment filter.",
 						"Suggest a query to detect products with low stock and high recent sales.",
 					];
-	const handleGenerate = async () => {
+	const generationStatus = getGenerationStatus(generationElapsed);
+	const promptComplexity = getPromptComplexity(mode, prompt);
+	const recentPrompts = cachedEntries.filter((entry) => {
+		if (selectedSandbox && entry.sandboxId !== selectedSandbox) {
+			return false;
+		}
+
+		return entry.mode === mode;
+	});
+
+	useEffect(() => {
+		setCachedEntries(readAiSeederCache());
+	}, []);
+
+	useEffect(() => {
+		if (!isGenerating) {
+			setGenerationElapsed(0);
+			return;
+		}
+
+		setGenerationElapsed(0);
+		const startedAt = Date.now();
+		const interval = window.setInterval(() => {
+			setGenerationElapsed(
+				Math.max(0, Math.floor((Date.now() - startedAt) / 1000)),
+			);
+		}, 1000);
+
+		return () => window.clearInterval(interval);
+	}, [isGenerating]);
+
+	const handleGenerate = async (options?: { forceFresh?: boolean }) => {
 		if (!selectedSandbox) {
 			toast.error("Please select a sandbox first");
 			return;
@@ -115,17 +272,60 @@ function AiSeederPage() {
 
 		setIsGenerating(true);
 		setExecuteError(null);
+		setLoadedFromCache(false);
 		try {
 			const selected = sandboxes?.find((s) => s.id === selectedSandbox);
 			if (selected?.status !== "active") {
 				throw new Error("Selected sandbox is not active");
 			}
 			const engine = selected?.engine ?? "postgresql";
+			const cacheKey = buildAiSeederCacheKey({
+				sandboxId: selectedSandbox,
+				mode,
+				prompt,
+			});
+			const cachedEntry = cachedEntries.find(
+				(entry) =>
+					buildAiSeederCacheKey({
+						sandboxId: entry.sandboxId,
+						mode: entry.mode,
+						prompt: entry.prompt,
+					}) === cacheKey,
+			);
+
+			if (cachedEntry && !options?.forceFresh) {
+				setGenerated(cachedEntry.result);
+				setSqlText(cachedEntry.result.sqlGenerated);
+				setLoadedFromCache(true);
+				toast.success("Loaded cached SQL for the same prompt");
+				return;
+			}
+
 			const result = await $aiGenerate({
-				data: { sandboxId: selectedSandbox, prompt, engine },
+				data: { sandboxId: selectedSandbox, prompt, engine, mode },
 			});
 			setGenerated(result);
 			setSqlText(result.sqlGenerated);
+			const nextCacheEntries = [
+				{
+					cachedAt: new Date().toISOString(),
+					engine,
+					mode,
+					prompt,
+					result,
+					sandboxId: selectedSandbox,
+				},
+				...cachedEntries.filter(
+					(entry) =>
+						buildAiSeederCacheKey({
+							sandboxId: entry.sandboxId,
+							mode: entry.mode,
+							prompt: entry.prompt,
+						}) !== cacheKey,
+				),
+			];
+			writeAiSeederCache(nextCacheEntries);
+			setCachedEntries(nextCacheEntries.slice(0, 12));
 			await queryClient.invalidateQueries({ queryKey: ["workspace-stats"] });
 		} catch (err) {
 			const message =
@@ -163,110 +363,7 @@ function AiSeederPage() {
 	};
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<section className="overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60">
-				<div className="flex flex-col gap-6 p-5 md:p-7">
-					<div className="flex flex-wrap items-center gap-2">
-						<Badge
-							variant="secondary"
-							className="gap-1.5 rounded-full px-3 py-1"
-						>
-							<BotIcon className="size-3.5" />
-							AI SQL Workspace
-						</Badge>
-						<Badge variant="outline" className="rounded-full px-3 py-1">
-							Prompt to SQL
-						</Badge>
-						<Badge variant="outline" className="rounded-full px-3 py-1">
-							Manual execution control
-						</Badge>
-					</div>
-
-					<div className="grid gap-5 lg:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)] lg:items-end">
-						<div className="space-y-3">
-							<div className="space-y-2">
-								<h1 className="max-w-2xl text-2xl font-semibold tracking-tight md:text-3xl">
-									Generate cleaner schema, seed data, and helper queries against
-									a real sandbox.
-								</h1>
-								<p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-									Use natural language to draft SQL, then review the output
-									before anything runs. The page stays focused on one job:
-									faster iteration without hiding what will execute.
-								</p>
-							</div>
-							<div className="flex flex-wrap gap-2">
-								<Button
-									size="sm"
-									className="gap-1.5"
-									onClick={handleGenerate}
-									disabled={
-										isGenerating ||
-										sandboxesLoading ||
-										activeSandboxes.length === 0
-									}
-								>
-									<SparklesIcon className="size-4" />
-									{isGenerating ? "Generating…" : "Generate SQL"}
-								</Button>
-								<Button asChild size="sm" variant="outline">
-									<Link to="/dashboard/sandboxes">Browse Sandboxes</Link>
-								</Button>
-							</div>
-						</div>
-
-						<div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<DatabaseIcon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Active Targets
-									</p>
-								</div>
-								<p className="mt-3 text-2xl font-semibold">
-									{activeSandboxes.length}
-								</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									Sandboxes available for AI-assisted generation.
-								</p>
-							</div>
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<ActivityIcon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										AI Usage Today
-									</p>
-								</div>
-								<p className="mt-3 text-2xl font-semibold">
-									{workspaceStats
-										? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay}`
-										: "—"}
-								</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									{workspaceStats
-										? `${usageRatio}% of the daily allowance has been used.`
-										: "Loading workspace usage."}
-								</p>
-							</div>
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<LayoutTemplateIcon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Current Focus
-									</p>
-								</div>
-								<p className="mt-3 text-lg font-semibold">
-									{modeConfig.find((item) => item.key === mode)?.title}
-								</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									{modeConfig.find((item) => item.key === mode)?.description}
-								</p>
-							</div>
-						</div>
-					</div>
-				</div>
-			</section>
-
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div className="grid gap-4 lg:grid-cols-3">
 				<Card className="overflow-hidden border-border/80 lg:col-span-2">
 					<CardHeader>
@@ -278,16 +375,41 @@ function AiSeederPage() {
 									before execution.
 								</CardDescription>
 							</div>
-							{selectedSandboxDetails && (
+							<div className="flex flex-wrap gap-2">
 								<Badge
-									variant="secondary"
-									className="gap-1 rounded-full px-3 py-1"
+									variant="outline"
+									className="gap-1.5 rounded-full px-3 py-1"
 								>
 									<DatabaseIcon className="size-3.5" />
-									{selectedSandboxDetails.displayName} ·{" "}
-									{selectedSandboxDetails.engine}
+									Active Targets: {activeSandboxes.length}
 								</Badge>
-							)}
+								<Badge
+									variant="outline"
+									className="gap-1.5 rounded-full px-3 py-1"
+								>
+									<ActivityIcon className="size-3.5" />
+									{workspaceStats
+										? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} today`
+										: "Loading AI usage…"}
+								</Badge>
+								<Badge
+									variant="outline"
+									className="gap-1.5 rounded-full px-3 py-1"
+								>
+									<LayoutTemplateIcon className="size-3.5" />
+									{modeConfig.find((item) => item.key === mode)?.title}
+								</Badge>
+								{selectedSandboxDetails && (
+									<Badge
+										variant="secondary"
+										className="gap-1 rounded-full px-3 py-1"
+									>
+										<DatabaseIcon className="size-3.5" />
+										{selectedSandboxDetails.displayName} ·{" "}
+										{selectedSandboxDetails.engine}
+									</Badge>
+								)}
+							</div>
 						</div>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -300,7 +422,7 @@ function AiSeederPage() {
 								value={selectedSandbox}
 								onChange={(e) => setSelectedSandbox(e.target.value)}
 								className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-xs dark:scheme-dark [&>option]:bg-background [&>option]:text-foreground"
-								disabled={sandboxesLoading}
+								disabled={sandboxesLoading || isGenerating}
 							>
 								<option value="">Select a sandbox…</option>
 								{activeSandboxes.map((sandbox) => (
@@ -325,6 +447,7 @@ function AiSeederPage() {
 									key={item.key}
 									type="button"
 									onClick={() => setMode(item.key)}
+									disabled={isGenerating}
 									className={`rounded-lg border p-3 text-left transition-colors ${
 										mode === item.key
 											? "border-primary bg-primary/5"
@@ -353,6 +476,7 @@ function AiSeederPage() {
 										key={idea}
 										type="button"
 										onClick={() => setPrompt(idea)}
+										disabled={isGenerating}
 										className="rounded-lg border bg-background px-3 py-2 text-left text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
 									>
 										{idea}
@@ -364,6 +488,7 @@ function AiSeederPage() {
 						<textarea
 							value={prompt}
 							onChange={(event) => setPrompt(event.target.value)}
+							disabled={isGenerating}
 							placeholder={
 								mode === "schema"
 									? "e.g. Create users, products, and orders tables for a simple e-commerce app."
@@ -373,20 +498,131 @@ function AiSeederPage() {
 							}
 							className="min-h-36 w-full rounded-md border bg-muted/30 p-3 text-sm"
 						/>
+						<div className="flex flex-wrap items-center gap-2 text-xs">
+							<Badge
+								variant={
+									promptComplexity.tone === "warning" ? "secondary" : "outline"
+								}
+								className="rounded-full px-3 py-1"
+							>
+								{promptComplexity.label}
+							</Badge>
+							<span className="text-muted-foreground">
+								{promptComplexity.value}
+							</span>
+						</div>
+
+						{recentPrompts.length > 0 && (
+							<div className="rounded-xl border bg-muted/10 p-4">
+								<div className="flex items-center justify-between gap-3">
+									<div>
+										<p className="text-sm font-medium text-foreground">
+											Recent Prompts
+										</p>
+										<p className="text-xs text-muted-foreground">
+											Reuse a recent prompt for this mode
+											{selectedSandbox ? " and sandbox" : ""}.
+										</p>
+									</div>
+									<Badge variant="outline" className="rounded-full px-3 py-1">
+										{recentPrompts.length} cached
+									</Badge>
+								</div>
+								<div className="mt-3 grid gap-2">
+									{recentPrompts.slice(0, 4).map((entry) => (
+										<button
+											key={`${entry.sandboxId}-${entry.mode}-${entry.cachedAt}`}
+											type="button"
+											onClick={() => {
+												setSelectedSandbox(entry.sandboxId);
+												setMode(entry.mode);
+												setPrompt(entry.prompt);
+											}}
+											disabled={isGenerating}
+											className="rounded-lg border bg-background px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+										>
+											<div className="flex flex-wrap items-center gap-2">
+												<Badge
+													variant={
+														getPromptComplexity(entry.mode, entry.prompt)
+															.tone === "warning"
+															? "secondary"
+															: "outline"
+													}
+													className="rounded-full px-2 py-0.5 text-[10px]"
+												>
+													{getPromptComplexity(entry.mode, entry.prompt).label}
+												</Badge>
+											</div>
+											<p className="line-clamp-2 text-xs text-foreground">
+												{entry.prompt}
+											</p>
+											<p className="mt-1 text-[11px] text-muted-foreground">
+												{entry.engine} • cached{" "}
+												{new Date(entry.cachedAt).toLocaleTimeString("en-US", {
+													hour: "numeric",
+													minute: "2-digit",
+												})}
+											</p>
+										</button>
+									))}
+								</div>
+							</div>
+						)}
+
+						{isGenerating && (
+							<div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+								<div className="flex flex-wrap items-start justify-between gap-3">
+									<div className="space-y-1">
+										<div className="flex items-center gap-2 text-sm font-medium text-foreground">
+											<Loader2Icon className="size-4 animate-spin text-primary" />
+											{generationStatus.label}
+										</div>
+										<p className="text-xs text-muted-foreground">
+											{generationStatus.detail}
+										</p>
+									</div>
+									<div className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
+										{generationElapsed}s elapsed
+									</div>
+								</div>
+								<Progress
+									value={generationStatus.progress}
+									className="mt-4 h-2 bg-primary/10"
+									indicatorClassName="bg-primary"
+								/>
+								<div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+									<Badge variant="outline" className="rounded-full px-3 py-1">
+										{selectedSandboxDetails
+											? `${selectedSandboxDetails.displayName} (${selectedSandboxDetails.engine})`
+											: "Sandbox selected"}
+									</Badge>
+									<Badge variant="outline" className="rounded-full px-3 py-1">
+										Expected wait: 10-30s
+									</Badge>
+								</div>
+							</div>
+						)}
 
 						<div className="flex flex-wrap items-center justify-between gap-3">
 							<div className="flex flex-wrap items-center gap-2">
 								<Button
 									size="sm"
 									className="gap-1.5"
-									onClick={handleGenerate}
+									onClick={() => {
+										void handleGenerate();
+									}}
 									disabled={
 										isGenerating ||
 										sandboxesLoading ||
 										activeSandboxes.length === 0
 									}
 								>
-									<SparklesIcon className="size-4" />
+									{isGenerating ? (
+										<Loader2Icon className="size-4 animate-spin" />
+									) : (
+										<SparklesIcon className="size-4" />
+									)}
 									{isGenerating ? "Generating…" : "Generate SQL"}
 								</Button>
 								<Badge variant="outline" className="rounded-full px-3 py-1">
@@ -404,7 +640,17 @@ function AiSeederPage() {
 							<div className="space-y-3 rounded-xl border bg-muted/10 p-4">
 								<div className="flex flex-wrap items-center justify-between gap-3">
 									<div>
-										<p className="text-sm font-medium">Generated SQL</p>
+										<div className="flex flex-wrap items-center gap-2">
+											<p className="text-sm font-medium">Generated SQL</p>
+											{loadedFromCache && (
+												<Badge
+													variant="outline"
+													className="rounded-full px-2.5 py-0.5 text-[11px]"
+												>
+													Loaded from cache
+												</Badge>
+											)}
+										</div>
 										<p className="text-xs text-muted-foreground">
 											Inspect the statement, adjust it if needed, then run it
 											against the selected sandbox.
@@ -418,6 +664,22 @@ function AiSeederPage() {
 										{isEditing ? "View Only" : "Edit Before Execute"}
 									</Button>
 								</div>
+								{loadedFromCache && (
+									<div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+										<span>This result came from local cache.</span>
+										<Button
+											size="sm"
+											variant="outline"
+											className="h-7"
+											onClick={() => {
+												void handleGenerate({ forceFresh: true });
+											}}
+											disabled={isGenerating}
+										>
+											Generate Fresh
+										</Button>
+									</div>
+								)}
 								{isEditing ? (
 									<textarea
 										value={sqlText}

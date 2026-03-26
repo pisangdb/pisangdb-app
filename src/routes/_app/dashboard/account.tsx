@@ -120,106 +120,46 @@ function AccountPage() {
 	);
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<section className="overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60">
-				<div className="flex flex-col gap-6 p-5 md:p-7">
-					<div className="flex flex-wrap items-center gap-2">
-						<Badge
-							variant="secondary"
-							className="gap-1.5 rounded-full px-3 py-1"
-						>
-							<UserIcon className="size-3.5" />
-							Account Overview
-						</Badge>
-						<Badge variant="outline" className="rounded-full px-3 py-1">
-							Identity and workspace usage
-						</Badge>
-					</div>
-
-					<div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] lg:items-end">
-						<div className="space-y-3">
-							<div className="space-y-2">
-								<h1 className="max-w-2xl text-2xl font-semibold tracking-tight md:text-3xl">
-									Review your account identity, current limits, and recent
-									workspace usage in one place.
-								</h1>
-								<p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-									This page stays lightweight by design: it gives you the
-									snapshot, while settings handles the actual management
-									actions.
-								</p>
-							</div>
-							{(user?.email || user?.createdAt) && (
-								<div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-									{user?.email && (
-										<div className="rounded-full border bg-background/80 px-3 py-1.5">
-											{user.email}
-										</div>
-									)}
-									{user?.createdAt && (
-										<div className="rounded-full border bg-background/80 px-3 py-1.5">
-											Joined {formatJoinedAt(user.createdAt)}
-										</div>
-									)}
-								</div>
-							)}
-							<div className="flex flex-wrap gap-2">
-								<Button asChild size="sm">
-									<Link to="/dashboard/settings">Open settings</Link>
-								</Button>
-								<Button asChild size="sm" variant="outline">
-									<Link to="/dashboard/sandboxes">View sandboxes</Link>
-								</Button>
-							</div>
-						</div>
-
-						<div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<DatabaseIcon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Active Sandboxes
-									</p>
-								</div>
-								<p className="mt-3 text-2xl font-semibold">
-									{stats
-										? `${stats.activeSandboxes}/${stats.maxSandboxes}`
-										: "—"}
-								</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									Live sandbox usage against your workspace allowance.
-								</p>
-							</div>
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<ShieldCheckIcon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Sign-in Method
-									</p>
-								</div>
-								<p className="mt-3 text-lg font-semibold">{signInMethod}</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									Current access path for this dashboard account.
-								</p>
-							</div>
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<Link2Icon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Connected Accounts
-									</p>
-								</div>
-								<p className="mt-3 text-2xl font-semibold">
-									{connectedAccounts}
-								</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									Linked providers available for this workspace.
-								</p>
-							</div>
-						</div>
-					</div>
+		<div className="flex flex-col gap-4 p-4 md:p-5">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					<Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1">
+						<UserIcon className="size-3.5" />
+						Account Overview
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						Identity and workspace usage
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						Active:{" "}
+						{stats ? `${stats.activeSandboxes}/${stats.maxSandboxes}` : "—"}
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						{signInMethod}
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						Connected: {connectedAccounts}
+					</Badge>
 				</div>
-			</section>
+				<div className="flex flex-wrap gap-2">
+					{user?.email && (
+						<div className="rounded-full border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+							{user.email}
+						</div>
+					)}
+					{user?.createdAt && (
+						<div className="rounded-full border bg-background px-3 py-1.5 text-xs text-muted-foreground">
+							Joined {formatJoinedAt(user.createdAt)}
+						</div>
+					)}
+					<Button asChild size="sm">
+						<Link to="/dashboard/settings">Open settings</Link>
+					</Button>
+					<Button asChild size="sm" variant="outline">
+						<Link to="/dashboard/sandboxes">View sandboxes</Link>
+					</Button>
+				</div>
+			</div>
 
 			<div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
 				<Card className="border-border/80">
@@ -397,7 +337,7 @@ function AccountSkeleton() {
 	];
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div>
 				<h1 className="text-xl font-semibold tracking-tight">Account</h1>
 				<p className="text-sm text-muted-foreground">

@@ -72,6 +72,13 @@ function checkForbiddenCommands(query: string): void {
 	}
 }
 
+function sanitizeExecutableSql(query: string): string {
+	return query
+		.trim()
+		.replace(/^```(?:sql)?\s*/i, "")
+		.replace(/\s*```$/i, "");
+}
+
 type SandboxRow = {
 	id: string;
 	userId: string;
@@ -140,7 +147,8 @@ async function executeSandboxQuery(params: {
 	sandbox: SandboxRow;
 	query: string;
 }): Promise<QueryResult> {
-	const { sandbox, query } = params;
+	const { sandbox } = params;
+	const query = sanitizeExecutableSql(params.query);
 	const start = Date.now();
 	let pool: Pool | mysql.Pool | undefined;
 
@@ -323,6 +331,7 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 			prompt: data.prompt,
 			engine: data.engine,
 			sandboxDbName: sandbox.dbName,
+			mode: data.mode,
 		});
 
 		const [log] = await db

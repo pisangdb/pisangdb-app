@@ -1,6 +1,5 @@
 import { createFileRoute, useRouteContext } from "@tanstack/react-router";
 import {
-	ActivityIcon,
 	AlertTriangleIcon,
 	BellIcon,
 	ComputerIcon,
@@ -82,96 +81,43 @@ function SettingsPage() {
 		sessions?.filter((session) => !session.isCurrent).length ?? 0;
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<section className="overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60">
-				<div className="flex flex-col gap-6 p-5 md:p-7">
-					<div className="flex flex-wrap items-center gap-2">
-						<Badge
-							variant="secondary"
-							className="gap-1.5 rounded-full px-3 py-1"
-						>
-							<UserIcon className="size-3.5" />
-							Account Control
-						</Badge>
-						<Badge variant="outline" className="rounded-full px-3 py-1">
-							Profile, security, and sessions
-						</Badge>
-					</div>
-
-					<div className="grid gap-5 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,1fr)] lg:items-end">
-						<div className="space-y-3">
-							<div className="space-y-2">
-								<h1 className="max-w-2xl text-2xl font-semibold tracking-tight md:text-3xl">
-									Keep your workspace identity, access, and preferences under
-									control.
-								</h1>
-								<p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-									Update your profile, manage active sessions, review linked
-									providers, and check workspace limits from one place without
-									hopping between account screens.
-								</p>
-							</div>
-							{(user.email || user.createdAt) && (
-								<div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-									{user.email && (
-										<div className="rounded-full border bg-background/80 px-3 py-1.5">
-											{user.email}
-										</div>
-									)}
-									{user.createdAt && (
-										<div className="rounded-full border bg-background/80 px-3 py-1.5">
-											Joined {formatDate(user.createdAt)}
-										</div>
-									)}
-								</div>
-							)}
-						</div>
-
-						<div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<Link2Icon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Connected Accounts
-									</p>
-								</div>
-								<p className="mt-3 text-2xl font-semibold">
-									{connectedAccounts}
-								</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									Authentication providers linked to this user.
-								</p>
-							</div>
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<ComputerIcon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Other Sessions
-									</p>
-								</div>
-								<p className="mt-3 text-2xl font-semibold">{otherSessions}</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									Devices that can be revoked without signing out here.
-								</p>
-							</div>
-							<div className="rounded-xl border bg-background/80 p-4 shadow-sm">
-								<div className="flex items-center gap-2 text-muted-foreground">
-									<ActivityIcon className="size-4" />
-									<p className="text-xs font-medium uppercase tracking-[0.16em]">
-										Sign-in Method
-									</p>
-								</div>
-								<p className="mt-3 text-lg font-semibold">{signInMethod}</p>
-								<p className="mt-1 text-xs text-muted-foreground">
-									How this account currently authenticates into the dashboard.
-								</p>
-							</div>
-						</div>
-					</div>
+		<div className="flex flex-col gap-4 p-4 md:p-5">
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<div className="flex flex-wrap items-center gap-2">
+					<Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1">
+						<UserIcon className="size-3.5" />
+						Account Control
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						Profile, security, and sessions
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						Connected: {connectedAccounts}
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						Sessions: {otherSessions}
+					</Badge>
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						{signInMethod}
+					</Badge>
 				</div>
-			</section>
+				{(user.email || user.createdAt) && (
+					<div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+						{user.email && (
+							<div className="rounded-full border bg-background px-3 py-1.5">
+								{user.email}
+							</div>
+						)}
+						{user.createdAt && (
+							<div className="rounded-full border bg-background px-3 py-1.5">
+								Joined {formatDate(user.createdAt)}
+							</div>
+						)}
+					</div>
+				)}
+			</div>
 
-			<section className="space-y-3">
+			<section className="space-y-2">
 				<div className="space-y-1">
 					<h2 className="text-sm font-semibold tracking-tight">Identity</h2>
 					<p className="text-xs text-muted-foreground">
@@ -187,7 +133,7 @@ function SettingsPage() {
 				</div>
 			</section>
 
-			<section className="space-y-3">
+			<section className="space-y-2">
 				<div className="space-y-1">
 					<h2 className="text-sm font-semibold tracking-tight">
 						Workspace Access
@@ -202,7 +148,7 @@ function SettingsPage() {
 				</div>
 			</section>
 
-			<section className="space-y-3">
+			<section className="space-y-2">
 				<div className="space-y-1">
 					<h2 className="text-sm font-semibold tracking-tight text-destructive">
 						Danger Zone

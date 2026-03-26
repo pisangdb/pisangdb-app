@@ -218,49 +218,30 @@ function SqlConsolePage() {
 	}, [activeSandboxes, handleSandboxChange, selectedSandboxId]);
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
-				<div className="flex flex-col gap-5">
-					<div className="max-w-2xl">
-						<div className="flex flex-wrap items-center gap-2">
-							<Badge variant="outline">Interactive SQL Console</Badge>
-							<Badge variant="secondary">Sandbox-Safe Execution</Badge>
-						</div>
-						<h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
-							Run live queries without leaving the dashboard
-						</h1>
-						<p className="mt-2 text-sm text-muted-foreground">
-							Inspect schema, test queries, and review recent executions against
-							your active sandboxes with built-in safety limits.
-						</p>
-					</div>
-
-					<div className="grid gap-3 sm:grid-cols-3">
-						{heroStats.map((stat) => (
-							<div
-								key={stat.label}
-								className="rounded-xl border bg-background/80 p-3 shadow-sm"
-							>
-								<div className="flex items-center gap-2 text-xs text-muted-foreground">
-									{stat.icon}
-									<span>{stat.label}</span>
-								</div>
-								<p className="mt-2 text-sm font-semibold text-foreground">
-									{stat.value}
-								</p>
-							</div>
-						))}
-					</div>
-				</div>
-			</div>
-
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div className="grid gap-4 lg:grid-cols-3">
 				<Card className="lg:col-span-2">
 					<CardHeader>
-						<CardTitle className="text-base">Query Editor</CardTitle>
-						<CardDescription>
-							Write and run SQL against a selected active sandbox.
-						</CardDescription>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<div className="space-y-1">
+								<CardTitle className="text-base">Query Editor</CardTitle>
+								<CardDescription>
+									Write and run SQL against a selected active sandbox.
+								</CardDescription>
+							</div>
+							<div className="flex flex-wrap gap-2">
+								{heroStats.map((stat) => (
+									<Badge
+										key={stat.label}
+										variant="outline"
+										className="gap-1.5 rounded-full px-3 py-1"
+									>
+										{stat.icon}
+										{stat.label}: {stat.value}
+									</Badge>
+								))}
+							</div>
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-3">
 						<div className="space-y-2">

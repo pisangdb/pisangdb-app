@@ -1,10 +1,20 @@
+import type { AiGenerateMode } from "#/lib/types";
+
 const DEFAULT_AI_MAX_TOKENS = 1000;
 const DEFAULT_AI_TEMPERATURE = 0.2;
+const DEFAULT_AI_TIMEOUT_MS = 45000;
+const MODE_TOKEN_LIMITS: Record<AiGenerateMode, number> = {
+	helper: 400,
+	schema: 1800,
+	seed: 1100,
+};
+const MAX_RETRY_MAX_TOKENS = 2400;
 
 export interface AiGenerateParams {
 	prompt: string;
 	engine: "postgresql" | "mysql" | "mariadb";
 	sandboxDbName: string;
+	mode?: AiGenerateMode;
 }
 
 export interface GenerateSQLResult {
@@ -15,6 +25,7 @@ export interface GenerateSQLResult {
 
 type ChatCompletionResponse = {
 	choices?: Array<{
+		finish_reason?: string;
 		message?: {
 			content?: string | Array<{ type?: string; text?: string }>;
 		};
@@ -39,7 +50,8 @@ RULES:
 10. For multiple statements, separate with semicolons
 
 USER REQUEST ENGINE: {engine}
-USER DATABASE NAME: {sandboxDbName}`;
+USER DATABASE NAME: {sandboxDbName}
+REQUEST MODE: {mode}`;
 
 function getAiConfig() {
 	const apiUrl = process.env.AI_API_URL;
@@ -49,6 +61,7 @@ function getAiConfig() {
 	const temperature = Number(
 		process.env.AI_TEMPERATURE ?? DEFAULT_AI_TEMPERATURE,
 	);
+	const timeoutMs = Number(process.env.AI_TIMEOUT_MS ?? DEFAULT_AI_TIMEOUT_MS);
 
 	if (!apiUrl) {
 		throw new Error("AI_API_URL environment variable is not set.");
@@ -70,6 +83,7 @@ function getAiConfig() {
 		temperature: Number.isFinite(temperature)
 			? temperature
 			: DEFAULT_AI_TEMPERATURE,
+		timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : DEFAULT_AI_TIMEOUT_MS,
 	};
 }
 
@@ -79,17 +93,35 @@ export function isAiConfigured() {
 	);
 }
 
+function stripMarkdownCodeFences(text: string): string {
+	const trimmed = text.trim();
+	const fencedMatch = trimmed.match(/^```(?:sql)?\s*([\s\S]*?)\s*```$/i);
+	if (fencedMatch) {
+		return fencedMatch[1].trim();
+	}
+
+	return trimmed.replace(/```(?:sql)?/gi, "").trim();
+}
+
 function parseSQLFromResponse(text: string): {
 	sql: string;
 	explanation: string;
 } {
 	const sqlBlockMatch = text.match(/```sql\s*([\s\S]*?)```/i);
 	if (sqlBlockMatch) {
-		const sql = sqlBlockMatch[1].trim();
+		const sql = stripMarkdownCodeFences(sqlBlockMatch[0]);
 		const before = text.substring(0, text.indexOf("```sql")).trim();
 		return { sql, explanation: before || "SQL generated successfully." };
 	}
-	return { sql: text.trim(), explanation: "SQL generated." };
+
+	const genericBlockMatch = text.match(/```[\s\S]*?```/i);
+	if (genericBlockMatch) {
+		const sql = stripMarkdownCodeFences(genericBlockMatch[0]);
+		const before = text.substring(0, text.indexOf("```")).trim();
+		return { sql, explanation: before || "SQL generated successfully." };
+	}
+
+	return { sql: stripMarkdownCodeFences(text), explanation: "SQL generated." };
 }
 
 function validateGeneratedSQL(sql: string): void {
@@ -127,39 +159,102 @@ function extractResponseText(response: ChatCompletionResponse): string {
 	return "";
 }
 
+async function requestSqlGeneration(params: {
+	apiToken: string;
+	apiUrl: string;
+	maxTokens: number;
+	model: string;
+	prompt: string;
+	systemPrompt: string;
+	temperature: number;
+	timeoutMs: number;
+}): Promise<ChatCompletionResponse> {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), params.timeoutMs);
+
+	try {
+		const response = await fetch(params.apiUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${params.apiToken}`,
+			},
+			body: JSON.stringify({
+				model: params.model,
+				messages: [
+					{ role: "system", content: params.systemPrompt },
+					{ role: "user", content: params.prompt },
+				],
+				max_tokens: params.maxTokens,
+				temperature: params.temperature,
+			}),
+			signal: controller.signal,
+		});
+
+		if (!response.ok) {
+			throw new Error(
+				`AI provider request failed with status ${response.status}.`,
+			);
+		}
+
+		return (await response.json()) as ChatCompletionResponse;
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw new Error(
+				`AI provider took longer than ${Math.round(params.timeoutMs / 1000)} seconds. Try a shorter prompt or retry.`,
+			);
+		}
+
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
 export async function generateSQL(
 	params: AiGenerateParams,
 ): Promise<GenerateSQLResult> {
-	const { apiUrl, apiToken, model, maxTokens, temperature } = getAiConfig();
-	const systemPrompt = SYSTEM_PROMPT.replace("{engine}", params.engine).replace(
-		"{sandboxDbName}",
-		params.sandboxDbName,
+	const { apiUrl, apiToken, model, maxTokens, temperature, timeoutMs } =
+		getAiConfig();
+	const mode = params.mode ?? "schema";
+	const systemPrompt = SYSTEM_PROMPT.replace("{engine}", params.engine)
+		.replace("{sandboxDbName}", params.sandboxDbName)
+		.replace("{mode}", mode);
+	const requestedMaxTokens = Math.min(
+		maxTokens,
+		MODE_TOKEN_LIMITS[mode] ?? DEFAULT_AI_MAX_TOKENS,
 	);
-
-	const response = await fetch(apiUrl, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${apiToken}`,
-		},
-		body: JSON.stringify({
-			model,
-			messages: [
-				{ role: "system", content: systemPrompt },
-				{ role: "user", content: params.prompt },
-			],
-			max_tokens: maxTokens,
-			temperature,
-		}),
+	let payload = await requestSqlGeneration({
+		apiToken,
+		apiUrl,
+		maxTokens: requestedMaxTokens,
+		model,
+		prompt: params.prompt,
+		systemPrompt,
+		temperature,
+		timeoutMs,
 	});
-
-	if (!response.ok) {
-		throw new Error(
-			`AI provider request failed with status ${response.status}.`,
-		);
+	const finishReason = payload.choices?.[0]?.finish_reason;
+	if (
+		finishReason === "length" &&
+		requestedMaxTokens < Math.min(maxTokens, MAX_RETRY_MAX_TOKENS)
+	) {
+		payload = await requestSqlGeneration({
+			apiToken,
+			apiUrl,
+			maxTokens: Math.min(
+				Math.max(requestedMaxTokens * 2, requestedMaxTokens + 400),
+				maxTokens,
+				MAX_RETRY_MAX_TOKENS,
+			),
+			model,
+			prompt: params.prompt,
+			systemPrompt,
+			temperature,
+			timeoutMs,
+		});
 	}
 
-	const payload = (await response.json()) as ChatCompletionResponse;
 	const text = extractResponseText(payload);
 
 	if (!text || text.trim().length === 0) {
@@ -173,6 +268,12 @@ export async function generateSQL(
 	}
 
 	validateGeneratedSQL(sql);
+
+	if (!/[;)]\s*$/.test(sql.trim())) {
+		throw new Error(
+			"AI response looks truncated. Try a shorter prompt or generate again.",
+		);
+	}
 
 	const tokensUsed = payload.usage?.total_tokens ?? 0;
 

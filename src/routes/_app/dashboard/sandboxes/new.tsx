@@ -130,60 +130,44 @@ function NewSandboxPage() {
 	];
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
-				<div className="flex flex-col gap-5">
-					<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-						<div className="max-w-2xl">
-							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="outline">Sandbox Provisioning</Badge>
-								<Badge variant="secondary">Live Credentials After Create</Badge>
-							</div>
-							<h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
-								Create a fresh database sandbox
-							</h1>
-							<p className="mt-2 text-sm text-muted-foreground">
-								Choose an engine, retention window, and optional starter
-								template. PisangDB provisions the real database and credentials
-								on submit, then sends you straight to the detail page.
-							</p>
-						</div>
-						<Button asChild variant="outline" size="sm" className="gap-1.5">
-							<Link to="/dashboard/sandboxes">
-								<ArrowLeftIcon className="size-4" />
-								Back to Sandboxes
-							</Link>
-						</Button>
-					</div>
-
-					<div className="grid gap-3 sm:grid-cols-3">
-						{summaryItems.map((item) => (
-							<div
-								key={item.label}
-								className="rounded-xl border bg-background/80 p-3 shadow-sm"
-							>
-								<div className="flex items-center gap-2 text-xs text-muted-foreground">
-									{item.icon}
-									<span>{item.label}</span>
-								</div>
-								<p className="mt-2 text-sm font-semibold text-foreground">
-									{item.value}
-								</p>
-							</div>
-						))}
-					</div>
-				</div>
-			</div>
-
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div className="grid gap-4 lg:grid-cols-5">
 				<Card className="lg:col-span-3">
 					<CardHeader>
-						<CardTitle className="text-base">Sandbox Configuration</CardTitle>
-						<CardDescription>
-							Pick the database setup you want to launch in this workspace.
-						</CardDescription>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<div className="space-y-1">
+								<CardTitle className="text-base">
+									Sandbox Configuration
+								</CardTitle>
+								<CardDescription>
+									Pick the database setup you want to launch in this workspace.
+								</CardDescription>
+							</div>
+							<Button asChild variant="outline" size="sm" className="gap-1.5">
+								<Link to="/dashboard/sandboxes">
+									<ArrowLeftIcon className="size-4" />
+									Back to Sandboxes
+								</Link>
+							</Button>
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-5">
+						<div className="grid gap-3 sm:grid-cols-3">
+							{summaryItems.map((item) => (
+								<div
+									key={item.label}
+									className="rounded-xl border bg-muted/20 p-3"
+								>
+									<div className="flex items-center gap-2 text-xs text-muted-foreground">
+										{item.icon}
+										<span>{item.label}</span>
+									</div>
+									<p className="mt-2 text-sm font-semibold text-foreground">
+										{item.value}
+									</p>
+								</div>
+							))}
+						</div>
 						<div className="space-y-2">
 							<Label>Engine</Label>
 							<div className="grid gap-2 sm:grid-cols-3">
