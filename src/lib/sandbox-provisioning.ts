@@ -337,23 +337,35 @@ export async function provisionMariaDB(
 	const mysqlPool = pool as MySqlPool;
 	const escapedUser = dbUser.replace(/'/g, "''");
 	const escapedPassword = dbPassword.replace(/'/g, "''");
-	// MariaDB: CREATE USER with WITH clause BEFORE IDENTIFIED clause
+
+	// MariaDB: CREATE USER with password first
 	await withTimeout(
 		mysqlPool.query(
-			`CREATE USER '${escapedUser}'@'%' WITH MAX_USER_CONNECTIONS 5 IDENTIFIED BY '${escapedPassword}'`,
+			`CREATE USER '${escapedUser}'@'%' IDENTIFIED BY '${escapedPassword}'`,
 		),
 		PROVISION_TIMEOUT_MS,
 	);
+
+	// MariaDB: Set connection limit separately (cannot combine with CREATE USER)
+	await withTimeout(
+		mysqlPool.query(
+			`ALTER USER '${escapedUser}'@'%' WITH MAX_USER_CONNECTIONS 5`,
+		),
+		PROVISION_TIMEOUT_MS,
+	);
+
 	await withTimeout(
 		mysqlPool.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\``),
 		PROVISION_TIMEOUT_MS,
 	);
+
 	await withTimeout(
 		mysqlPool.query(
 			`GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, INDEX, ALTER, REFERENCES ON \`${dbName}\`.* TO '${escapedUser}'@'%'`,
 		),
 		PROVISION_TIMEOUT_MS,
 	);
+
 	await withTimeout(mysqlPool.query("FLUSH PRIVILEGES"), PROVISION_TIMEOUT_MS);
 }
 
