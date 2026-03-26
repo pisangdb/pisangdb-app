@@ -197,7 +197,14 @@ async function executeSandboxQuery(params: {
 			connectionLimit: 5,
 		});
 
-		await pool.query("SET SESSION MAX_EXECUTION_TIME=30000");
+		// Set query timeout - MySQL 8+ uses MAX_EXECUTION_TIME (milliseconds),
+		// MariaDB uses max_statement_time (seconds)
+		if (sandbox.engine === "mysql") {
+			await pool.query("SET SESSION MAX_EXECUTION_TIME=30000");
+		} else {
+			// MariaDB uses seconds, not milliseconds
+			await pool.query("SET SESSION max_statement_time = 30");
+		}
 
 		const [rows] = await pool.query(query);
 		const executionTimeMs = Date.now() - start;
