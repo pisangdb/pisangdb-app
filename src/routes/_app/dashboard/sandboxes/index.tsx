@@ -163,7 +163,7 @@ function SandboxesPage() {
 
 	if (isPending) {
 		return (
-			<div className="flex flex-col gap-6 p-4 md:p-6">
+			<div className="flex flex-col gap-4 p-4 md:p-5">
 				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<Skeleton className="h-7 w-36" />
 					<Skeleton className="h-8 w-28" />
@@ -179,7 +179,7 @@ function SandboxesPage() {
 	}
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
 				<div className="flex flex-col gap-5">
 					<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

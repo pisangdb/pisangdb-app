@@ -1,4 +1,5 @@
 export type DbEngine = "postgresql" | "mysql" | "mariadb";
+export type AiGenerateMode = "schema" | "seed" | "helper";
 
 export type DbRegion = "id" | "sg" | "us" | "eu";
 
@@ -127,6 +128,7 @@ export interface AiGenerateInput {
 	sandboxId: string;
 	prompt: string;
 	engine: "postgresql" | "mysql" | "mariadb";
+	mode?: AiGenerateMode;
 }
 
 export interface AiGenerateResult {

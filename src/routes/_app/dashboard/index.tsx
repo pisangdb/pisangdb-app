@@ -42,7 +42,7 @@ const generateKey = () => `sk-${Math.random().toString(36).slice(2, 9)}`;
 
 function DashboardSkeleton() {
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div className="flex items-center justify-between">
 				<div className="flex flex-col gap-1">
 					<Skeleton className="h-7 w-32" />
@@ -309,7 +309,7 @@ export function DashboardHome() {
 			: 0;
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
 				<div className="flex flex-col gap-5">
 					<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">

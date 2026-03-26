@@ -16,6 +16,7 @@ import {
 	EyeOffIcon,
 	HardDriveIcon,
 	KeyRoundIcon,
+	Loader2Icon,
 	PlayIcon,
 	RefreshCcwIcon,
 	ShieldCheckIcon,
@@ -23,7 +24,7 @@ import {
 	TableIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ConfirmationDialog } from "#/components/confirmation-dialog";
 import { SqlEditor } from "#/components/sql-editor";
 import { Badge } from "#/components/ui/badge";
@@ -35,9 +36,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
+import { Progress } from "#/components/ui/progress";
 import { useDeleteSandbox, useExtendSandbox } from "#/lib/hooks/useSandboxes";
 import { useWorkspaceStats } from "#/lib/hooks/useUserSettings";
 import type {
+	AiGenerateMode,
 	AiGenerateResult,
 	AiLogItem,
 	QueryHistoryItem,
@@ -100,6 +103,17 @@ const REGION_LABELS: Record<string, string> = {
 	us: "🇺🇸 US",
 };
 
+type CachedSandboxAiResult = {
+	cachedAt: string;
+	engine: string;
+	mode: AiGenerateMode;
+	prompt: string;
+	result: AiGenerateResult;
+	sandboxId: string;
+};
+
+const SANDBOX_AI_CACHE_KEY = "pisangdb.sandbox-ai.cache.v1";
+
 function formatStorageMb(value: number): string {
 	if (value <= 0) return "0 MB";
 	if (value < 1) return `${Math.max(1, Math.round(value * 1024))} KB`;
@@ -115,6 +129,126 @@ function formatUsagePct(usedMb: number, maxMb: number): string {
 	if (rawPct < 1) return "<1%";
 	if (rawPct < 10) return `${rawPct.toFixed(1)}%`;
 	return `${Math.round(rawPct)}%`;
+}
+
+function getAiGenerationStatus(elapsedSeconds: number) {
+	if (elapsedSeconds < 3) {
+		return {
+			detail: "Preparing your prompt and contacting the AI model.",
+			label: "Starting generation",
+			progress: 18,
+		};
+	}
+
+	if (elapsedSeconds < 10) {
+		return {
+			detail: "Drafting SQL for this sandbox and engine.",
+			label: "Generating SQL",
+			progress: 52,
+		};
+	}
+
+	if (elapsedSeconds < 20) {
+		return {
+			detail: "Parsing the response and extracting executable SQL.",
+			label: "Reviewing the output",
+			progress: 78,
+		};
+	}
+
+	return {
+		detail:
+			"This prompt is taking longer than usual. Keep the tab open while generation finishes.",
+		label: "Still working",
+		progress: 90,
+	};
+}
+
+function getSandboxPromptComplexity(mode: AiGenerateMode, prompt: string) {
+	const promptLength = prompt.trim().length;
+
+	if (mode === "helper") {
+		if (promptLength > 220) {
+			return {
+				label: "Long helper request",
+				tone: "warning" as const,
+				value: "Usually slower than a normal query hint",
+			};
+		}
+
+		return {
+			label: "Light request",
+			tone: "neutral" as const,
+			value: "Usually returns fastest",
+		};
+	}
+
+	if (mode === "schema") {
+		if (promptLength > 180) {
+			return {
+				label: "Large schema request",
+				tone: "warning" as const,
+				value: "May take longer and return more SQL",
+			};
+		}
+
+		return {
+			label: "Standard schema request",
+			tone: "neutral" as const,
+			value: "Expected wait is moderate",
+		};
+	}
+
+	if (promptLength > 180) {
+		return {
+			label: "Large seed request",
+			tone: "warning" as const,
+			value: "May take longer because of output volume",
+		};
+	}
+
+	return {
+		label: "Standard seed request",
+		tone: "neutral" as const,
+		value: "Expected wait is moderate",
+	};
+}
+
+function readSandboxAiCache(): CachedSandboxAiResult[] {
+	if (typeof window === "undefined") {
+		return [];
+	}
+
+	try {
+		const raw = window.sessionStorage.getItem(SANDBOX_AI_CACHE_KEY);
+		if (!raw) {
+			return [];
+		}
+
+		const parsed = JSON.parse(raw) as CachedSandboxAiResult[];
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+
+function writeSandboxAiCache(entries: CachedSandboxAiResult[]) {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	window.sessionStorage.setItem(
+		SANDBOX_AI_CACHE_KEY,
+		JSON.stringify(entries.slice(0, 12)),
+	);
+}
+
+function buildSandboxAiCacheKey(params: {
+	mode: AiGenerateMode;
+	prompt: string;
+	sandboxId: string;
+}) {
+	return `${params.sandboxId}::${params.mode}::${params.prompt.trim()}`;
 }
 
 type Tab = "info" | "console" | "ai" | "tables" | "history";
@@ -178,7 +312,6 @@ function SandboxDetailPage() {
 	const [activeTab, setActiveTab] = useState<Tab>("info");
 	const [extendOpen, setExtendOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-	const [tables, setTables] = useState(initialTables);
 	const [consoleQuery, setConsoleQuery] = useState("SELECT 1 as test;");
 	const [consoleResult, setConsoleResult] = useState<QueryResult | null>(null);
 	const [consoleError, setConsoleError] = useState<string | null>(null);
@@ -188,6 +321,15 @@ function SandboxDetailPage() {
 	const [aiError, setAiError] = useState<string | null>(null);
 	const [aiExecuted, setAiExecuted] = useState(false);
 
+	const { data: tables = [] } = useQuery({
+		queryKey: ["sandbox-tables", sandbox.id],
+		queryFn: async () => {
+			return await $getSandboxTables({ data: { sandboxId: sandbox.id } });
+		},
+		initialData: initialTables,
+		refetchInterval: 10000,
+		refetchIntervalInBackground: false,
+	});
 	const { data: history = [] } = useQuery({
 		queryKey: ["sandbox-query-history", sandbox.id],
 		queryFn: async () => {
@@ -210,6 +352,11 @@ function SandboxDetailPage() {
 	const refreshHistory = async () => {
 		await queryClient.invalidateQueries({
 			queryKey: ["sandbox-query-history", sandbox.id],
+		});
+	};
+	const refreshTables = async () => {
+		await queryClient.invalidateQueries({
+			queryKey: ["sandbox-tables", sandbox.id],
 		});
 	};
 
@@ -276,142 +423,130 @@ function SandboxDetailPage() {
 	};
 
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
-			<div className="rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60 p-5 md:p-6">
-				<div className="flex flex-col gap-5">
-					<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-						<div className="flex items-start gap-3">
-							<Button
-								asChild
-								variant="outline"
-								size="icon"
-								className="mt-0.5 size-8 shrink-0 bg-background/80"
-							>
-								<Link to="/dashboard/sandboxes">
-									<ArrowLeftIcon className="size-4" />
-								</Link>
-							</Button>
-							<div className="space-y-3">
-								<div className="flex flex-wrap items-center gap-2">
-									<Badge variant="outline" className="gap-1 px-2 py-0.5">
-										<span>{ENGINE_EMOJI[sandbox.engine]}</span>
-										{ENGINE_LABELS[sandbox.engine]}
-									</Badge>
+		<div className="flex flex-col gap-4 p-4 md:p-5">
+			<div className="flex flex-col gap-4 rounded-2xl border p-4 md:p-5">
+				<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+					<div className="flex items-start gap-3">
+						<Button
+							asChild
+							variant="outline"
+							size="icon"
+							className="mt-0.5 size-8 shrink-0"
+						>
+							<Link to="/dashboard/sandboxes">
+								<ArrowLeftIcon className="size-4" />
+							</Link>
+						</Button>
+						<div className="space-y-2">
+							<div className="flex flex-wrap items-center gap-2">
+								<Badge variant="outline" className="gap-1 px-2 py-0.5">
+									<span>{ENGINE_EMOJI[sandbox.engine]}</span>
+									{ENGINE_LABELS[sandbox.engine]}
+								</Badge>
+								<Badge
+									variant={
+										sandbox.status === "active"
+											? "default"
+											: sandbox.status === "destroying"
+												? "destructive"
+												: "secondary"
+									}
+									className="px-2 py-0.5 text-[10px]"
+								>
+									{sandbox.status}
+								</Badge>
+								<Badge variant="secondary" className="px-2 py-0.5 text-[10px]">
+									{REGION_LABELS[sandbox.region] ?? sandbox.region}
+								</Badge>
+								{summaryStats.map((stat) => (
 									<Badge
-										variant={
-											sandbox.status === "active"
-												? "default"
-												: sandbox.status === "destroying"
-													? "destructive"
-													: "secondary"
-										}
-										className="px-2 py-0.5 text-[10px]"
+										key={stat.label}
+										variant="outline"
+										className="gap-1.5 px-2 py-0.5 text-[10px]"
 									>
-										{sandbox.status}
+										{stat.icon}
+										{stat.label}: {stat.value}
 									</Badge>
-									<Badge
-										variant="secondary"
-										className="px-2 py-0.5 text-[10px]"
-									>
-										{REGION_LABELS[sandbox.region] ?? sandbox.region}
-									</Badge>
-								</div>
-								<div>
-									<h1 className="text-2xl font-semibold tracking-tight">
-										{sandbox.displayName}
-									</h1>
-									<p className="mt-1 text-sm text-muted-foreground">
-										Production-like access for{" "}
-										<span className="font-mono text-foreground">
-											{sandbox.dbName}
-										</span>
-										, with instant credentials, in-browser SQL, and AI-assisted
-										seeding.
-									</p>
-								</div>
+								))}
+							</div>
+							<div>
+								<h1 className="text-2xl font-semibold tracking-tight">
+									{sandbox.displayName}
+								</h1>
+								<p className="mt-1 text-sm text-muted-foreground">
+									Production-like access for{" "}
+									<span className="font-mono text-foreground">
+										{sandbox.dbName}
+									</span>
+									, with instant credentials, in-browser SQL, and AI-assisted
+									seeding.
+								</p>
 							</div>
 						</div>
-						<div className="flex flex-wrap gap-2 lg:justify-end">
-							<div className="relative">
-								<Button
-									variant="outline"
-									size="sm"
-									className="gap-1.5 bg-background/80"
-									onClick={() => setExtendOpen((v) => !v)}
-									disabled={sandbox.status !== "active"}
-								>
-									<RefreshCcwIcon className="size-3.5" />
-									Extend TTL
-								</Button>
-								{extendOpen && (
-									<div className="absolute right-0 top-10 z-10 min-w-36 rounded-xl border bg-background p-1.5 shadow-lg">
-										<p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-											Add Time
-										</p>
-										<div className="flex flex-col gap-0.5">
-											{[1, 6, 12, 24].map((d) => (
-												<button
-													key={d}
-													type="button"
-													className="rounded-lg px-3 py-2 text-left text-xs hover:bg-muted"
-													onClick={() => handleExtend(d as 1 | 6 | 12 | 24)}
-												>
-													+{d}h
-												</button>
-											))}
-										</div>
-									</div>
-								)}
-							</div>
+					</div>
+					<div className="flex flex-wrap gap-2 lg:justify-end">
+						<div className="relative">
 							<Button
 								variant="outline"
 								size="sm"
-								className="gap-1.5 bg-background/80 text-destructive hover:text-destructive"
-								onClick={() => setDeleteDialogOpen(true)}
+								className="gap-1.5"
+								onClick={() => setExtendOpen((v) => !v)}
+								disabled={sandbox.status !== "active"}
 							>
-								<Trash2Icon className="size-3.5" />
-								Delete Sandbox
+								<RefreshCcwIcon className="size-3.5" />
+								Extend TTL
 							</Button>
-						</div>
-					</div>
-
-					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-						{summaryStats.map((stat) => (
-							<div
-								key={stat.label}
-								className="rounded-xl border bg-background/80 p-3 shadow-sm"
-							>
-								<div className="flex items-center gap-2 text-xs text-muted-foreground">
-									{stat.icon}
-									<span>{stat.label}</span>
+							{extendOpen && (
+								<div className="absolute right-0 top-10 z-10 min-w-36 rounded-xl border bg-background p-1.5 shadow-lg">
+									<p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+										Add Time
+									</p>
+									<div className="flex flex-col gap-0.5">
+										{[1, 6, 12, 24].map((d) => (
+											<button
+												key={d}
+												type="button"
+												className="rounded-lg px-3 py-2 text-left text-xs hover:bg-muted"
+												onClick={() => handleExtend(d as 1 | 6 | 12 | 24)}
+											>
+												+{d}h
+											</button>
+										))}
+									</div>
 								</div>
-								<p className="mt-2 text-sm font-semibold text-foreground">
-									{stat.value}
-								</p>
-							</div>
-						))}
+							)}
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							className="gap-1.5 text-destructive hover:text-destructive"
+							onClick={() => setDeleteDialogOpen(true)}
+						>
+							<Trash2Icon className="size-3.5" />
+							Delete Sandbox
+						</Button>
 					</div>
+				</div>
 
-					<div className="rounded-xl border bg-background/70 p-4">
-						<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-							<div className="space-y-1">
-								<p className="text-sm font-medium">Sandbox Health</p>
-								<p className="text-xs text-muted-foreground">
-									{usageLabel} storage used.{" "}
-									{formatStorageMb(sandbox.maxSizeMb - sandbox.sizeMb)}{" "}
-									remaining before the free-tier cap.
-								</p>
-							</div>
-							<Badge variant="outline" className="w-fit">
-								{totalQueries} queries logged
-							</Badge>
+				<div className="rounded-xl border bg-muted/20 p-4">
+					<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+						<div className="space-y-1">
+							<p className="text-sm font-medium">Sandbox Health</p>
+							<p className="text-xs text-muted-foreground">
+								{usageLabel} storage used.{" "}
+								{formatStorageMb(sandbox.maxSizeMb - sandbox.sizeMb)} remaining
+								before the free-tier cap.
+							</p>
 						</div>
-						<div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-							<div
-								className="h-full rounded-full bg-primary transition-all"
-								style={{ width: `${usagePct}%` }}
-							/>
-						</div>
+						<Badge variant="outline" className="w-fit">
+							{totalQueries} queries logged
+						</Badge>
+					</div>
+					<div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+						<div
+							className="h-full rounded-full bg-primary transition-all"
+							style={{ width: `${usagePct}%` }}
+						/>
 					</div>
 				</div>
 			</div>
@@ -439,7 +574,7 @@ function SandboxDetailPage() {
 				<ConsoleTab
 					sandbox={sandbox}
 					refreshHistory={refreshHistory}
-					setTables={setTables}
+					refreshTables={refreshTables}
 					query={consoleQuery}
 					setQuery={setConsoleQuery}
 					queryResult={consoleResult}
@@ -451,6 +586,7 @@ function SandboxDetailPage() {
 			{activeTab === "ai" && (
 				<AiTab
 					sandbox={sandbox}
+					refreshTables={refreshTables}
 					prompt={aiPrompt}
 					setPrompt={setAiPrompt}
 					generated={aiGenerated}
@@ -512,136 +648,176 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 	];
 
 	return (
-		<div className="grid gap-4 lg:grid-cols-2">
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-base">Connection Kit</CardTitle>
-					<CardDescription>
-						Everything you need to connect locally in one place.
-					</CardDescription>
-				</CardHeader>
-				<CardContent className="space-y-3 text-sm">
-					<div className="rounded-xl border bg-gradient-to-br from-primary/10 via-background to-muted p-4">
-						<div className="flex items-start gap-3">
-							<div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
-								<KeyRoundIcon className="size-5" />
-							</div>
-							<div className="space-y-1">
-								<p className="font-medium text-foreground">
-									Ready-to-use credentials
-								</p>
-								<p className="text-xs text-muted-foreground">
-									Copy the connection string or use the `.env` snippet for a
-									quick project setup.
-								</p>
-							</div>
-						</div>
-					</div>
-
-					{credRows.map((row) => (
-						<div
-							key={row.key}
-							className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5"
-						>
-							<span className="text-muted-foreground">{row.label}</span>
-							<div className="flex items-center gap-2">
-								<span className="font-mono text-xs">{row.value}</span>
-								<button
-									type="button"
-									onClick={() => void handleCopy(row.key, row.value)}
-									className="text-muted-foreground hover:text-foreground"
-									title="Copy"
-								>
-									<CopyIcon className="size-3.5" />
-								</button>
-								{copiedKey === row.key && (
-									<span className="text-[10px] text-muted-foreground">
-										Copied
-									</span>
-								)}
+		<div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+			<div className="flex flex-col gap-4">
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">Connection Kit</CardTitle>
+						<CardDescription>
+							Credentials and copy-ready connection values for this sandbox.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4 text-sm">
+						<div className="rounded-xl border bg-gradient-to-br from-primary/10 via-background to-muted p-4">
+							<div className="flex items-start gap-3">
+								<div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+									<KeyRoundIcon className="size-5" />
+								</div>
+								<div className="space-y-1">
+									<p className="font-medium text-foreground">
+										Ready-to-use credentials
+									</p>
+									<p className="text-xs text-muted-foreground">
+										Copy the full connection string, use the `.env` snippet, or
+										lift individual values for local tooling.
+									</p>
+								</div>
 							</div>
 						</div>
-					))}
 
-					<div className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5">
-						<span className="text-muted-foreground">Password</span>
-						<div className="flex items-center gap-2">
-							<span className="font-mono text-xs">
+						<div className="grid gap-3 sm:grid-cols-2">
+							{credRows.map((row) => (
+								<div key={row.key} className="rounded-xl border p-3">
+									<div className="flex items-center justify-between gap-2">
+										<span className="text-xs text-muted-foreground">
+											{row.label}
+										</span>
+										<button
+											type="button"
+											onClick={() => void handleCopy(row.key, row.value)}
+											className="text-muted-foreground hover:text-foreground"
+											title="Copy"
+										>
+											<CopyIcon className="size-3.5" />
+										</button>
+									</div>
+									<p className="mt-2 break-all font-mono text-xs text-foreground">
+										{row.value}
+									</p>
+									{copiedKey === row.key && (
+										<p className="mt-2 text-[10px] text-muted-foreground">
+											Copied
+										</p>
+									)}
+								</div>
+							))}
+						</div>
+
+						<div className="rounded-xl border p-3">
+							<div className="flex items-center justify-between gap-2">
+								<span className="text-xs text-muted-foreground">Password</span>
+								<div className="flex items-center gap-2">
+									<button
+										type="button"
+										onClick={() => setShowPassword((v) => !v)}
+										className="text-muted-foreground hover:text-foreground"
+										title={showPassword ? "Hide" : "Reveal"}
+									>
+										{showPassword ? (
+											<EyeOffIcon className="size-3.5" />
+										) : (
+											<EyeIcon className="size-3.5" />
+										)}
+									</button>
+									<button
+										type="button"
+										onClick={() => void handleCopy("pass", sandbox.dbPassword)}
+										className="text-muted-foreground hover:text-foreground"
+										title="Copy"
+									>
+										<CopyIcon className="size-3.5" />
+									</button>
+								</div>
+							</div>
+							<p className="mt-2 break-all font-mono text-xs text-foreground">
 								{showPassword ? sandbox.dbPassword : "••••••••••••"}
-							</span>
-							<button
-								type="button"
-								onClick={() => setShowPassword((v) => !v)}
-								className="text-muted-foreground hover:text-foreground"
-								title={showPassword ? "Hide" : "Reveal"}
-							>
-								{showPassword ? (
-									<EyeOffIcon className="size-3.5" />
-								) : (
-									<EyeIcon className="size-3.5" />
-								)}
-							</button>
-							<button
-								type="button"
-								onClick={() => void handleCopy("pass", sandbox.dbPassword)}
-								className="text-muted-foreground hover:text-foreground"
-								title="Copy"
-							>
-								<CopyIcon className="size-3.5" />
-							</button>
+							</p>
 							{copiedKey === "pass" && (
-								<span className="text-[10px] text-muted-foreground">
-									Copied
-								</span>
+								<p className="mt-2 text-[10px] text-muted-foreground">Copied</p>
 							)}
 						</div>
-					</div>
 
-					<div className="space-y-2 rounded-xl border p-3">
-						<p className="text-xs font-medium text-muted-foreground">
-							Connection String
-						</p>
-						<p className="break-all font-mono text-xs">
-							{sandbox.connectionUrl}
-						</p>
-						<Button
-							variant="outline"
-							size="sm"
-							className="gap-1.5"
-							onClick={() => void handleCopy("conn", sandbox.connectionUrl)}
-						>
-							<CopyIcon className="size-3.5" />
-							{copiedKey === "conn" ? "Copied!" : "Copy connection string"}
-						</Button>
-					</div>
+						<div className="grid gap-4 lg:grid-cols-2">
+							<div className="space-y-2 rounded-xl border p-3">
+								<p className="text-xs font-medium text-muted-foreground">
+									Connection String
+								</p>
+								<p className="break-all font-mono text-xs">
+									{sandbox.connectionUrl}
+								</p>
+								<Button
+									variant="outline"
+									size="sm"
+									className="gap-1.5"
+									onClick={() => void handleCopy("conn", sandbox.connectionUrl)}
+								>
+									<CopyIcon className="size-3.5" />
+									{copiedKey === "conn" ? "Copied!" : "Copy connection string"}
+								</Button>
+							</div>
 
-					<div className="space-y-2 rounded-xl bg-muted p-3">
-						<p className="text-xs font-medium">.env snippet</p>
-						<p className="break-all font-mono text-xs text-muted-foreground">
-							DATABASE_URL={sandbox.connectionUrl}
-						</p>
-						<Button
-							variant="outline"
-							size="sm"
-							className="gap-1.5"
-							onClick={() =>
-								void handleCopy("env", `DATABASE_URL=${sandbox.connectionUrl}`)
-							}
-						>
-							<CopyIcon className="size-3.5" />
-							{copiedKey === "env" ? "Copied!" : "Copy .env"}
-						</Button>
-					</div>
-					<div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
-						<p className="font-medium text-foreground">Quick Start</p>
-						<p className="mt-1">
-							Use the `.env` snippet for application runtime, or copy host,
-							port, database, and username individually if you prefer manual
-							setup.
-						</p>
-					</div>
-				</CardContent>
-			</Card>
+							<div className="space-y-2 rounded-xl bg-muted p-3">
+								<p className="text-xs font-medium">.env snippet</p>
+								<p className="break-all font-mono text-xs text-muted-foreground">
+									DATABASE_URL={sandbox.connectionUrl}
+								</p>
+								<Button
+									variant="outline"
+									size="sm"
+									className="gap-1.5"
+									onClick={() =>
+										void handleCopy(
+											"env",
+											`DATABASE_URL=${sandbox.connectionUrl}`,
+										)
+									}
+								>
+									<CopyIcon className="size-3.5" />
+									{copiedKey === "env" ? "Copied!" : "Copy .env"}
+								</Button>
+							</div>
+						</div>
+
+						<div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+							<p className="font-medium text-foreground">Quick Start</p>
+							<p className="mt-1">
+								Use the `.env` snippet for app runtime, or copy host, port,
+								database, and username individually for manual setup in SQL
+								clients.
+							</p>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">Runtime Notes</CardTitle>
+						<CardDescription>
+							What matters while this sandbox is active in your workspace.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+						<div className="rounded-xl border bg-muted/20 p-3">
+							<p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+								Access Model
+							</p>
+							<p className="mt-2 text-sm text-foreground">
+								Use the same database from browser console, AI seeder, or your
+								local SQL client with the credentials above.
+							</p>
+						</div>
+						<div className="rounded-xl border bg-muted/20 p-3">
+							<p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+								Ephemeral Lifecycle
+							</p>
+							<p className="mt-2 text-sm text-foreground">
+								This sandbox expires automatically unless you extend the TTL
+								from the header action menu.
+							</p>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
 
 			<div className="flex flex-col gap-4">
 				<Card>
@@ -651,14 +827,14 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 							Operational metadata for this ephemeral database.
 						</CardDescription>
 					</CardHeader>
-					<CardContent className="space-y-3 text-sm">
+					<CardContent className="grid gap-3 text-sm">
 						{metaRows.map((row) => (
 							<div
 								key={row.label}
-								className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0"
+								className="flex items-center justify-between gap-3 rounded-xl border p-3"
 							>
 								<span className="text-muted-foreground">{row.label}</span>
-								<span className="font-medium">{row.value}</span>
+								<span className="text-right font-medium">{row.value}</span>
 							</div>
 						))}
 					</CardContent>
@@ -703,7 +879,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 function ConsoleTab({
 	sandbox,
 	refreshHistory,
-	setTables,
+	refreshTables,
 	query,
 	setQuery,
 	queryResult,
@@ -713,7 +889,7 @@ function ConsoleTab({
 }: {
 	sandbox: SandboxDetail;
 	refreshHistory: () => Promise<void>;
-	setTables: React.Dispatch<React.SetStateAction<SandboxTable[]>>;
+	refreshTables: () => Promise<void>;
 	query: string;
 	setQuery: React.Dispatch<React.SetStateAction<string>>;
 	queryResult: QueryResult | null;
@@ -739,11 +915,7 @@ function ConsoleTab({
 				data: { sandboxId: sandbox.id, query },
 			});
 			setQueryResult(result);
-
-			const newTables = await $getSandboxTables({
-				data: { sandboxId: sandbox.id },
-			});
-			setTables(newTables);
+			await refreshTables();
 			await refreshHistory();
 		} catch (error) {
 			setQueryError(error instanceof Error ? error.message : "Query failed");
@@ -911,6 +1083,7 @@ function ConsoleTab({
 
 function AiTab({
 	sandbox,
+	refreshTables,
 	prompt,
 	setPrompt,
 	generated,
@@ -923,6 +1096,7 @@ function AiTab({
 	setExecuted,
 }: {
 	sandbox: SandboxDetail;
+	refreshTables: () => Promise<void>;
 	prompt: string;
 	setPrompt: React.Dispatch<React.SetStateAction<string>>;
 	generated: AiGenerateResult | null;
@@ -937,13 +1111,79 @@ function AiTab({
 	const queryClient = useQueryClient();
 	const { data: workspaceStats } = useWorkspaceStats();
 	const [isLoading, setIsLoading] = useState(false);
-	const promptIdeas = [
-		"Design a lightweight ecommerce schema with users, products, carts, and orders.",
-		"Generate seed data for a blog app with 20 authors, 80 posts, and comments.",
-		"Create a CRM schema with contacts, companies, deals, and activity history.",
+	const [mode, setMode] = useState<AiGenerateMode>("schema");
+	const [generationElapsed, setGenerationElapsed] = useState(0);
+	const [loadedFromCache, setLoadedFromCache] = useState(false);
+	const [cachedEntries, setCachedEntries] = useState<CachedSandboxAiResult[]>(
+		[],
+	);
+	const modeCards: {
+		description: string;
+		key: AiGenerateMode;
+		title: string;
+	}[] = [
+		{
+			key: "schema",
+			title: "Schema Generator",
+			description: "Generate CREATE TABLE statements",
+		},
+		{
+			key: "seed",
+			title: "Data Seeder",
+			description: "Generate realistic INSERT statements",
+		},
+		{
+			key: "helper",
+			title: "Query Helper",
+			description: "Ask for targeted SQL suggestions",
+		},
 	];
+	const promptIdeas =
+		mode === "schema"
+			? [
+					"Design a lightweight ecommerce schema with users, products, carts, and orders.",
+					"Create a CRM schema with contacts, companies, deals, and activity history.",
+					"Build a booking schema with customers, reservations, rooms, and payments.",
+				]
+			: mode === "seed"
+				? [
+						"Generate seed data for a blog app with 20 authors, 80 posts, and comments.",
+						"Create sample orders with mixed statuses and realistic totals.",
+						"Seed Indonesian customer names, emails, cities, and phone numbers.",
+					]
+				: [
+						"Write a query to show top customers by revenue this month.",
+						"Suggest a query to find products with low stock and high recent sales.",
+						"Show how to join orders, users, and payments with a failed-payment filter.",
+					];
+	const generationStatus = getAiGenerationStatus(generationElapsed);
+	const promptComplexity = getSandboxPromptComplexity(mode, prompt);
+	const recentPrompts = cachedEntries.filter(
+		(entry) => entry.sandboxId === sandbox.id && entry.mode === mode,
+	);
 
-	const handleGenerate = async () => {
+	useEffect(() => {
+		setCachedEntries(readSandboxAiCache());
+	}, []);
+
+	useEffect(() => {
+		if (!isLoading) {
+			setGenerationElapsed(0);
+			return;
+		}
+
+		setGenerationElapsed(0);
+		const startedAt = Date.now();
+		const interval = window.setInterval(() => {
+			setGenerationElapsed(
+				Math.max(0, Math.floor((Date.now() - startedAt) / 1000)),
+			);
+		}, 1000);
+
+		return () => window.clearInterval(interval);
+	}, [isLoading]);
+
+	const handleGenerate = async (options?: { forceFresh?: boolean }) => {
 		if (!prompt.trim()) return;
 
 		setIsLoading(true);
@@ -951,13 +1191,60 @@ function AiTab({
 		setGenerated(null);
 		setGeneratedSql("");
 		setExecuted(false);
+		setLoadedFromCache(false);
 
 		try {
+			const cacheKey = buildSandboxAiCacheKey({
+				sandboxId: sandbox.id,
+				mode,
+				prompt,
+			});
+			const cachedEntry = cachedEntries.find(
+				(entry) =>
+					buildSandboxAiCacheKey({
+						sandboxId: entry.sandboxId,
+						mode: entry.mode,
+						prompt: entry.prompt,
+					}) === cacheKey,
+			);
+
+			if (cachedEntry && !options?.forceFresh) {
+				setGenerated(cachedEntry.result);
+				setGeneratedSql(cachedEntry.result.sqlGenerated);
+				setLoadedFromCache(true);
+				return;
+			}
+
 			const result = await $aiGenerate({
-				data: { sandboxId: sandbox.id, prompt, engine: sandbox.engine },
+				data: {
+					sandboxId: sandbox.id,
+					prompt,
+					engine: sandbox.engine,
+					mode,
+				},
 			});
 			setGenerated(result);
 			setGeneratedSql(result.sqlGenerated);
+			const nextCacheEntries = [
+				{
+					cachedAt: new Date().toISOString(),
+					engine: sandbox.engine,
+					mode,
+					prompt,
+					result,
+					sandboxId: sandbox.id,
+				},
+				...cachedEntries.filter(
+					(entry) =>
+						buildSandboxAiCacheKey({
+							sandboxId: entry.sandboxId,
+							mode: entry.mode,
+							prompt: entry.prompt,
+						}) !== cacheKey,
+				),
+			];
+			writeSandboxAiCache(nextCacheEntries);
+			setCachedEntries(nextCacheEntries.slice(0, 12));
 			await queryClient.invalidateQueries({ queryKey: ["workspace-stats"] });
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Generation failed");
@@ -978,6 +1265,7 @@ function AiTab({
 					sql: generatedSql,
 				},
 			});
+			await refreshTables();
 			setExecuted(true);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Execution failed");
@@ -997,14 +1285,38 @@ function AiTab({
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
+				<div className="grid gap-2 sm:grid-cols-3">
+					{modeCards.map((item) => (
+						<button
+							key={item.key}
+							type="button"
+							onClick={() => setMode(item.key)}
+							disabled={isLoading}
+							className={`rounded-lg border p-3 text-left transition-colors ${
+								mode === item.key
+									? "border-primary bg-primary/5"
+									: "hover:bg-muted/40"
+							}`}
+						>
+							<p className="text-sm font-medium">{item.title}</p>
+							<p className="text-xs text-muted-foreground">
+								{item.description}
+							</p>
+						</button>
+					))}
+				</div>
 				<div className="rounded-xl border bg-gradient-to-br from-primary/10 via-background to-muted p-3">
 					<p className="text-sm font-medium text-foreground">Prompt Ideas</p>
+					<p className="mt-1 text-xs text-muted-foreground">
+						Click any idea to load it into the prompt editor.
+					</p>
 					<div className="mt-3 flex flex-wrap gap-2">
 						{promptIdeas.map((idea) => (
 							<button
 								key={idea}
 								type="button"
 								className="rounded-full border bg-background px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+								disabled={isLoading}
 								onClick={() => setPrompt(idea)}
 							>
 								{idea}
@@ -1015,19 +1327,100 @@ function AiTab({
 				<textarea
 					value={prompt}
 					onChange={(e) => setPrompt(e.target.value)}
-					placeholder="Create users, products, and orders tables for a simple e-commerce app."
+					disabled={isLoading}
+					placeholder={
+						mode === "schema"
+							? "Create users, products, and orders tables for a simple e-commerce app."
+							: mode === "seed"
+								? "Generate 20 realistic users, 40 products, and 60 orders."
+								: "Write a query to show the top 10 customers by revenue."
+					}
 					className="min-h-28 w-full rounded-md border bg-muted/30 p-3 text-sm"
 				/>
+				<div className="flex flex-wrap items-center gap-2 text-xs">
+					<Badge
+						variant={
+							promptComplexity.tone === "warning" ? "secondary" : "outline"
+						}
+						className="rounded-full px-3 py-1"
+					>
+						{promptComplexity.label}
+					</Badge>
+					<span className="text-muted-foreground">
+						{promptComplexity.value}
+					</span>
+				</div>
+				{recentPrompts.length > 0 && (
+					<div className="rounded-xl border bg-muted/10 p-4">
+						<div className="flex items-center justify-between gap-3">
+							<div>
+								<p className="text-sm font-medium text-foreground">
+									Recent Prompts
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Reuse a recent prompt for this sandbox and mode.
+								</p>
+							</div>
+							<Badge variant="outline" className="rounded-full px-3 py-1">
+								{recentPrompts.length} cached
+							</Badge>
+						</div>
+						<div className="mt-3 grid gap-2">
+							{recentPrompts.slice(0, 4).map((entry) => (
+								<button
+									key={`${entry.sandboxId}-${entry.mode}-${entry.cachedAt}`}
+									type="button"
+									onClick={() => setPrompt(entry.prompt)}
+									disabled={isLoading}
+									className="rounded-lg border bg-background px-3 py-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+								>
+									<div className="flex flex-wrap items-center gap-2">
+										<Badge
+											variant={
+												getSandboxPromptComplexity(entry.mode, entry.prompt)
+													.tone === "warning"
+													? "secondary"
+													: "outline"
+											}
+											className="rounded-full px-2 py-0.5 text-[10px]"
+										>
+											{
+												getSandboxPromptComplexity(entry.mode, entry.prompt)
+													.label
+											}
+										</Badge>
+									</div>
+									<p className="line-clamp-2 text-xs text-foreground">
+										{entry.prompt}
+									</p>
+									<p className="mt-1 text-[11px] text-muted-foreground">
+										cached{" "}
+										{new Date(entry.cachedAt).toLocaleTimeString("en-US", {
+											hour: "numeric",
+											minute: "2-digit",
+										})}
+									</p>
+								</button>
+							))}
+						</div>
+					</div>
+				)}
 				<div className="flex flex-wrap items-center gap-2">
 					<Button
 						size="sm"
 						className="gap-1.5"
-						onClick={handleGenerate}
+						onClick={() => {
+							void handleGenerate();
+						}}
 						disabled={
 							isLoading || !prompt.trim() || sandbox.status !== "active"
 						}
 					>
-						<SparklesIcon className="size-4" />
+						{isLoading ? (
+							<Loader2Icon className="size-4 animate-spin" />
+						) : (
+							<SparklesIcon className="size-4" />
+						)}
 						{isLoading ? "Generating…" : "Generate SQL"}
 					</Button>
 					<Badge variant="outline">
@@ -1036,6 +1429,38 @@ function AiTab({
 							: "Loading AI usage…"}
 					</Badge>
 				</div>
+
+				{isLoading && (
+					<div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<div className="space-y-1">
+								<div className="flex items-center gap-2 text-sm font-medium text-foreground">
+									<Loader2Icon className="size-4 animate-spin text-primary" />
+									{generationStatus.label}
+								</div>
+								<p className="text-xs text-muted-foreground">
+									{generationStatus.detail}
+								</p>
+							</div>
+							<div className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground">
+								{generationElapsed}s elapsed
+							</div>
+						</div>
+						<Progress
+							value={generationStatus.progress}
+							className="mt-4 h-2 bg-primary/10"
+							indicatorClassName="bg-primary"
+						/>
+						<div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+							<Badge variant="outline" className="rounded-full px-3 py-1">
+								{ENGINE_LABELS[sandbox.engine]} • {sandbox.displayName}
+							</Badge>
+							<Badge variant="outline" className="rounded-full px-3 py-1">
+								Expected wait: 10-30s
+							</Badge>
+						</div>
+					</div>
+				)}
 
 				{error && (
 					<div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
@@ -1046,11 +1471,37 @@ function AiTab({
 				{generated && (
 					<div className="space-y-2 rounded-lg border p-3">
 						<div className="flex items-center justify-between gap-3">
-							<p className="text-sm font-medium">Generated SQL</p>
+							<div className="flex flex-wrap items-center gap-2">
+								<p className="text-sm font-medium">Generated SQL</p>
+								{loadedFromCache && (
+									<Badge
+										variant="outline"
+										className="rounded-full px-2.5 py-0.5 text-[11px]"
+									>
+										Loaded from cache
+									</Badge>
+								)}
+							</div>
 							<Badge variant="secondary">
 								Review before running against the sandbox
 							</Badge>
 						</div>
+						{loadedFromCache && (
+							<div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+								<span>This result came from local cache.</span>
+								<Button
+									size="sm"
+									variant="outline"
+									className="h-7"
+									onClick={() => {
+										void handleGenerate({ forceFresh: true });
+									}}
+									disabled={isLoading}
+								>
+									Generate Fresh
+								</Button>
+							</div>
+						)}
 						<textarea
 							value={generatedSql}
 							onChange={(e) => setGeneratedSql(e.target.value)}
@@ -1086,17 +1537,36 @@ function TablesTab({
 	tables: SandboxTable[];
 	dbName: string;
 }) {
+	const totalRows = tables.reduce((sum, table) => sum + table.rows, 0);
+	const totalSizeKb = tables.reduce((sum, table) => sum + table.sizeKb, 0);
+
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Tables</CardTitle>
-				<CardDescription>
-					{tables.length} tables in <span className="font-mono">{dbName}</span>.
-				</CardDescription>
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<CardTitle className="text-base">Tables</CardTitle>
+						<CardDescription>
+							{tables.length} tables in{" "}
+							<span className="font-mono">{dbName}</span>.
+						</CardDescription>
+					</div>
+					<div className="flex flex-wrap gap-2">
+						<Badge variant="outline" className="rounded-full px-3 py-1">
+							Rows: {totalRows.toLocaleString()}
+						</Badge>
+						<Badge variant="outline" className="rounded-full px-3 py-1">
+							Size:{" "}
+							{totalSizeKb >= 1024
+								? `${(totalSizeKb / 1024).toFixed(1)} MB`
+								: `${totalSizeKb} KB`}
+						</Badge>
+					</div>
+				</div>
 			</CardHeader>
 			<CardContent>
 				{tables.length > 0 ? (
-					<div className="overflow-x-auto rounded-md border">
+					<div className="rounded-xl border">
 						<table className="w-full text-sm">
 							<thead className="bg-muted/50 text-left">
 								<tr>
@@ -1107,9 +1577,16 @@ function TablesTab({
 							</thead>
 							<tbody>
 								{tables.map((table) => (
-									<tr key={table.name} className="border-t">
-										<td className="px-3 py-2 font-mono text-xs font-medium">
-											{table.name}
+									<tr key={table.name} className="border-t align-top">
+										<td className="px-3 py-2">
+											<div className="space-y-1">
+												<p className="font-mono text-xs font-medium">
+													{table.name}
+												</p>
+												<p className="text-[11px] text-muted-foreground">
+													{table.rows > 0 ? "Contains data" : "No rows yet"}
+												</p>
+											</div>
 										</td>
 										<td className="px-3 py-2 text-muted-foreground">
 											{table.rows.toLocaleString()}
@@ -1185,7 +1662,11 @@ function HistoryTab({ history }: { history: QueryHistoryItem[] }) {
 										{new Date(item.createdAt).toLocaleString("id-ID")}
 									</span>
 								</div>
-								<p className="truncate font-mono text-xs">{item.query}</p>
+								<div className="rounded-lg bg-muted/40 px-3 py-2">
+									<p className="whitespace-pre-wrap break-words font-mono text-xs leading-5">
+										{item.query}
+									</p>
+								</div>
 								<p className="mt-1 text-[11px] text-muted-foreground">
 									<span
 										className={

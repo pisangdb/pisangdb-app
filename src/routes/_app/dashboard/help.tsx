@@ -107,7 +107,7 @@ const destinationCards = [
 
 function HelpPage() {
 	return (
-		<div className="flex flex-col gap-6 p-4 md:p-6">
+		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<section className="overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-muted/60">
 				<div className="flex flex-col gap-6 p-5 md:p-7">
 					<div className="flex flex-wrap items-center gap-2">
