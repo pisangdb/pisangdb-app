@@ -307,9 +307,10 @@ export async function provisionMySQL(
 	const mysqlPool = pool as MySqlPool;
 	const escapedUser = dbUser.replace(/'/g, "''");
 	const escapedPassword = dbPassword.replace(/'/g, "''");
+	// Note: WITH must come BEFORE IDENTIFIED clause in MySQL CREATE USER syntax
 	await withTimeout(
 		mysqlPool.query(
-			`CREATE USER '${escapedUser}'@'%' IDENTIFIED WITH mysql_native_password BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+			`CREATE USER '${escapedUser}'@'%' WITH MAX_USER_CONNECTIONS 5 IDENTIFIED WITH mysql_native_password BY '${escapedPassword}'`,
 		),
 		PROVISION_TIMEOUT_MS,
 	);
@@ -336,9 +337,10 @@ export async function provisionMariaDB(
 	const mysqlPool = pool as MySqlPool;
 	const escapedUser = dbUser.replace(/'/g, "''");
 	const escapedPassword = dbPassword.replace(/'/g, "''");
+	// MariaDB: CREATE USER with WITH clause BEFORE IDENTIFIED clause
 	await withTimeout(
 		mysqlPool.query(
-			`CREATE USER '${escapedUser}'@'%' IDENTIFIED WITH mysql_native_password BY '${escapedPassword}' WITH MAX_USER_CONNECTIONS 5`,
+			`CREATE USER '${escapedUser}'@'%' WITH MAX_USER_CONNECTIONS 5 IDENTIFIED BY '${escapedPassword}'`,
 		),
 		PROVISION_TIMEOUT_MS,
 	);
