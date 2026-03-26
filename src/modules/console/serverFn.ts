@@ -205,7 +205,11 @@ async function executeSandboxQuery(params: {
 			connectionLimit: 5,
 		});
 
-		await pool.query("SET SESSION MAX_EXECUTION_TIME=30000");
+		if (sandbox.engine === "mysql") {
+			await pool.query("SET SESSION MAX_EXECUTION_TIME=30000");
+		} else {
+			await pool.query("SET SESSION max_statement_time = 30");
+		}
 
 		const [rows] = await pool.query(query);
 		const executionTimeMs = Date.now() - start;
