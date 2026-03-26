@@ -421,33 +421,26 @@ export const $deleteAccount = createServerFn({ method: "POST" })
 			}
 		}
 
-		// Manual cleanup of related records (defensive, in case migration not yet applied)
-		// Delete in correct order respecting FK dependencies
 		const userSandboxIds = userSandboxes.map((s) => s.id);
+		await db.transaction(async (tx) => {
+			// Defensive cleanup for environments where FK cascade migration is not yet applied.
+			if (userSandboxIds.length > 0) {
+				await tx
+					.delete(queryHistory)
+					.where(inArray(queryHistory.sandboxId, userSandboxIds));
+			}
 
-		// Delete query_history (depends on sandboxes)
-		if (userSandboxIds.length > 0) {
-			await db
-				.delete(queryHistory)
-				.where(inArray(queryHistory.sandboxId, userSandboxIds));
-		}
+			if (userSandboxIds.length > 0) {
+				await tx
+					.delete(aiLogs)
+					.where(inArray(aiLogs.sandboxId, userSandboxIds));
+			}
 
-		// Delete ai_logs (depends on sandboxes and users)
-		// Delete by sandbox IDs first
-		if (userSandboxIds.length > 0) {
-			await db.delete(aiLogs).where(inArray(aiLogs.sandboxId, userSandboxIds));
-		}
-		// Then by user ID (handles any remaining ai_logs not linked to sandboxes)
-		await db.delete(aiLogs).where(eq(aiLogs.userId, userId));
-
-		// Delete sandboxes metadata (depends on users)
-		await db.delete(sandboxes).where(eq(sandboxes.userId, userId));
-
-		// Delete templates (depends on users)
-		await db.delete(templates).where(eq(templates.userId, userId));
-
-		// Delete user (accounts, sessions, user_preferences cascade automatically via FK)
-		await db.delete(users).where(eq(users.id, userId));
+			await tx.delete(aiLogs).where(eq(aiLogs.userId, userId));
+			await tx.delete(sandboxes).where(eq(sandboxes.userId, userId));
+			await tx.delete(templates).where(eq(templates.userId, userId));
+			await tx.delete(users).where(eq(users.id, userId));
+		});
 
 		return { success: true };
 	});
