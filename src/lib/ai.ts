@@ -2,7 +2,7 @@ import type { AiGenerateMode } from "#/lib/types";
 
 const DEFAULT_AI_MAX_TOKENS = 1000;
 const DEFAULT_AI_TEMPERATURE = 0.2;
-const DEFAULT_AI_TIMEOUT_MS = 45000;
+const DEFAULT_AI_TIMEOUT_MS = 90000;
 const MODE_TOKEN_LIMITS: Record<AiGenerateMode, number> = {
 	helper: 400,
 	schema: 1800,
@@ -142,6 +142,124 @@ function validateGeneratedSQL(sql: string): void {
 	}
 }
 
+function hasBalancedSqlStructures(sql: string): boolean {
+	let parenthesesDepth = 0;
+	let inSingleQuote = false;
+	let inDoubleQuote = false;
+	let inBacktick = false;
+	let inLineComment = false;
+	let inBlockComment = false;
+
+	for (let index = 0; index < sql.length; index += 1) {
+		const char = sql[index];
+		const next = sql[index + 1];
+
+		if (inLineComment) {
+			if (char === "\n") {
+				inLineComment = false;
+			}
+			continue;
+		}
+
+		if (inBlockComment) {
+			if (char === "*" && next === "/") {
+				inBlockComment = false;
+				index += 1;
+			}
+			continue;
+		}
+
+		if (inSingleQuote) {
+			if (char === "'" && next === "'") {
+				index += 1;
+				continue;
+			}
+			if (char === "'") {
+				inSingleQuote = false;
+			}
+			continue;
+		}
+
+		if (inDoubleQuote) {
+			if (char === '"') {
+				inDoubleQuote = false;
+			}
+			continue;
+		}
+
+		if (inBacktick) {
+			if (char === "`") {
+				inBacktick = false;
+			}
+			continue;
+		}
+
+		if (char === "-" && next === "-") {
+			inLineComment = true;
+			index += 1;
+			continue;
+		}
+
+		if (char === "/" && next === "*") {
+			inBlockComment = true;
+			index += 1;
+			continue;
+		}
+
+		if (char === "'") {
+			inSingleQuote = true;
+			continue;
+		}
+
+		if (char === '"') {
+			inDoubleQuote = true;
+			continue;
+		}
+
+		if (char === "`") {
+			inBacktick = true;
+			continue;
+		}
+
+		if (char === "(") {
+			parenthesesDepth += 1;
+			continue;
+		}
+
+		if (char === ")") {
+			parenthesesDepth -= 1;
+			if (parenthesesDepth < 0) {
+				return false;
+			}
+		}
+	}
+
+	return (
+		parenthesesDepth === 0 &&
+		!inSingleQuote &&
+		!inDoubleQuote &&
+		!inBacktick &&
+		!inLineComment &&
+		!inBlockComment
+	);
+}
+
+export function assertExecutableGeneratedSql(sql: string): void {
+	validateGeneratedSQL(sql);
+
+	if (!hasBalancedSqlStructures(sql)) {
+		throw new Error(
+			"AI response looks truncated or malformed. Generate again before executing.",
+		);
+	}
+
+	if (!sql.trim().endsWith(";")) {
+		throw new Error(
+			"AI response looks incomplete because the final SQL statement is not closed with a semicolon.",
+		);
+	}
+}
+
 function extractResponseText(response: ChatCompletionResponse): string {
 	const content = response.choices?.[0]?.message?.content;
 
@@ -267,13 +385,7 @@ export async function generateSQL(
 		throw new Error("Could not extract SQL from AI provider response.");
 	}
 
-	validateGeneratedSQL(sql);
-
-	if (!/[;)]\s*$/.test(sql.trim())) {
-		throw new Error(
-			"AI response looks truncated. Try a shorter prompt or generate again.",
-		);
-	}
+	assertExecutableGeneratedSql(sql);
 
 	const tokensUsed = payload.usage?.total_tokens ?? 0;
 

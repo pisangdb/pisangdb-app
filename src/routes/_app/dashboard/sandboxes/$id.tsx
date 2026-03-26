@@ -251,6 +251,20 @@ function buildSandboxAiCacheKey(params: {
 	return `${params.sandboxId}::${params.mode}::${params.prompt.trim()}`;
 }
 
+function isIncompleteSandboxAiError(message: string | null | undefined) {
+	if (!message) {
+		return false;
+	}
+
+	const normalized = message.toLowerCase();
+	return (
+		normalized.includes("truncated") ||
+		normalized.includes("incomplete") ||
+		normalized.includes("malformed") ||
+		normalized.includes("not closed with a semicolon")
+	);
+}
+
 type Tab = "info" | "console" | "ai" | "tables" | "history";
 
 const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
@@ -1456,15 +1470,47 @@ function AiTab({
 								{ENGINE_LABELS[sandbox.engine]} • {sandbox.displayName}
 							</Badge>
 							<Badge variant="outline" className="rounded-full px-3 py-1">
-								Expected wait: 10-30s
+								Expected wait: 15-60s
 							</Badge>
 						</div>
 					</div>
 				)}
 
 				{error && (
-					<div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-950 dark:text-red-400">
-						{error}
+					<div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+						<div className="flex flex-wrap items-center gap-2">
+							<p className="font-medium">
+								{isIncompleteSandboxAiError(error)
+									? "Incomplete response detected"
+									: "Generation failed"}
+							</p>
+							{isIncompleteSandboxAiError(error) && (
+								<Badge
+									variant="outline"
+									className="rounded-full border-amber-300 bg-amber-100 px-2.5 py-0.5 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-900 dark:text-amber-100"
+								>
+									Retry recommended
+								</Badge>
+							)}
+						</div>
+						<p>{error}</p>
+						{isIncompleteSandboxAiError(error) && (
+							<p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+								The model likely stopped before finishing the SQL. Try a fresh
+								generation or shorten the prompt slightly.
+							</p>
+						)}
+						<div className="flex flex-wrap items-center gap-2">
+							<Button
+								size="sm"
+								onClick={() => {
+									void handleGenerate({ forceFresh: true });
+								}}
+								disabled={isLoading}
+							>
+								Generate Fresh
+							</Button>
+						</div>
 					</div>
 				)}
 

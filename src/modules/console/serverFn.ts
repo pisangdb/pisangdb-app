@@ -360,8 +360,10 @@ export const $aiExecute = createServerFn({ method: "POST" })
 	.handler(async ({ data }): Promise<QueryResult> => {
 		const user = await getCurrentUser();
 		const sandbox = await getOwnedSandbox(data.sandboxId, user.id);
+		const { assertExecutableGeneratedSql } = await import("#/lib/ai");
 
 		checkForbiddenCommands(data.sql);
+		assertExecutableGeneratedSql(sanitizeExecutableSql(data.sql));
 		const result = await executeSandboxQuery({
 			sandbox,
 			query: data.sql,

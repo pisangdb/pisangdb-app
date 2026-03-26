@@ -112,12 +112,14 @@ src/
 ├── lib/
 │   ├── auth.ts          # better-auth server instance
 │   ├── auth-client.ts   # better-auth browser client
+│   ├── ai.ts            # AI runtime, sanitization, timeout, retries
 │   ├── types.ts         # Shared TypeScript types
 │   └── utils.ts         # cn() helper
 ├── modules/             # Feature modules (schema + serverFns)
 │   ├── auth/
 │   ├── sandboxes/
-│   └── console/
+│   ├── console/
+│   └── templates/
 ├── routes/              # File-based routes (TanStack Router)
 │   ├── __root.tsx       # Root layout
 │   ├── index.tsx        # Landing page
@@ -127,6 +129,22 @@ src/
 │   └── _app/dashboard/  # All dashboard pages
 └── styles.css
 ```
+
+---
+
+## Dashboard Surfaces
+
+Core workspace routes:
+
+- `/dashboard` — workspace overview, capacity, recent sandboxes
+- `/dashboard/sandboxes` — sandbox workspace with live storage overview
+- `/dashboard/sandboxes/new` — create sandbox flow with engine/region/template selection
+- `/dashboard/sandboxes/:id` — connection kit, SQL console, AI seeder, tables, history
+- `/dashboard/console` — shared SQL workspace across active sandboxes
+- `/dashboard/ai-seeder` — shared AI SQL generation workspace across active sandboxes
+- `/dashboard/account` — account overview
+- `/dashboard/settings` — profile, security, preferences, danger zone
+- `/dashboard/help` — quick-start and troubleshooting surface
 
 ---
 
@@ -160,6 +178,13 @@ Backend logic lives in `src/modules/{feature}/serverFn.ts`. Use `createServerFn`
 
 ### AI
 AI Seeder uses a configurable chat-completions provider. Configure it through `AI_API_URL`, `AI_API_TOKEN`, and `AI_MODEL`. Do not hardcode provider-specific values in the codebase.
+
+Current AI flow highlights:
+- mode-aware generation for `schema`, `seed`, and `helper`
+- provider timeout handling
+- SQL sanitization before execution
+- retry on truncated model responses
+- recent prompt cache in dashboard AI surfaces
 
 ### Linting & Formatting
 Biome only — no ESLint, no Prettier.
