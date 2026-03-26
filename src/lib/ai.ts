@@ -39,8 +39,12 @@ const SYSTEM_PROMPT = `You are a SQL generation assistant for PisangDB, an ephem
 
 RULES:
 1. Generate ONLY valid SQL for the specified engine (PostgreSQL 16, MySQL 8, or MariaDB 11)
-2. For PostgreSQL: use SERIAL, BIGSERIAL, TIMESTAMPTZ, etc.
-3. For MySQL/MariaDB: use AUTO_INCREMENT, DATETIME, etc.
+2. NEVER mix syntax from a different engine
+3. For PostgreSQL: use SERIAL, BIGSERIAL, TIMESTAMPTZ, GENERATED ... AS IDENTITY, and PostgreSQL-compatible defaults/functions
+4. For PostgreSQL: NEVER use AUTO_INCREMENT, backticks, ENGINE=InnoDB, ON UPDATE CURRENT_TIMESTAMP, or MySQL-style ENUM definitions
+5. For MySQL/MariaDB: use AUTO_INCREMENT, DATETIME or TIMESTAMP, backticks only when needed, and MySQL-compatible defaults/functions
+6. For MySQL/MariaDB: NEVER use SERIAL, BIGSERIAL, TIMESTAMPTZ, ILIKE, RETURNING, or PostgreSQL-only type syntax
+7. If the prompt implies a schema, foreign keys, or seed data, keep every statement valid for the selected engine only
 4. Use IF NOT EXISTS for CREATE TABLE to prevent errors on re-runs
 5. For seed data, use INSERT ... VALUES syntax compatible with the engine
 6. For query help, respond with ONLY the SQL query, no explanation
@@ -124,7 +128,10 @@ function parseSQLFromResponse(text: string): {
 	return { sql: stripMarkdownCodeFences(text), explanation: "SQL generated." };
 }
 
-function validateGeneratedSQL(sql: string): void {
+function validateGeneratedSQL(
+	sql: string,
+	engine: AiGenerateParams["engine"],
+): void {
 	const upper = sql.toUpperCase();
 	if (upper.includes("DROP DATABASE") || upper.includes("DROP USER")) {
 		throw new Error("Generated SQL contains forbidden DROP statements.");
@@ -139,6 +146,52 @@ function validateGeneratedSQL(sql: string): void {
 	}
 	if (upper.includes("ALTER USER") || upper.includes("CREATE USER")) {
 		throw new Error("Generated SQL contains forbidden user management.");
+	}
+
+	if (engine === "postgresql") {
+		if (upper.includes("AUTO_INCREMENT")) {
+			throw new Error(
+				"Generated SQL uses AUTO_INCREMENT, which is not valid for PostgreSQL.",
+			);
+		}
+		if (sql.includes("`")) {
+			throw new Error(
+				"Generated SQL uses MySQL-style backticks, which are not valid for PostgreSQL identifiers.",
+			);
+		}
+		if (upper.includes("ON UPDATE CURRENT_TIMESTAMP")) {
+			throw new Error(
+				"Generated SQL uses MySQL-style ON UPDATE CURRENT_TIMESTAMP, which is not valid for PostgreSQL.",
+			);
+		}
+		if (upper.includes("ENGINE=")) {
+			throw new Error(
+				"Generated SQL uses MySQL table ENGINE syntax, which is not valid for PostgreSQL.",
+			);
+		}
+	}
+
+	if (engine === "mysql" || engine === "mariadb") {
+		if (upper.includes("TIMESTAMPTZ")) {
+			throw new Error(
+				"Generated SQL uses TIMESTAMPTZ, which is PostgreSQL-specific syntax.",
+			);
+		}
+		if (upper.includes("BIGSERIAL") || upper.includes("SERIAL PRIMARY KEY")) {
+			throw new Error(
+				"Generated SQL uses PostgreSQL SERIAL/BIGSERIAL syntax, which is not valid for MySQL or MariaDB here.",
+			);
+		}
+		if (upper.includes(" ILIKE ")) {
+			throw new Error(
+				"Generated SQL uses ILIKE, which is PostgreSQL-specific syntax.",
+			);
+		}
+		if (upper.includes(" RETURNING ")) {
+			throw new Error(
+				"Generated SQL uses RETURNING, which is not supported the same way in MySQL or MariaDB here.",
+			);
+		}
 	}
 }
 
@@ -244,8 +297,11 @@ function hasBalancedSqlStructures(sql: string): boolean {
 	);
 }
 
-export function assertExecutableGeneratedSql(sql: string): void {
-	validateGeneratedSQL(sql);
+export function assertExecutableGeneratedSql(
+	sql: string,
+	engine: AiGenerateParams["engine"],
+): void {
+	validateGeneratedSQL(sql, engine);
 
 	if (!hasBalancedSqlStructures(sql)) {
 		throw new Error(
@@ -385,7 +441,7 @@ export async function generateSQL(
 		throw new Error("Could not extract SQL from AI provider response.");
 	}
 
-	assertExecutableGeneratedSql(sql);
+	assertExecutableGeneratedSql(sql, params.engine);
 
 	const tokensUsed = payload.usage?.total_tokens ?? 0;
 

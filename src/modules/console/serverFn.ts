@@ -79,6 +79,162 @@ function sanitizeExecutableSql(query: string): string {
 		.replace(/\s*```$/i, "");
 }
 
+function getEngineSyntaxHint(
+	engine: DbEngine,
+	query: string,
+	errorMessage: string,
+): string | null {
+	const upperQuery = query.toUpperCase();
+	const upperError = errorMessage.toUpperCase();
+
+	if (engine === "postgresql") {
+		if (
+			upperQuery.includes("AUTO_INCREMENT") ||
+			query.includes("`") ||
+			upperQuery.includes("ENGINE=") ||
+			upperQuery.includes("ON UPDATE CURRENT_TIMESTAMP")
+		) {
+			return "This SQL looks like MySQL/MariaDB syntax, but the selected sandbox uses PostgreSQL.";
+		}
+	}
+
+	if (engine === "mysql" || engine === "mariadb") {
+		if (
+			upperQuery.includes("TIMESTAMPTZ") ||
+			upperQuery.includes("BIGSERIAL") ||
+			upperQuery.includes("SERIAL PRIMARY KEY") ||
+			upperQuery.includes(" ILIKE ") ||
+			upperQuery.includes(" RETURNING ")
+		) {
+			return `This SQL looks like PostgreSQL syntax, but the selected sandbox uses ${engine === "mysql" ? "MySQL" : "MariaDB"}.`;
+		}
+	}
+
+	if (
+		engine === "postgresql" &&
+		(upperError.includes("AUTO_INCREMENT") ||
+			upperError.includes("SYNTAX ERROR"))
+	) {
+		return "PostgreSQL supports multiple statements here, but every statement still must use PostgreSQL syntax.";
+	}
+
+	return null;
+}
+
+function splitSqlStatements(query: string): string[] {
+	const statements: string[] = [];
+	let current = "";
+	let inSingleQuote = false;
+	let inDoubleQuote = false;
+	let inBacktick = false;
+	let inLineComment = false;
+	let inBlockComment = false;
+
+	for (let index = 0; index < query.length; index += 1) {
+		const char = query[index];
+		const next = query[index + 1];
+
+		if (inLineComment) {
+			current += char;
+			if (char === "\n") {
+				inLineComment = false;
+			}
+			continue;
+		}
+
+		if (inBlockComment) {
+			current += char;
+			if (char === "*" && next === "/") {
+				current += next;
+				inBlockComment = false;
+				index += 1;
+			}
+			continue;
+		}
+
+		if (inSingleQuote) {
+			current += char;
+			if (char === "'" && next === "'") {
+				current += next;
+				index += 1;
+				continue;
+			}
+			if (char === "'") {
+				inSingleQuote = false;
+			}
+			continue;
+		}
+
+		if (inDoubleQuote) {
+			current += char;
+			if (char === '"') {
+				inDoubleQuote = false;
+			}
+			continue;
+		}
+
+		if (inBacktick) {
+			current += char;
+			if (char === "`") {
+				inBacktick = false;
+			}
+			continue;
+		}
+
+		if (char === "-" && next === "-") {
+			current += char;
+			current += next;
+			inLineComment = true;
+			index += 1;
+			continue;
+		}
+
+		if (char === "/" && next === "*") {
+			current += char;
+			current += next;
+			inBlockComment = true;
+			index += 1;
+			continue;
+		}
+
+		if (char === "'") {
+			current += char;
+			inSingleQuote = true;
+			continue;
+		}
+
+		if (char === '"') {
+			current += char;
+			inDoubleQuote = true;
+			continue;
+		}
+
+		if (char === "`") {
+			current += char;
+			inBacktick = true;
+			continue;
+		}
+
+		if (char === ";") {
+			const statement = current.trim();
+			if (statement) {
+				statements.push(statement);
+			}
+			current = "";
+			continue;
+		}
+
+		current += char;
+	}
+
+	const trailing = current.trim();
+	if (trailing) {
+		statements.push(trailing);
+	}
+
+	return statements;
+}
+
 type SandboxRow = {
 	id: string;
 	userId: string;
@@ -211,31 +367,35 @@ async function executeSandboxQuery(params: {
 			await pool.query("SET SESSION max_statement_time = 30");
 		}
 
-		const [rows] = await pool.query(query);
-		const executionTimeMs = Date.now() - start;
+		const statements = splitSqlStatements(query);
+		let columns: string[] = [];
+		let resultRows: Record<string, string | number | boolean | null>[] = [];
+		let rowsAffected = 0;
 
-		if (Array.isArray(rows) && rows.length > 0) {
-			const columns = Object.keys(rows[0] as Record<string, unknown>);
-			const rowsAffected = rows.length;
+		for (const statement of statements) {
+			const [rows] = await pool.query(statement);
 
-			await insertQueryHistoryEntry({
-				sandboxId: sandbox.id,
-				query,
-				status: "success",
-				executionTimeMs,
-				rowsAffected,
-			});
+			if (Array.isArray(rows) && rows.length > 0) {
+				columns = Object.keys(rows[0] as Record<string, unknown>);
+				resultRows = rows as Record<string, string | number | boolean | null>[];
+				rowsAffected = resultRows.length;
+				continue;
+			}
 
-			return {
-				columns,
-				rows: rows as Record<string, string | number | boolean | null>[],
-				rowsAffected,
-				executionTimeMs,
-			};
+			if (Array.isArray(rows)) {
+				columns = [];
+				resultRows = [];
+				rowsAffected = rows.length;
+				continue;
+			}
+
+			const result = rows as mysql.ResultSetHeader;
+			columns = [];
+			resultRows = [];
+			rowsAffected += result.affectedRows ?? 0;
 		}
 
-		const result = rows as mysql.ResultSetHeader;
-		const rowsAffected = result.affectedRows ?? 0;
+		const executionTimeMs = Date.now() - start;
 
 		await insertQueryHistoryEntry({
 			sandboxId: sandbox.id,
@@ -245,11 +405,24 @@ async function executeSandboxQuery(params: {
 			rowsAffected,
 		});
 
-		return { columns: [], rows: [], rowsAffected, executionTimeMs };
+		return {
+			columns,
+			rows: resultRows,
+			rowsAffected,
+			executionTimeMs,
+		};
 	} catch (error) {
 		const executionTimeMs = Date.now() - start;
-		const errorMessage =
+		const rawErrorMessage =
 			error instanceof Error ? error.message : "Unknown error";
+		const syntaxHint = getEngineSyntaxHint(
+			sandbox.engine as DbEngine,
+			query,
+			rawErrorMessage,
+		);
+		const errorMessage = syntaxHint
+			? `${syntaxHint} ${rawErrorMessage}`
+			: rawErrorMessage;
 
 		await insertQueryHistoryEntry({
 			sandboxId: sandbox.id,
@@ -259,7 +432,7 @@ async function executeSandboxQuery(params: {
 			errorMessage,
 		});
 
-		throw error;
+		throw new Error(errorMessage);
 	} finally {
 		if (pool) {
 			await pool.end();
@@ -367,7 +540,10 @@ export const $aiExecute = createServerFn({ method: "POST" })
 		const { assertExecutableGeneratedSql } = await import("#/lib/ai");
 
 		checkForbiddenCommands(data.sql);
-		assertExecutableGeneratedSql(sanitizeExecutableSql(data.sql));
+		assertExecutableGeneratedSql(
+			sanitizeExecutableSql(data.sql),
+			sandbox.engine as DbEngine,
+		);
 		const result = await executeSandboxQuery({
 			sandbox,
 			query: data.sql,
