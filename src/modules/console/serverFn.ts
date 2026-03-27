@@ -242,6 +242,7 @@ type SandboxRow = {
 	region: string;
 	status: string;
 	host: string;
+	port: number;
 	dbName: string;
 	dbUser: string;
 	dbPassword: string;
@@ -319,6 +320,7 @@ async function executeSandboxQuery(params: {
 		sandbox.engine as DbEngine,
 		sandbox.region,
 		sandbox.host,
+		sandbox.port,
 	);
 
 	try {
