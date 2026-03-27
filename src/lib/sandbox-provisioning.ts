@@ -444,10 +444,17 @@ export function getSandboxConnection(
 	engine: DbEngine,
 	region: string,
 	storedHost: string,
+	storedPort: number,
 ): { host: string; port: number } {
-	const devHost = process.env.SANDBOX_HOST ?? storedHost;
-	const port = getSandboxPort(engine, region);
-	return { host: devHost, port };
+	const overrideHost = process.env.SANDBOX_HOST;
+	if (overrideHost) {
+		return {
+			host: overrideHost,
+			port: getSandboxPort(engine, region),
+		};
+	}
+
+	return { host: storedHost, port: storedPort };
 }
 
 export function buildConnectionUrl(
