@@ -359,6 +359,9 @@ async function executeSandboxQuery(params: {
 			password: sandbox.dbPassword,
 			waitForConnections: true,
 			connectionLimit: 5,
+			...(sandbox.engine === "mariadb" && {
+				authPlugin: "mysql_native_password",
+			}),
 		});
 
 		if (sandbox.engine === "mysql") {
