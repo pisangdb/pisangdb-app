@@ -11,12 +11,14 @@ import {
 	type SandboxListItem,
 	type SandboxStatus,
 	type SandboxTable,
+	type SandboxTablePreview,
 	TIER_LIMITS,
 } from "#/lib/types";
 import {
 	createSandboxSchema,
 	extendSandboxSchema,
 	sandboxIdSchema,
+	sandboxTablePreviewSchema,
 } from "./schema";
 
 async function getSandboxesServerContext() {
@@ -631,5 +633,92 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			return tables;
 		} catch {
 			return [];
+		}
+	});
+
+export const $getSandboxTablePreview = createServerFn({ method: "GET" })
+	.inputValidator(sandboxTablePreviewSchema)
+	.handler(async ({ data }): Promise<SandboxTablePreview> => {
+		const { auth, db, sandboxes } = await getSandboxesServerContext();
+		const request = getRequest();
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session?.user) {
+			throw new Error("Unauthorized");
+		}
+
+		const [sandbox] = await db
+			.select()
+			.from(sandboxes)
+			.where(
+				and(
+					eq(sandboxes.id, data.sandboxId),
+					eq(sandboxes.userId, session.user.id),
+				),
+			);
+
+		if (!sandbox) {
+			throw new Error("Sandbox not found");
+		}
+
+		if (sandbox.status !== "active") {
+			throw new Error("Sandbox is not active");
+		}
+
+		const tableName = data.tableName;
+		const engine = sandbox.engine as DbEngine;
+
+		if (engine === "postgresql") {
+			const [{ Pool: PgPool }, { getSandboxPort }] = await Promise.all([
+				import("pg"),
+				import("#/lib/sandbox-provisioning"),
+			]);
+			const sandboxPool = new PgPool({
+				host: process.env.SANDBOX_HOST ?? sandbox.host,
+				port: getSandboxPort(engine, sandbox.region),
+				database: sandbox.dbName,
+				user: sandbox.dbUser,
+				password: sandbox.dbPassword,
+				max: 3,
+			});
+
+			try {
+				const result = await sandboxPool.query(
+					`SELECT * FROM "${tableName}" LIMIT 10`,
+				);
+
+				return {
+					tableName,
+					columns: result.fields.map((field) => field.name),
+					rows: result.rows as Record<
+						string,
+						string | number | boolean | null
+					>[],
+				};
+			} finally {
+				await sandboxPool.end();
+			}
+		}
+
+		const [{ getAdminPool }] = await Promise.all([
+			import("#/lib/sandbox-provisioning"),
+		]);
+		const pool = getAdminPool(engine, sandbox.region) as MySqlPool;
+
+		try {
+			const [rows, fields] = await pool.query(
+				`SELECT * FROM \`${tableName}\` LIMIT 10`,
+			);
+
+			return {
+				tableName,
+				columns: Array.isArray(fields)
+					? fields.map((field) => String(field.name))
+					: [],
+				rows: Array.isArray(rows)
+					? (rows as Record<string, string | number | boolean | null>[])
+					: [],
+			};
+		} finally {
+			await pool.end();
 		}
 	});

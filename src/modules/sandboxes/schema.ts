@@ -30,3 +30,12 @@ export const extendSandboxSchema = z.object({
 export const sandboxIdSchema = z.object({
 	sandboxId: z.string().uuid(),
 });
+
+export const sandboxTablePreviewSchema = z.object({
+	sandboxId: z.string().uuid(),
+	tableName: z
+		.string()
+		.min(1)
+		.max(128)
+		.regex(/^[A-Za-z0-9_]+$/, "Invalid table name"),
+});
