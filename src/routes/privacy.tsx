@@ -1,8 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LegalPageLayout } from "#/components/legal-page-layout";
+import { buildSeoMeta } from "#/lib/seo";
 
 export const Route = createFileRoute("/privacy")({
-	head: () => ({ meta: [{ title: "Privacy Policy — PisangDB" }] }),
+	head: () =>
+		buildSeoMeta({
+			title: "Privacy Policy | PisangDB",
+			description:
+				"Read how PisangDB collects, uses, retains, and protects account, sandbox, and operational data across the platform.",
+			path: "/privacy",
+		}),
 	component: PrivacyPage,
 });
 

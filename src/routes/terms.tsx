@@ -1,8 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LegalPageLayout } from "#/components/legal-page-layout";
+import { buildSeoMeta } from "#/lib/seo";
 
 export const Route = createFileRoute("/terms")({
-	head: () => ({ meta: [{ title: "Terms of Service — PisangDB" }] }),
+	head: () =>
+		buildSeoMeta({
+			title: "Terms of Service | PisangDB",
+			description:
+				"Review the PisangDB terms covering acceptable use, sandbox limits, retention, service availability, and liability.",
+			path: "/terms",
+		}),
 	component: TermsPage,
 });
 

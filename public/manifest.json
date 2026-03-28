@@ -1,6 +1,7 @@
 {
   "short_name": "PisangDB",
-  "name": "PisangDB",
+  "name": "PisangDB - Ephemeral Database Sandboxes",
+  "description": "Launch PostgreSQL, MySQL, and MariaDB sandboxes in seconds with instant credentials, browser SQL console, and automatic cleanup.",
   "icons": [
     {
       "src": "favicon.svg",
@@ -13,7 +14,8 @@
       "type": "image/svg+xml"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "theme_color": "#f59e0b",
   "background_color": "#ffffff"

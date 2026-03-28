@@ -13,14 +13,26 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Logo } from "#/components/logo";
-import { Badge } from "#/components/ui/badge";
-import { Button } from "#/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card";
+import { buildSeoMeta, seoDefaults } from "#/lib/seo";
 
 export const Route = createFileRoute("/")({
-	head: () => ({
-		meta: [{ title: "PisangDB — Fresh Databases for Developers" }],
-	}),
+	head: () =>
+		buildSeoMeta({
+			title: "Ephemeral Database Sandboxes for Developers | PisangDB",
+			description:
+				"Spin up PostgreSQL, MySQL, and MariaDB sandboxes in seconds. Copy credentials instantly, run SQL in the browser, generate seed data with AI, and let TTL auto-cleanup handle the rest.",
+			path: "/",
+			keywords: [
+				"ephemeral database",
+				"temporary database",
+				"postgresql sandbox",
+				"mysql sandbox",
+				"mariadb sandbox",
+				"database for testing",
+				"online sql console",
+			],
+		}),
 	component: LandingPage,
 });
 
@@ -145,6 +157,71 @@ const SCENARIOS = [
 	},
 ];
 
+function cx(...classes: Array<string | false | null | undefined>) {
+	return classes.filter(Boolean).join(" ");
+}
+
+type LandingButtonProps = {
+	children: React.ReactNode;
+	className?: string;
+	size?: "sm" | "lg";
+	to: string;
+	variant?: "default" | "ghost" | "outline";
+};
+
+function LandingButton({
+	children,
+	className,
+	size = "lg",
+	to,
+	variant = "default",
+}: LandingButtonProps) {
+	return (
+		<Link
+			to={to as never}
+			className={cx(
+				"inline-flex items-center justify-center rounded-lg border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50",
+				size === "sm" ? "h-8 px-3" : "h-10 px-4",
+				variant === "default" &&
+					"border-transparent bg-primary text-primary-foreground hover:bg-primary/90",
+				variant === "outline" &&
+					"border-border bg-background text-foreground hover:bg-muted",
+				variant === "ghost" &&
+					"border-transparent bg-transparent text-foreground hover:bg-muted",
+				className,
+			)}
+		>
+			{children}
+		</Link>
+	);
+}
+
+type LandingBadgeProps = {
+	children: React.ReactNode;
+	className?: string;
+	variant?: "outline" | "secondary";
+};
+
+function LandingBadge({
+	children,
+	className,
+	variant = "secondary",
+}: LandingBadgeProps) {
+	return (
+		<span
+			className={cx(
+				"inline-flex h-5 w-fit items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium",
+				variant === "secondary" &&
+					"border-transparent bg-secondary text-secondary-foreground",
+				variant === "outline" && "border-border bg-background text-foreground",
+				className,
+			)}
+		>
+			{children}
+		</span>
+	);
+}
+
 function SandboxPreviewHero() {
 	const [scenarioIdx, setScenarioIdx] = useState(0);
 
@@ -200,10 +277,10 @@ function SandboxPreviewHero() {
 								Region {scenario.region} · Ready to copy
 							</p>
 						</div>
-						<Badge variant="secondary" className="shrink-0">
+						<LandingBadge className="shrink-0">
 							<CopyIcon className="mr-1 size-3" />
 							Copy
-						</Badge>
+						</LandingBadge>
 					</div>
 					<p className="mt-3 break-all rounded-lg bg-muted/50 p-3 font-mono text-xs text-foreground">
 						{scenario.url}
@@ -229,6 +306,53 @@ function SandboxPreviewHero() {
 }
 
 function LandingPage() {
+	const softwareApplicationSchema = {
+		"@context": "https://schema.org",
+		"@type": "SoftwareApplication",
+		name: seoDefaults.siteName,
+		applicationCategory: "DeveloperApplication",
+		operatingSystem: "Web",
+		url: seoDefaults.siteUrl,
+		description:
+			"Ephemeral database sandboxes for developers with instant credentials, browser SQL console, and automatic cleanup.",
+		offers: {
+			"@type": "Offer",
+			price: "0",
+			priceCurrency: "USD",
+		},
+		featureList: [
+			"PostgreSQL 16, MySQL 8, and MariaDB 11 sandboxes",
+			"Instant database credentials",
+			"Browser-based SQL console",
+			"AI-powered schema and seed generation",
+			"Automatic TTL cleanup",
+		],
+	};
+	const organizationSchema = {
+		"@context": "https://schema.org",
+		"@type": "Organization",
+		name: seoDefaults.siteName,
+		url: seoDefaults.siteUrl,
+		logo: `${seoDefaults.siteUrl}/logo512.png`,
+		email: "hello@pisangdb.com",
+	};
+	const websiteSchema = {
+		"@context": "https://schema.org",
+		"@type": "WebSite",
+		name: seoDefaults.siteName,
+		url: seoDefaults.siteUrl,
+		description: seoDefaults.defaultDescription,
+		publisher: {
+			"@type": "Organization",
+			name: seoDefaults.siteName,
+		},
+	};
+	const homeSchemas = [
+		softwareApplicationSchema,
+		organizationSchema,
+		websiteSchema,
+	];
+
 	return (
 		<div className="relative min-h-svh bg-background text-foreground">
 			{/* Background glows */}
@@ -240,21 +364,21 @@ function LandingPage() {
 			<header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 md:px-8 md:py-5">
 				<Logo size="md" />
 				<nav className="flex items-center gap-2">
-					<Button variant="ghost" size="sm" asChild>
-						<Link to="/login">Sign in</Link>
-					</Button>
-					<Button size="sm" asChild>
-						<Link to="/register">Get started free</Link>
-					</Button>
+					<LandingButton variant="ghost" size="sm" to="/login">
+						Sign in
+					</LandingButton>
+					<LandingButton size="sm" to="/register">
+						Get started free
+					</LandingButton>
 				</nav>
 			</header>
 
 			<main className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-20 px-4 pb-20 pt-8 md:px-8 md:pt-14">
 				{/* ── Hero ── */}
 				<section className="flex flex-col items-center gap-6 text-center">
-					<Badge variant="secondary" className="px-3 py-1">
+					<LandingBadge className="px-3 py-1">
 						🍌 Free while in beta — no credit card required
-					</Badge>
+					</LandingBadge>
 
 					<h1 className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
 						Ephemeral databases,{" "}
@@ -268,12 +392,12 @@ function LandingPage() {
 					</p>
 
 					<div className="flex flex-wrap justify-center gap-3">
-						<Button size="lg" asChild>
-							<Link to="/register">Create free sandbox</Link>
-						</Button>
-						<Button size="lg" variant="outline" asChild>
-							<Link to="/login">Sign in</Link>
-						</Button>
+						<LandingButton size="lg" to="/register">
+							Create free sandbox
+						</LandingButton>
+						<LandingButton size="lg" variant="outline" to="/login">
+							Sign in
+						</LandingButton>
 					</div>
 
 					<SandboxPreviewHero />
@@ -395,7 +519,7 @@ function LandingPage() {
 									</span>
 									<div className="flex items-center gap-2 text-xs text-muted-foreground">
 										<span>:{e.port}</span>
-										<Badge variant="secondary">Active</Badge>
+										<LandingBadge>Active</LandingBadge>
 									</div>
 								</div>
 							))}
@@ -415,9 +539,9 @@ function LandingPage() {
 									<span className="font-medium">
 										{r.flag} {r.name}
 									</span>
-									<Badge variant={r.active ? "secondary" : "outline"}>
+									<LandingBadge variant={r.active ? "secondary" : "outline"}>
 										{r.active ? "Active" : "Coming soon"}
-									</Badge>
+									</LandingBadge>
 								</div>
 							))}
 							<p className="text-xs text-muted-foreground">
@@ -455,9 +579,7 @@ function LandingPage() {
 				{/* ── Pricing ── */}
 				<section className="flex flex-col items-center gap-6">
 					<div className="text-center">
-						<Badge variant="secondary" className="mb-3">
-							Pricing
-						</Badge>
+						<LandingBadge className="mb-3">Pricing</LandingBadge>
 						<h2 className="text-2xl font-bold tracking-tight md:text-3xl">
 							Free during beta
 						</h2>
@@ -489,9 +611,9 @@ function LandingPage() {
 							))}
 						</ul>
 
-						<Button className="w-full" size="lg" asChild>
-							<Link to="/register">Create free account →</Link>
-						</Button>
+						<LandingButton className="w-full" size="lg" to="/register">
+							Create free account →
+						</LandingButton>
 					</div>
 					<p className="text-xs text-muted-foreground">
 						*Limits may change when PisangDB exits beta.
@@ -508,12 +630,12 @@ function LandingPage() {
 						you're done, it disappears automatically.
 					</p>
 					<div className="flex flex-wrap justify-center gap-3">
-						<Button size="lg" asChild>
-							<Link to="/register">Create free sandbox</Link>
-						</Button>
-						<Button size="lg" variant="outline" asChild>
-							<Link to="/login">Sign in</Link>
-						</Button>
+						<LandingButton size="lg" to="/register">
+							Create free sandbox
+						</LandingButton>
+						<LandingButton size="lg" variant="outline" to="/login">
+							Sign in
+						</LandingButton>
 					</div>
 				</section>
 			</main>
@@ -544,6 +666,11 @@ function LandingPage() {
 					</div>
 				</div>
 			</footer>
+			<script
+				type="application/ld+json"
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: schema JSON-LD must be injected as raw JSON
+				dangerouslySetInnerHTML={{ __html: JSON.stringify(homeSchemas) }}
+			/>
 		</div>
 	);
 }

@@ -1,10 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { and, count, desc, eq, gte, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import type { Pool as MySqlPool } from "mysql2/promise";
 import type { Pool } from "pg";
 import {
-	type DashboardStats,
 	type DbEngine,
 	type DbRegion,
 	DEFAULT_TIER,
@@ -29,76 +28,11 @@ async function getSandboxesServerContext() {
 
 	return {
 		auth,
-		aiLogs: schema.aiLogs,
 		db,
 		sandboxes: schema.sandboxes,
 		templates: schema.templates,
 	};
 }
-
-function getCurrentUtcMonthRange() {
-	const now = new Date();
-	const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-	const end = new Date(
-		Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
-	);
-
-	return { end, start };
-}
-
-export const $getDashboardStats = createServerFn({ method: "GET" }).handler(
-	async (): Promise<DashboardStats> => {
-		const { aiLogs, auth, db, sandboxes } = await getSandboxesServerContext();
-		const request = getRequest();
-		const session = await auth.api.getSession({ headers: request.headers });
-		if (!session?.user) {
-			throw new Error("Unauthorized");
-		}
-
-		const userId = session.user.id;
-
-		const [activeResult] = await db
-			.select({ count: count() })
-			.from(sandboxes)
-			.where(and(eq(sandboxes.userId, userId), eq(sandboxes.status, "active")));
-
-		const [totalResult] = await db
-			.select({ count: count() })
-			.from(sandboxes)
-			.where(eq(sandboxes.userId, userId));
-
-		const [expiredResult] = await db
-			.select({ count: count() })
-			.from(sandboxes)
-			.where(
-				and(eq(sandboxes.userId, userId), eq(sandboxes.status, "expired")),
-			);
-
-		const { end, start } = getCurrentUtcMonthRange();
-		const [aiResult] = await db
-			.select({ count: count() })
-			.from(aiLogs)
-			.where(
-				and(
-					eq(aiLogs.userId, userId),
-					gte(aiLogs.createdAt, start),
-					lt(aiLogs.createdAt, end),
-				),
-			);
-
-		const tier = DEFAULT_TIER;
-		const maxSandboxes = TIER_LIMITS[tier];
-
-		return {
-			activeSandboxes: activeResult?.count ?? 0,
-			totalCreated: totalResult?.count ?? 0,
-			autoCleaned: expiredResult?.count ?? 0,
-			aiQueriesThisMonth: aiResult?.count ?? 0,
-			tier,
-			maxSandboxes,
-		};
-	},
-);
 
 async function getDatabaseNow(): Promise<Date> {
 	const { db } = await getSandboxesServerContext();
