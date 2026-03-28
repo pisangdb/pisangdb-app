@@ -155,20 +155,14 @@ function useDeferredSidebarModules() {
 	const [shouldMount, setShouldMount] = React.useState(false);
 
 	React.useEffect(() => {
-		const idleCallback =
-			typeof window !== "undefined" && "requestIdleCallback" in window
-				? window.requestIdleCallback(() => setShouldMount(true), {
-						timeout: 250,
-					})
-				: window.setTimeout(() => setShouldMount(true), 32);
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const timeoutId = window.setTimeout(() => setShouldMount(true), 32);
 
 		return () => {
-			if (typeof idleCallback === "number") {
-				window.clearTimeout(idleCallback);
-				return;
-			}
-
-			window.cancelIdleCallback(idleCallback);
+			window.clearTimeout(timeoutId);
 		};
 	}, []);
 
