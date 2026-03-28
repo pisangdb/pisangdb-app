@@ -2,6 +2,7 @@ import { createFileRoute, redirect, useSearch } from "@tanstack/react-router";
 import { AuthBrandingPanel } from "#/components/auth-branding-panel";
 import { Logo } from "#/components/logo";
 import { ResetPasswordForm } from "#/components/reset-password-form";
+import { buildSeoMeta } from "#/lib/seo";
 import { $getMe } from "#/modules/auth/serverFn";
 
 export const Route = createFileRoute("/(auth)/reset-password")({
@@ -14,11 +15,17 @@ export const Route = createFileRoute("/(auth)/reset-password")({
 	validateSearch: (search: Record<string, unknown>) => ({
 		token: (search.token as string) || "",
 	}),
-	head: () => ({ meta: [{ title: "Reset Password — PisangDB" }] }),
+	head: () =>
+		buildSeoMeta({
+			title: "Reset Password | PisangDB",
+			description: "Set a new password for your PisangDB account.",
+			path: "/reset-password",
+			noIndex: true,
+		}),
 	component: ResetPasswordPage,
 });
 
-export default function ResetPasswordPage() {
+function ResetPasswordPage() {
 	const { token } = useSearch({ from: "/(auth)/reset-password" });
 
 	if (!token) {

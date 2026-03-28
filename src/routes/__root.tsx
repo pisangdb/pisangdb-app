@@ -9,7 +9,8 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import * as React from "react";
-import { Toaster } from "sonner";
+import { DeferredToaster } from "#/components/deferred-toaster";
+import { buildSeoMeta } from "#/lib/seo";
 
 import "../styles.css";
 
@@ -66,35 +67,42 @@ function NotFound() {
 
 export const Route = createRootRoute({
 	notFoundComponent: NotFound,
-	head: () => ({
-		meta: [
-			{
-				charSet: "utf-8",
-			},
-			{
-				name: "viewport",
-				content: "width=device-width, initial-scale=1",
-			},
-			{
-				title: "PisangDB",
-			},
-		],
-		links: [
-			{
-				rel: "icon",
-				type: "image/svg+xml",
-				href: "/favicon.svg",
-			},
-			{
-				rel: "apple-touch-icon",
-				href: "/favicon.svg",
-			},
-			{
-				rel: "manifest",
-				href: "/manifest.json",
-			},
-		],
-	}),
+	head: () => {
+		const seo = buildSeoMeta();
+
+		return {
+			meta: [
+				{
+					charSet: "utf-8",
+				},
+				{
+					name: "viewport",
+					content: "width=device-width, initial-scale=1",
+				},
+				{
+					name: "theme-color",
+					content: "#f59e0b",
+				},
+				...seo.meta,
+			],
+			links: [
+				...seo.links,
+				{
+					rel: "icon",
+					type: "image/svg+xml",
+					href: "/favicon.svg",
+				},
+				{
+					rel: "apple-touch-icon",
+					href: "/logo192.png",
+				},
+				{
+					rel: "manifest",
+					href: "/manifest.json",
+				},
+			],
+		};
+	},
 	shellComponent: RootDocument,
 	component: () => <Outlet />,
 });
@@ -112,7 +120,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				</head>
 				<body className="font-sans antialiased [wrap-anywhere] selection:bg-[rgba(79,184,178,0.24)]">
 					{children}
-					<Toaster richColors closeButton />
+					<DeferredToaster />
 					<TanStackDevtools
 						config={{
 							position: "bottom-right",

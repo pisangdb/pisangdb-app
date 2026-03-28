@@ -10,6 +10,7 @@ import {
 	ZapIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { PendingBlock } from "#/components/pending-block";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -19,15 +20,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card";
-import { Skeleton } from "#/components/ui/skeleton";
 import type { SandboxUiStatus } from "#/lib/types";
 import { computeSandboxUiStatus } from "#/lib/types";
+import { $getDashboardStats } from "#/modules/dashboard/serverFn";
+import { $getSandboxes } from "#/modules/sandboxes/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/")({
 	loader: async () => {
-		const { $getSandboxes, $getDashboardStats } = await import(
-			"#/modules/sandboxes/serverFn"
-		);
 		const [sandboxes, stats] = await Promise.all([
 			$getSandboxes(),
 			$getDashboardStats(),
@@ -45,10 +44,10 @@ function DashboardSkeleton() {
 		<div className="flex flex-col gap-4 p-4 md:p-5">
 			<div className="flex items-center justify-between">
 				<div className="flex flex-col gap-1">
-					<Skeleton className="h-7 w-32" />
-					<Skeleton className="h-4 w-48" />
+					<PendingBlock className="h-7 w-32" />
+					<PendingBlock className="h-4 w-48" />
 				</div>
-				<Skeleton className="h-8 w-28" />
+				<PendingBlock className="h-8 w-28" />
 			</div>
 
 			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -58,12 +57,12 @@ function DashboardSkeleton() {
 						className="flex flex-col gap-3 rounded-lg border p-4"
 					>
 						<div className="flex items-center justify-between">
-							<Skeleton className="h-4 w-24" />
-							<Skeleton className="size-7" />
+							<PendingBlock className="h-4 w-24" />
+							<PendingBlock className="size-7" />
 						</div>
 						<div className="flex items-baseline gap-1.5">
-							<Skeleton className="h-8 w-12" />
-							<Skeleton className="h-3 w-16" />
+							<PendingBlock className="h-8 w-12" />
+							<PendingBlock className="h-3 w-16" />
 						</div>
 					</div>
 				))}
@@ -71,16 +70,16 @@ function DashboardSkeleton() {
 
 			<div className="grid gap-4 lg:grid-cols-3">
 				<div className="flex flex-col gap-2 rounded-lg border p-4">
-					<Skeleton className="h-4 w-20" />
+					<PendingBlock className="h-4 w-20" />
 					{Array.from({ length: 4 }).map(() => (
 						<div
 							key={generateKey()}
 							className="flex items-center gap-3 rounded-md p-2"
 						>
-							<Skeleton className="size-9" />
+							<PendingBlock className="size-9" />
 							<div className="flex flex-col gap-1">
-								<Skeleton className="h-4 w-24" />
-								<Skeleton className="h-3 w-32" />
+								<PendingBlock className="h-4 w-24" />
+								<PendingBlock className="h-3 w-32" />
 							</div>
 						</div>
 					))}
@@ -89,10 +88,10 @@ function DashboardSkeleton() {
 				<div className="flex flex-col gap-2 rounded-lg border p-4 lg:col-span-2">
 					<div className="flex items-center justify-between">
 						<div className="flex flex-col gap-1">
-							<Skeleton className="h-4 w-28" />
-							<Skeleton className="h-3 w-36" />
+							<PendingBlock className="h-4 w-28" />
+							<PendingBlock className="h-3 w-36" />
 						</div>
-						<Skeleton className="h-7 w-16" />
+						<PendingBlock className="h-7 w-16" />
 					</div>
 					<div className="flex flex-col gap-2">
 						{Array.from({ length: 3 }).map(() => (
@@ -100,14 +99,14 @@ function DashboardSkeleton() {
 								key={generateKey()}
 								className="flex items-center gap-3 rounded-lg border p-3"
 							>
-								<Skeleton className="size-9" />
+								<PendingBlock className="size-9" />
 								<div className="flex flex-1 flex-col gap-1">
-									<Skeleton className="h-4 w-40" />
-									<Skeleton className="h-3 w-48" />
+									<PendingBlock className="h-4 w-40" />
+									<PendingBlock className="h-3 w-48" />
 								</div>
 								<div className="flex flex-col items-end gap-1">
-									<Skeleton className="h-5 w-16" />
-									<Skeleton className="h-3 w-12" />
+									<PendingBlock className="h-5 w-16" />
+									<PendingBlock className="h-3 w-12" />
 								</div>
 							</div>
 						))}
@@ -234,7 +233,7 @@ function formatCreatedAgo(createdAt: string): string {
 	return `${diffDays}d ago`;
 }
 
-export function DashboardHome() {
+function DashboardHome() {
 	const loaderData = Route.useLoaderData();
 	const sandboxes = loaderData?.sandboxes ?? [];
 	const stats = {

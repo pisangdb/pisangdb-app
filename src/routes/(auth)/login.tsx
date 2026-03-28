@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AuthBrandingPanel } from "#/components/auth-branding-panel";
 import { LoginForm } from "#/components/login-form";
 import { Logo } from "#/components/logo";
+import { buildSeoMeta } from "#/lib/seo";
 import { $getMe } from "#/modules/auth/serverFn";
 
 export const Route = createFileRoute("/(auth)/login")({
@@ -11,11 +12,18 @@ export const Route = createFileRoute("/(auth)/login")({
 			throw redirect({ to: "/dashboard" });
 		}
 	},
-	head: () => ({ meta: [{ title: "Sign In — PisangDB" }] }),
+	head: () =>
+		buildSeoMeta({
+			title: "Sign In | PisangDB",
+			description:
+				"Sign in to PisangDB and manage your ephemeral database sandboxes.",
+			path: "/login",
+			noIndex: true,
+		}),
 	component: LoginPage,
 });
 
-export default function LoginPage() {
+function LoginPage() {
 	return (
 		<div className="grid min-h-svh lg:grid-cols-2">
 			<AuthBrandingPanel />

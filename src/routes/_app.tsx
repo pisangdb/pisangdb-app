@@ -31,6 +31,7 @@ import {
 	SidebarTrigger,
 } from "#/components/ui/sidebar";
 import { TooltipProvider } from "#/components/ui/tooltip";
+import { buildSeoMeta } from "#/lib/seo";
 import { $getMe } from "#/modules/auth/serverFn";
 
 if (import.meta.env.SSR) {
@@ -60,6 +61,14 @@ export const Route = createFileRoute("/_app")({
 			});
 		}
 	},
+	head: () =>
+		buildSeoMeta({
+			title: "Dashboard | PisangDB",
+			description:
+				"Authenticated PisangDB workspace for managing database sandboxes.",
+			path: "/dashboard",
+			noIndex: true,
+		}),
 	component: AppLayout,
 	errorComponent: DashboardError,
 });
