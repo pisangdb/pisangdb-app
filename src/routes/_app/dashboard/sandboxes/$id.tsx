@@ -25,6 +25,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { ConfirmationDialog } from "#/components/confirmation-dialog";
 import { LazySqlEditor } from "#/components/lazy-sql-editor";
 import { Badge } from "#/components/ui/badge";
@@ -47,6 +48,7 @@ import type {
 	QueryResult,
 	SandboxDetail,
 	SandboxTable,
+	SandboxTablePreview,
 } from "#/lib/types";
 import {
 	$aiExecute,
@@ -57,6 +59,7 @@ import {
 } from "#/modules/console/serverFn";
 import {
 	$getSandboxById,
+	$getSandboxTablePreview,
 	$getSandboxTables,
 } from "#/modules/sandboxes/serverFn";
 
@@ -1226,6 +1229,7 @@ function AiTab({
 				setGenerated(cachedEntry.result);
 				setGeneratedSql(cachedEntry.result.sqlGenerated);
 				setLoadedFromCache(true);
+				toast.success("SQL loaded successfully. Review it before executing.");
 				return;
 			}
 
@@ -1239,6 +1243,7 @@ function AiTab({
 			});
 			setGenerated(result);
 			setGeneratedSql(result.sqlGenerated);
+			toast.success("SQL generated successfully. Review it before executing.");
 			const nextCacheEntries = [
 				{
 					cachedAt: new Date().toISOString(),
@@ -1295,7 +1300,7 @@ function AiTab({
 				<CardDescription>
 					Generate schema and seed data for{" "}
 					<span className="font-mono">{sandbox.dbName}</span> with prompts that
-					match this engine.
+					match this engine and current schema.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -1439,7 +1444,7 @@ function AiTab({
 					</Button>
 					<Badge variant="outline">
 						{workspaceStats
-							? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} requests today`
+							? `${workspaceStats.aiRequestsThisMonth}/${workspaceStats.maxAiRequestsPerMonth} requests this month`
 							: "Loading AI usage…"}
 					</Badge>
 				</div>
@@ -1585,6 +1590,26 @@ function TablesTab({
 }) {
 	const totalRows = tables.reduce((sum, table) => sum + table.rows, 0);
 	const totalSizeKb = tables.reduce((sum, table) => sum + table.sizeKb, 0);
+	const sandboxId = Route.useParams().id;
+	const [selectedTable, setSelectedTable] = useState<string | null>(null);
+	const {
+		data: preview,
+		error: previewError,
+		isLoading: previewLoading,
+		refetch: refetchPreview,
+		isFetching: previewFetching,
+	} = useQuery({
+		queryKey: ["sandbox-table-preview", sandboxId, selectedTable],
+		queryFn: async (): Promise<SandboxTablePreview> => {
+			return await $getSandboxTablePreview({
+				data: {
+					sandboxId,
+					tableName: selectedTable ?? "",
+				},
+			});
+		},
+		enabled: Boolean(selectedTable),
+	});
 
 	return (
 		<Card>
@@ -1623,16 +1648,33 @@ function TablesTab({
 							</thead>
 							<tbody>
 								{tables.map((table) => (
-									<tr key={table.name} className="border-t align-top">
+									<tr
+										key={table.name}
+										className={`border-t align-top transition-colors ${
+											selectedTable === table.name ? "bg-muted/30" : ""
+										}`}
+									>
 										<td className="px-3 py-2">
-											<div className="space-y-1">
+											<button
+												type="button"
+												onClick={() =>
+													setSelectedTable((current) =>
+														current === table.name ? null : table.name,
+													)
+												}
+												className="space-y-1 text-left"
+											>
 												<p className="font-mono text-xs font-medium">
 													{table.name}
 												</p>
 												<p className="text-[11px] text-muted-foreground">
-													{table.rows > 0 ? "Contains data" : "No rows yet"}
+													{selectedTable === table.name
+														? "Click again to close preview"
+														: table.rows > 0
+															? "Click to preview up to 10 rows"
+															: "Click to inspect this table"}
 												</p>
-											</div>
+											</button>
 										</td>
 										<td className="px-3 py-2 text-muted-foreground">
 											{table.rows.toLocaleString()}
@@ -1650,6 +1692,110 @@ function TablesTab({
 				) : (
 					<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
 						No tables yet. Use AI Seeder or SQL Console to create tables.
+					</div>
+				)}
+				{selectedTable && (
+					<div className="mt-4 rounded-xl border p-4">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							<div>
+								<p className="text-sm font-medium text-foreground">
+									Table Preview
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Showing structure and up to 10 rows from{" "}
+									<span className="font-mono">{selectedTable}</span>.
+								</p>
+							</div>
+							<div className="flex items-center gap-2">
+								<Badge variant="outline" className="rounded-full px-3 py-1">
+									Max 10 rows
+								</Badge>
+								<Button
+									variant="outline"
+									size="sm"
+									className="gap-1.5"
+									onClick={() => {
+										void refetchPreview();
+									}}
+									disabled={previewLoading || previewFetching}
+								>
+									<RefreshCcwIcon
+										className={`size-3.5 ${
+											previewFetching ? "animate-spin" : ""
+										}`}
+									/>
+									Refresh preview
+								</Button>
+							</div>
+						</div>
+						{previewLoading ? (
+							<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+								<Loader2Icon className="size-4 animate-spin" />
+								Loading preview…
+							</div>
+						) : previewError ? (
+							<div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+								{previewError instanceof Error
+									? previewError.message
+									: "Failed to load table preview"}
+							</div>
+						) : preview ? (
+							preview.columns.length > 0 ? (
+								<div className="mt-4 overflow-x-auto rounded-md border">
+									<table className="w-full min-w-96 text-sm">
+										<thead className="bg-muted/50 text-left">
+											<tr>
+												{preview.columns.map((column) => (
+													<th key={column} className="px-3 py-2 font-medium">
+														{column}
+													</th>
+												))}
+											</tr>
+										</thead>
+										<tbody>
+											{preview.rows.length > 0 ? (
+												preview.rows.map((row) => (
+													<tr
+														key={`${selectedTable}-${preview.columns
+															.map((column) => String(row[column] ?? ""))
+															.join("|")}`}
+														className="border-t align-top"
+													>
+														{preview.columns.map((column) => (
+															<td
+																key={column}
+																className="px-3 py-2 font-mono text-xs"
+															>
+																{row[column] === null ? (
+																	<span className="text-muted-foreground">
+																		NULL
+																	</span>
+																) : (
+																	String(row[column])
+																)}
+															</td>
+														))}
+													</tr>
+												))
+											) : (
+												<tr className="border-t">
+													<td
+														colSpan={preview.columns.length}
+														className="px-3 py-4 text-sm text-muted-foreground"
+													>
+														This table exists but has no rows yet.
+													</td>
+												</tr>
+											)}
+										</tbody>
+									</table>
+								</div>
+							) : (
+								<div className="mt-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+									No columns could be read for this table preview.
+								</div>
+							)
+						) : null}
 					</div>
 				)}
 			</CardContent>

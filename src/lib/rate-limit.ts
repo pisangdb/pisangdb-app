@@ -1,12 +1,12 @@
 /**
  * Simple in-memory rate limiter for AI requests.
- * PRD spec: 30 AI requests per user per day.
+ * PRD spec: 30 AI requests per user per month.
  *
  * For production with multiple instances, use Redis instead.
  */
 
-const AI_DAILY_LIMIT = 30;
-const WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const AI_MONTHLY_LIMIT = 30;
+const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface RateLimitEntry {
 	count: number;
@@ -17,7 +17,7 @@ const aiRateLimitMap = new Map<string, RateLimitEntry>();
 
 function getDateKey(): string {
 	const now = new Date();
-	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+	return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function getRateLimitKey(userId: string): string {
@@ -41,13 +41,12 @@ export function checkAiRateLimit(userId: string): RateLimitResult {
 		aiRateLimitMap.set(key, newEntry);
 		return {
 			allowed: true,
-			remaining: AI_DAILY_LIMIT,
+			remaining: AI_MONTHLY_LIMIT,
 			resetAt: new Date(now + WINDOW_MS),
 		};
 	}
 
-	// Check if limit exceeded
-	if (entry.count >= AI_DAILY_LIMIT) {
+	if (entry.count >= AI_MONTHLY_LIMIT) {
 		return {
 			allowed: false,
 			remaining: 0,
@@ -57,7 +56,7 @@ export function checkAiRateLimit(userId: string): RateLimitResult {
 
 	return {
 		allowed: true,
-		remaining: AI_DAILY_LIMIT - entry.count,
+		remaining: AI_MONTHLY_LIMIT - entry.count,
 		resetAt: new Date(entry.windowStart + WINDOW_MS),
 	};
 }
@@ -80,6 +79,6 @@ export function recordAiRequest(userId: string): void {
 export function getAiRateLimitRemaining(userId: string): number {
 	const key = getRateLimitKey(userId);
 	const entry = aiRateLimitMap.get(key);
-	if (!entry) return AI_DAILY_LIMIT;
-	return Math.max(0, AI_DAILY_LIMIT - entry.count);
+	if (!entry) return AI_MONTHLY_LIMIT;
+	return Math.max(0, AI_MONTHLY_LIMIT - entry.count);
 }

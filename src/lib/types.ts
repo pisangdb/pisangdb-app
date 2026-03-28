@@ -23,6 +23,7 @@ export const TIER_LIMITS: Record<UserTier, number> = {
 };
 
 export const DEFAULT_TIER: UserTier = "free";
+export const AI_REQUESTS_PER_MONTH = 30;
 export const MAX_SANDBOX_SIZE_MB = 100;
 export const MAX_RETENTION_HOURS = 168;
 
@@ -79,6 +80,12 @@ export interface SandboxTable {
 	name: string;
 	rows: number;
 	sizeKb: number;
+}
+
+export interface SandboxTablePreview {
+	tableName: string;
+	columns: string[];
+	rows: Record<string, string | number | boolean | null>[];
 }
 
 export interface QueryResult {
