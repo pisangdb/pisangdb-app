@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, desc, eq, gte, lt } from "drizzle-orm";
+import type { RowDataPacket } from "mysql2";
 import type mysql from "mysql2/promise";
 import type { Pool } from "pg";
 import { NotFoundError, UnauthorizedError } from "#/lib/errors";
@@ -11,6 +12,7 @@ import type {
 	QueryHistoryItem,
 	QueryResult,
 } from "#/lib/types";
+import { AI_REQUESTS_PER_MONTH } from "#/lib/types";
 import {
 	aiExecuteSchema,
 	aiGenerateSchema,
@@ -48,14 +50,15 @@ const FORBIDDEN_PATTERNS = [
 	/SHUTDOWN/i,
 ];
 
-const AI_DAILY_LIMIT = 30;
+const MAX_SCHEMA_CONTEXT_COLUMNS = 12;
+const MAX_SCHEMA_CONTEXT_TABLES = 24;
 
-function getTodayUtcRange() {
+function getCurrentUtcMonthRange() {
 	const now = new Date();
-	const start = new Date(
-		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+	const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+	const end = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
 	);
-	const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
 	return { end, start };
 }
@@ -248,6 +251,17 @@ type SandboxRow = {
 	dbPassword: string;
 };
 
+type SchemaColumnRow = {
+	columnDefault: string | null;
+	columnKey: string | null;
+	columnName: string;
+	dataType: string;
+	extra: string | null;
+	isNullable: string | null;
+	ordinalPosition: number;
+	tableName: string;
+};
+
 async function getCurrentUser() {
 	const { auth } = await getConsoleServerContext();
 	const request = getRequest();
@@ -256,6 +270,168 @@ async function getCurrentUser() {
 		throw new UnauthorizedError();
 	}
 	return session.user;
+}
+
+function formatSchemaContext(rows: SchemaColumnRow[]): string | null {
+	if (rows.length === 0) {
+		return "No existing tables were found in this sandbox yet.";
+	}
+
+	const grouped = new Map<string, SchemaColumnRow[]>();
+	for (const row of rows) {
+		const current = grouped.get(row.tableName) ?? [];
+		current.push(row);
+		grouped.set(row.tableName, current);
+	}
+
+	const visibleTables = Array.from(grouped.entries()).slice(
+		0,
+		MAX_SCHEMA_CONTEXT_TABLES,
+	);
+	const lines: string[] = [];
+
+	for (const [tableName, columns] of visibleTables) {
+		lines.push(`Table ${tableName}:`);
+		const visibleColumns = columns.slice(0, MAX_SCHEMA_CONTEXT_COLUMNS);
+
+		for (const column of visibleColumns) {
+			const parts = [column.columnName, column.dataType];
+			if (column.columnKey === "PRI") {
+				parts.push("PRIMARY KEY");
+			}
+			if (column.extra) {
+				parts.push(column.extra);
+			}
+			parts.push(column.isNullable === "NO" ? "NOT NULL" : "NULLABLE");
+			if (column.columnDefault !== null) {
+				parts.push(`DEFAULT ${column.columnDefault}`);
+			}
+			lines.push(`- ${parts.join(" | ")}`);
+		}
+
+		if (columns.length > MAX_SCHEMA_CONTEXT_COLUMNS) {
+			lines.push(
+				`- ... ${columns.length - MAX_SCHEMA_CONTEXT_COLUMNS} more columns omitted`,
+			);
+		}
+	}
+
+	if (grouped.size > MAX_SCHEMA_CONTEXT_TABLES) {
+		lines.push(
+			`... ${grouped.size - MAX_SCHEMA_CONTEXT_TABLES} more tables omitted`,
+		);
+	}
+
+	return lines.join("\n");
+}
+
+async function getSandboxSchemaContext(
+	sandbox: SandboxRow,
+): Promise<string | null> {
+	const [{ getSandboxConnection }, mysqlModule, { Pool: PgPool }] =
+		await Promise.all([
+			import("#/lib/sandbox-provisioning"),
+			import("mysql2/promise"),
+			import("pg"),
+		]);
+
+	const { host, port } = getSandboxConnection(
+		sandbox.engine as DbEngine,
+		sandbox.region,
+		sandbox.host,
+		sandbox.port,
+	);
+
+	try {
+		if (sandbox.engine === "postgresql") {
+			const pool = new PgPool({
+				host,
+				port,
+				database: sandbox.dbName,
+				user: sandbox.dbUser,
+				password: sandbox.dbPassword,
+				max: 3,
+			});
+
+			try {
+				const result = await pool.query<{
+					column_default: string | null;
+					column_name: string;
+					data_type: string;
+					is_nullable: string | null;
+					ordinal_position: number;
+					table_name: string;
+				}>(
+					`SELECT
+						table_name,
+						column_name,
+						data_type,
+						is_nullable,
+						column_default,
+						ordinal_position
+					FROM information_schema.columns
+					WHERE table_schema = 'public'
+					ORDER BY table_name, ordinal_position`,
+				);
+
+				return formatSchemaContext(
+					result.rows.map((row) => ({
+						columnDefault: row.column_default,
+						columnKey: null,
+						columnName: row.column_name,
+						dataType: row.data_type,
+						extra: null,
+						isNullable: row.is_nullable,
+						ordinalPosition: row.ordinal_position,
+						tableName: row.table_name,
+					})),
+				);
+			} finally {
+				await pool.end();
+			}
+		}
+
+		const pool = mysqlModule.createPool({
+			host,
+			port,
+			database: sandbox.dbName,
+			user: sandbox.dbUser,
+			password: sandbox.dbPassword,
+			waitForConnections: true,
+			connectionLimit: 3,
+			...(sandbox.engine === "mariadb" && {
+				authPlugin: "mysql_native_password",
+			}),
+		});
+
+		try {
+			const [rows] = await pool.query<Array<RowDataPacket & SchemaColumnRow>>(
+				`SELECT
+					table_name AS tableName,
+					column_name AS columnName,
+					data_type AS dataType,
+					is_nullable AS isNullable,
+					column_default AS columnDefault,
+					column_key AS columnKey,
+					extra AS extra,
+					ordinal_position AS ordinalPosition
+				FROM information_schema.columns
+				WHERE table_schema = ?
+				ORDER BY table_name, ordinal_position`,
+				[sandbox.dbName],
+			);
+
+			return formatSchemaContext(rows);
+		} finally {
+			await pool.end();
+		}
+	} catch (error) {
+		console.warn(
+			`[ai] Failed to introspect schema for sandbox ${sandbox.id}`,
+			error,
+		);
+		return null;
+	}
 }
 
 async function getOwnedSandbox(
@@ -490,7 +666,7 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 		const { aiLogs, db } = await getConsoleServerContext();
 		const [{ generateSQL }] = await Promise.all([import("#/lib/ai")]);
 		const user = await getCurrentUser();
-		const { end, start } = getTodayUtcRange();
+		const { end, start } = getCurrentUtcMonthRange();
 
 		const [usageResult] = await db
 			.select({ count: count() })
@@ -503,17 +679,18 @@ export const $aiGenerate = createServerFn({ method: "POST" })
 				),
 			);
 
-		if ((usageResult?.count ?? 0) >= AI_DAILY_LIMIT) {
-			throw new Error("AI daily limit reached. Try again tomorrow.");
-		}
-
 		const sandbox = await getOwnedSandbox(data.sandboxId, user.id);
+		if ((usageResult?.count ?? 0) >= AI_REQUESTS_PER_MONTH) {
+			throw new Error("AI monthly limit reached. Try again next month.");
+		}
+		const schemaContext = await getSandboxSchemaContext(sandbox);
 
 		const { sql, explanation, tokensUsed } = await generateSQL({
 			prompt: data.prompt,
 			engine: data.engine,
 			sandboxDbName: sandbox.dbName,
 			mode: data.mode,
+			schemaContext,
 		});
 
 		const [log] = await db

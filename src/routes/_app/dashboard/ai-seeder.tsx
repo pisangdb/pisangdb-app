@@ -410,7 +410,7 @@ function AiSeederPage() {
 								>
 									<ActivityIcon className="size-3.5" />
 									{workspaceStats
-										? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} today`
+										? `${workspaceStats.aiRequestsThisMonth}/${workspaceStats.maxAiRequestsPerMonth} this month`
 										: "Loading AI usage…"}
 								</Badge>
 								<Badge
@@ -652,7 +652,7 @@ function AiSeederPage() {
 							</div>
 							<Badge variant="outline" className="rounded-full px-3 py-1">
 								{workspaceStats
-									? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} requests today`
+									? `${workspaceStats.aiRequestsThisMonth}/${workspaceStats.maxAiRequestsPerMonth} requests this month`
 									: "Loading AI usage…"}
 							</Badge>
 						</div>
@@ -820,8 +820,8 @@ function AiSeederPage() {
 										differences
 									</li>
 									<li>
-										Stores prompts and generated SQL in your sandbox activity
-										log
+										Reads the selected sandbox schema before generation and
+										stores prompts plus SQL in the activity log
 									</li>
 									<li>
 										Potentially risky SQL still requires your manual approval

@@ -1295,7 +1295,7 @@ function AiTab({
 				<CardDescription>
 					Generate schema and seed data for{" "}
 					<span className="font-mono">{sandbox.dbName}</span> with prompts that
-					match this engine.
+					match this engine and current schema.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -1439,7 +1439,7 @@ function AiTab({
 					</Button>
 					<Badge variant="outline">
 						{workspaceStats
-							? `${workspaceStats.aiRequestsToday}/${workspaceStats.maxAiRequestsPerDay} requests today`
+							? `${workspaceStats.aiRequestsThisMonth}/${workspaceStats.maxAiRequestsPerMonth} requests this month`
 							: "Loading AI usage…"}
 					</Badge>
 				</div>
