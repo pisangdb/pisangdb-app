@@ -28,5 +28,8 @@ jobs:
       - name: Biome check
         run: pnpm check
 
+      - name: TypeScript check
+        run: pnpm typecheck
+
       - name: Build
         run: pnpm build
