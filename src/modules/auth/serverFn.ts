@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, eq, gte, inArray, lt, ne } from "drizzle-orm";
 import {
+	AI_REQUESTS_PER_MONTH,
 	type AuthUser,
 	DEFAULT_TIER,
 	MAX_SANDBOX_SIZE_MB,
@@ -116,19 +117,17 @@ export type WorkspaceStats = {
 	activeSandboxes: number;
 	maxSandboxes: number;
 	totalCreated: number;
-	aiRequestsToday: number;
-	maxAiRequestsPerDay: number;
+	aiRequestsThisMonth: number;
+	maxAiRequestsPerMonth: number;
 	maxSizePerSandboxMb: number;
 };
 
-const AI_DAILY_LIMIT = 30;
-
-function getTodayUtcRange() {
+function getCurrentUtcMonthRange() {
 	const now = new Date();
-	const start = new Date(
-		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+	const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+	const end = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
 	);
-	const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
 	return { end, start };
 }
@@ -503,7 +502,7 @@ export const $getWorkspaceStats = createServerFn({ method: "GET" }).handler(
 	async (): Promise<WorkspaceStats> => {
 		const { aiLogs, db, sandboxes } = await getAuthServerContext();
 		const { userId } = await getCurrentSession();
-		const { end, start } = getTodayUtcRange();
+		const { end, start } = getCurrentUtcMonthRange();
 
 		const [activeResult] = await db
 			.select({ count: count() })
@@ -530,8 +529,8 @@ export const $getWorkspaceStats = createServerFn({ method: "GET" }).handler(
 			activeSandboxes: activeResult?.count ?? 0,
 			maxSandboxes: TIER_LIMITS[DEFAULT_TIER],
 			totalCreated: totalCreatedResult?.count ?? 0,
-			aiRequestsToday: aiResult?.count ?? 0,
-			maxAiRequestsPerDay: AI_DAILY_LIMIT,
+			aiRequestsThisMonth: aiResult?.count ?? 0,
+			maxAiRequestsPerMonth: AI_REQUESTS_PER_MONTH,
 			maxSizePerSandboxMb: MAX_SANDBOX_SIZE_MB,
 		};
 	},

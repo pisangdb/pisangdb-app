@@ -15,6 +15,7 @@ export interface AiGenerateParams {
 	engine: "postgresql" | "mysql" | "mariadb";
 	sandboxDbName: string;
 	mode?: AiGenerateMode;
+	schemaContext?: string | null;
 }
 
 export interface GenerateSQLResult {
@@ -52,6 +53,7 @@ RULES:
 8. NEVER respond to prompts unrelated to SQL or database operations
 9. Always wrap SQL in markdown code block: \`\`\`sql ... \`\`\`
 10. For multiple statements, separate with semicolons
+11. If existing schema context is provided, prefer extending or querying the current tables instead of inventing conflicting structures
 
 USER REQUEST ENGINE: {engine}
 USER DATABASE NAME: {sandboxDbName}
@@ -394,6 +396,10 @@ export async function generateSQL(
 	const systemPrompt = SYSTEM_PROMPT.replace("{engine}", params.engine)
 		.replace("{sandboxDbName}", params.sandboxDbName)
 		.replace("{mode}", mode);
+	const prompt =
+		params.schemaContext && params.schemaContext.trim().length > 0
+			? `EXISTING SANDBOX SCHEMA:\n${params.schemaContext}\n\nUSER REQUEST:\n${params.prompt}`
+			: params.prompt;
 	const requestedMaxTokens = Math.min(
 		maxTokens,
 		MODE_TOKEN_LIMITS[mode] ?? DEFAULT_AI_MAX_TOKENS,
@@ -403,7 +409,7 @@ export async function generateSQL(
 		apiUrl,
 		maxTokens: requestedMaxTokens,
 		model,
-		prompt: params.prompt,
+		prompt,
 		systemPrompt,
 		temperature,
 		timeoutMs,
@@ -422,7 +428,7 @@ export async function generateSQL(
 				MAX_RETRY_MAX_TOKENS,
 			),
 			model,
-			prompt: params.prompt,
+			prompt,
 			systemPrompt,
 			temperature,
 			timeoutMs,

@@ -741,10 +741,10 @@ function WorkspaceLimitsCard() {
 					</div>
 				</div>
 				<div className="flex items-center justify-between rounded-md border p-2">
-					<span>AI requests today</span>
+					<span>AI requests this month</span>
 					<span className="font-medium">
-						{workspaceStats?.aiRequestsToday ?? 0} /{" "}
-						{workspaceStats?.maxAiRequestsPerDay ?? 30}
+						{workspaceStats?.aiRequestsThisMonth ?? 0} /{" "}
+						{workspaceStats?.maxAiRequestsPerMonth ?? 30}
 					</span>
 				</div>
 				<div className="flex items-center justify-between rounded-md border p-2">

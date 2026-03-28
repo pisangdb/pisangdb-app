@@ -108,7 +108,7 @@ const freePlanFeatures = [
 	"Retention 1h – 7 days",
 	"3 database engines",
 	"SQL Console (browser-based)",
-	"AI Seeder — 30 requests/day",
+	"AI Seeder — 30 requests/month",
 	"Auto-cleanup on expiry",
 	"Instant credentials copy",
 ];

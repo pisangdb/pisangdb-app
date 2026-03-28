@@ -242,9 +242,9 @@ function AccountPage() {
 							label="Active sandboxes"
 						/>
 						<UsageBar
-							value={stats?.aiRequestsToday ?? 0}
-							max={stats?.maxAiRequestsPerDay ?? 30}
-							label="AI requests today"
+							value={stats?.aiRequestsThisMonth ?? 0}
+							max={stats?.maxAiRequestsPerMonth ?? 30}
+							label="AI requests this month"
 						/>
 						<div className="grid gap-2 text-sm sm:grid-cols-2">
 							<div className="flex items-center justify-between rounded-lg border p-3">
