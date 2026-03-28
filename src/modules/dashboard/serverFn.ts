@@ -1,11 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { and, count, eq, gte, lt } from "drizzle-orm";
-import {
-	DEFAULT_TIER,
-	type DashboardStats,
-	TIER_LIMITS,
-} from "#/lib/types";
+import { type DashboardStats, DEFAULT_TIER, TIER_LIMITS } from "#/lib/types";
 
 async function getDashboardServerContext() {
 	const [{ db }, schema, { auth }] = await Promise.all([
