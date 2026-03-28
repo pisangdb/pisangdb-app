@@ -31,6 +31,7 @@ import {
 import { computeSandboxUiStatus } from "#/lib/types";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/")({
+	head: () => ({ meta: [{ title: "All Sandboxes | PisangDB" }] }),
 	component: SandboxesPage,
 });
 

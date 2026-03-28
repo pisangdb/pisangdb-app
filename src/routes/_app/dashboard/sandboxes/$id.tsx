@@ -17,6 +17,7 @@ import {
 	HardDriveIcon,
 	KeyRoundIcon,
 	Loader2Icon,
+	PanelTopOpenIcon,
 	PlayIcon,
 	RefreshCcwIcon,
 	ShieldCheckIcon,
@@ -327,6 +328,7 @@ function SandboxDetailPage() {
 	const extendSandbox = useExtendSandbox();
 	const deleteSandbox = useDeleteSandbox();
 	const [activeTab, setActiveTab] = useState<Tab>("info");
+	const [heroExpanded, setHeroExpanded] = useState(false);
 	const [extendOpen, setExtendOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [consoleQuery, setConsoleQuery] = useState("SELECT 1 as test;");
@@ -414,6 +416,7 @@ function SandboxDetailPage() {
 			icon: <BotIcon className="size-4" />,
 		},
 	];
+	const isHeroCollapsed = activeTab !== "info" && !heroExpanded;
 
 	const handleExtend = async (duration: 1 | 6 | 12 | 24) => {
 		setExtendOpen(false);
@@ -439,26 +442,41 @@ function SandboxDetailPage() {
 		}
 	};
 
+	useEffect(() => {
+		if (activeTab !== "info") {
+			setHeroExpanded(false);
+		}
+	}, [activeTab]);
+
 	return (
 		<div className="flex flex-col gap-4 p-4 md:p-5">
-			<div className="flex flex-col gap-4 rounded-2xl border p-4 md:p-5">
-				<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-					<div className="flex items-start gap-3">
-						<Button
-							asChild
-							variant="outline"
-							size="icon"
-							className="mt-0.5 size-8 shrink-0"
-						>
-							<Link to="/dashboard/sandboxes">
-								<ArrowLeftIcon className="size-4" />
-							</Link>
-						</Button>
-						<div className="space-y-2">
-							<div className="flex flex-wrap items-center gap-2">
-								<Badge variant="outline" className="gap-1 px-2 py-0.5">
+			<div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/[0.08] via-background to-muted/50">
+				<div
+					className={`flex flex-col ${isHeroCollapsed ? "gap-4 p-4 md:p-4" : "gap-6 p-5 md:p-6"}`}
+				>
+					<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+						<div className="space-y-4">
+							<div className="flex flex-wrap items-center gap-3">
+								<Button
+									asChild
+									variant="outline"
+									size="sm"
+									className="gap-1.5 rounded-full"
+								>
+									<Link to="/dashboard/sandboxes">
+										<ArrowLeftIcon className="size-4" />
+										All Sandboxes
+									</Link>
+								</Button>
+								<Badge
+									variant="outline"
+									className="gap-1.5 rounded-full px-3 py-1"
+								>
 									<span>{ENGINE_EMOJI[sandbox.engine]}</span>
 									{ENGINE_LABELS[sandbox.engine]}
+								</Badge>
+								<Badge variant="secondary" className="rounded-full px-3 py-1">
+									{REGION_LABELS[sandbox.region] ?? sandbox.region}
 								</Badge>
 								<Badge
 									variant={
@@ -468,122 +486,228 @@ function SandboxDetailPage() {
 												? "destructive"
 												: "secondary"
 									}
-									className="px-2 py-0.5 text-[10px]"
+									className="rounded-full px-3 py-1 capitalize"
 								>
 									{sandbox.status}
 								</Badge>
-								<Badge variant="secondary" className="px-2 py-0.5 text-[10px]">
-									{REGION_LABELS[sandbox.region] ?? sandbox.region}
-								</Badge>
-								{summaryStats.map((stat) => (
-									<Badge
-										key={stat.label}
-										variant="outline"
-										className="gap-1.5 px-2 py-0.5 text-[10px]"
-									>
-										{stat.icon}
-										{stat.label}: {stat.value}
-									</Badge>
-								))}
 							</div>
-							<div>
-								<h1 className="text-2xl font-semibold tracking-tight">
+							<div className={isHeroCollapsed ? "space-y-1" : "space-y-2"}>
+								<h1
+									className={
+										isHeroCollapsed
+											? "text-lg font-semibold tracking-tight md:text-xl"
+											: "text-2xl font-semibold tracking-tight md:text-3xl"
+									}
+								>
 									{sandbox.displayName}
 								</h1>
-								<p className="mt-1 text-sm text-muted-foreground">
-									Production-like access for{" "}
-									<span className="font-mono text-foreground">
-										{sandbox.dbName}
-									</span>
-									, with instant credentials, in-browser SQL, and AI-assisted
-									seeding.
-								</p>
-							</div>
-						</div>
-					</div>
-					<div className="flex flex-wrap gap-2 lg:justify-end">
-						<div className="relative">
-							<Button
-								variant="outline"
-								size="sm"
-								className="gap-1.5"
-								onClick={() => setExtendOpen((v) => !v)}
-								disabled={sandbox.status !== "active"}
-							>
-								<RefreshCcwIcon className="size-3.5" />
-								Extend TTL
-							</Button>
-							{extendOpen && (
-								<div className="absolute right-0 top-10 z-10 min-w-36 rounded-xl border bg-background p-1.5 shadow-lg">
-									<p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-										Add Time
+								{!isHeroCollapsed && (
+									<p className="max-w-3xl text-sm leading-6 text-muted-foreground md:text-base">
+										Manage credentials, inspect tables, run SQL, and seed data
+										with AI for{" "}
+										<span className="font-mono text-foreground">
+											{sandbox.dbName}
+										</span>
+										.
 									</p>
-									<div className="flex flex-col gap-0.5">
-										{[1, 6, 12, 24].map((d) => (
-											<button
-												key={d}
-												type="button"
-												className="rounded-lg px-3 py-2 text-left text-xs hover:bg-muted"
-												onClick={() => handleExtend(d as 1 | 6 | 12 | 24)}
-											>
-												+{d}h
-											</button>
-										))}
+								)}
+							</div>
+							{isHeroCollapsed ? (
+								<div className="flex flex-wrap items-center gap-1.5 text-xs">
+									<Badge
+										variant="outline"
+										className="rounded-full px-2.5 py-0.5"
+									>
+										<span className="font-mono">{sandbox.dbName}</span>
+									</Badge>
+									<Badge
+										variant="outline"
+										className="rounded-full px-2.5 py-0.5"
+									>
+										TTL {ttl}
+									</Badge>
+									<Badge
+										variant="outline"
+										className="rounded-full px-2.5 py-0.5"
+									>
+										{formatStorageMb(sandbox.sizeMb)} /{" "}
+										{formatStorageMb(sandbox.maxSizeMb)}
+									</Badge>
+									<Badge
+										variant="outline"
+										className="rounded-full px-2.5 py-0.5"
+									>
+										{tables.length} tables
+									</Badge>
+								</div>
+							) : (
+								<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+									<div className="rounded-2xl border bg-background/80 p-4">
+										<p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+											Database
+										</p>
+										<p className="mt-2 font-mono text-sm text-foreground break-all">
+											{sandbox.dbName}
+										</p>
+									</div>
+									<div className="rounded-2xl border bg-background/80 p-4">
+										<p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+											TTL
+										</p>
+										<p className="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
+											<ClockIcon className="size-4 text-muted-foreground" />
+											{ttl}
+										</p>
+									</div>
+									<div className="rounded-2xl border bg-background/80 p-4">
+										<p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+											Storage
+										</p>
+										<p className="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
+											<HardDriveIcon className="size-4 text-muted-foreground" />
+											{formatStorageMb(sandbox.sizeMb)} /{" "}
+											{formatStorageMb(sandbox.maxSizeMb)}
+										</p>
+									</div>
+									<div className="rounded-2xl border bg-background/80 p-4">
+										<p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+											Activity
+										</p>
+										<p className="mt-2 flex items-center gap-2 text-sm font-medium text-foreground">
+											<ActivityIcon className="size-4 text-muted-foreground" />
+											{totalQueries} queries • {totalAiRuns} AI runs
+										</p>
 									</div>
 								</div>
 							)}
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							className="gap-1.5 text-destructive hover:text-destructive"
-							onClick={() => setDeleteDialogOpen(true)}
-						>
-							<Trash2Icon className="size-3.5" />
-							Delete Sandbox
-						</Button>
-					</div>
-				</div>
-
-				<div className="rounded-xl border bg-muted/20 p-4">
-					<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-						<div className="space-y-1">
-							<p className="text-sm font-medium">Sandbox Health</p>
-							<p className="text-xs text-muted-foreground">
-								{usageLabel} storage used.{" "}
-								{formatStorageMb(sandbox.maxSizeMb - sandbox.sizeMb)} remaining
-								before the free-tier cap.
-							</p>
+						<div className="flex flex-wrap gap-2 lg:max-w-xs lg:justify-end">
+							{activeTab !== "info" && (
+								<Button
+									variant="outline"
+									size="sm"
+									className="gap-1.5 rounded-full bg-background/80"
+									onClick={() => setHeroExpanded((value) => !value)}
+								>
+									<PanelTopOpenIcon className="size-3.5" />
+									{isHeroCollapsed ? "Expand" : "Collapse"}
+								</Button>
+							)}
+							<div className="relative">
+								<Button
+									variant="outline"
+									size="sm"
+									className="gap-1.5 rounded-full bg-background/80"
+									onClick={() => setExtendOpen((v) => !v)}
+									disabled={sandbox.status !== "active"}
+								>
+									<RefreshCcwIcon className="size-3.5" />
+									Extend TTL
+								</Button>
+								{extendOpen && (
+									<div className="absolute right-0 top-10 z-10 min-w-36 rounded-xl border bg-background p-1.5 shadow-lg">
+										<p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+											Add Time
+										</p>
+										<div className="flex flex-col gap-0.5">
+											{[1, 6, 12, 24].map((d) => (
+												<button
+													key={d}
+													type="button"
+													className="rounded-lg px-3 py-2 text-left text-xs hover:bg-muted"
+													onClick={() => handleExtend(d as 1 | 6 | 12 | 24)}
+												>
+													+{d}h
+												</button>
+											))}
+										</div>
+									</div>
+								)}
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								className="gap-1.5 rounded-full bg-background/80 text-destructive hover:text-destructive"
+								onClick={() => setDeleteDialogOpen(true)}
+							>
+								<Trash2Icon className="size-3.5" />
+								Delete Sandbox
+							</Button>
 						</div>
-						<Badge variant="outline" className="w-fit">
-							{totalQueries} queries logged
-						</Badge>
 					</div>
-					<div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-						<div
-							className="h-full rounded-full bg-primary transition-all"
-							style={{ width: `${usagePct}%` }}
-						/>
-					</div>
+
+					{!isHeroCollapsed && (
+						<div className="rounded-2xl border bg-background/70 p-4">
+							<div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+								<div className="space-y-1">
+									<p className="text-sm font-medium">Sandbox Health</p>
+									<p className="text-sm text-muted-foreground">
+										{usageLabel} storage used.{" "}
+										{formatStorageMb(sandbox.maxSizeMb - sandbox.sizeMb)}{" "}
+										remaining before the free-tier cap.
+									</p>
+								</div>
+								<div className="grid gap-2 sm:grid-cols-3">
+									{summaryStats.slice(0, 3).map((stat) => (
+										<div
+											key={stat.label}
+											className="rounded-xl border bg-background px-3 py-2"
+										>
+											<p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+												{stat.label}
+											</p>
+											<p className="mt-1 text-sm font-medium text-foreground">
+												{stat.value}
+											</p>
+										</div>
+									))}
+								</div>
+							</div>
+							<div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+								<div
+									className="h-full rounded-full bg-primary transition-all"
+									style={{ width: `${usagePct}%` }}
+								/>
+							</div>
+						</div>
+					)}
 				</div>
 			</div>
 
-			<div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1">
-				{tabs.map((tab) => (
-					<button
-						key={tab.key}
-						type="button"
-						onClick={() => setActiveTab(tab.key)}
-						className={`flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-							activeTab === tab.key
-								? "bg-background text-foreground shadow-sm"
-								: "text-muted-foreground hover:text-foreground"
-						}`}
+			<div className="rounded-2xl border bg-background/90 p-2 shadow-sm">
+				<div className="mb-2 flex items-center justify-between gap-3 px-2">
+					<div>
+						<p className="text-sm font-medium text-foreground">
+							Workspace Sections
+						</p>
+						<p className="text-xs text-muted-foreground">
+							Switch between credentials, SQL, AI, tables, and history.
+						</p>
+					</div>
+					<Badge
+						variant="outline"
+						className="hidden rounded-full px-3 py-1 sm:inline-flex"
 					>
-						{tab.icon}
-						{tab.label}
-					</button>
-				))}
+						{tabs.length} sections
+					</Badge>
+				</div>
+				<div className="flex gap-1 overflow-x-auto rounded-xl bg-muted/40 p-1">
+					{tabs.map((tab) => (
+						<button
+							key={tab.key}
+							type="button"
+							onClick={() => setActiveTab(tab.key)}
+							className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+								activeTab === tab.key
+									? "bg-background text-foreground shadow-sm"
+									: "text-muted-foreground hover:text-foreground"
+							}`}
+						>
+							{tab.icon}
+							{tab.label}
+						</button>
+					))}
+				</div>
 			</div>
 
 			{activeTab === "info" && <InfoTab sandbox={sandbox} />}
@@ -694,7 +818,10 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 
 						<div className="grid gap-3 sm:grid-cols-2">
 							{credRows.map((row) => (
-								<div key={row.key} className="rounded-xl border p-3">
+								<div
+									key={row.key}
+									className="rounded-2xl border bg-background/80 p-3 shadow-sm"
+								>
 									<div className="flex items-center justify-between gap-2">
 										<span className="text-xs text-muted-foreground">
 											{row.label}
@@ -720,7 +847,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 							))}
 						</div>
 
-						<div className="rounded-xl border p-3">
+						<div className="rounded-2xl border bg-background/80 p-3 shadow-sm">
 							<div className="flex items-center justify-between gap-2">
 								<span className="text-xs text-muted-foreground">Password</span>
 								<div className="flex items-center gap-2">
@@ -755,7 +882,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 						</div>
 
 						<div className="grid gap-4 lg:grid-cols-2">
-							<div className="space-y-2 rounded-xl border p-3">
+							<div className="space-y-2 rounded-2xl border bg-background/80 p-3 shadow-sm">
 								<p className="text-xs font-medium text-muted-foreground">
 									Connection String
 								</p>
@@ -773,7 +900,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 								</Button>
 							</div>
 
-							<div className="space-y-2 rounded-xl bg-muted p-3">
+							<div className="space-y-2 rounded-2xl border bg-muted/50 p-3">
 								<p className="text-xs font-medium">.env snippet</p>
 								<p className="break-all font-mono text-xs text-muted-foreground">
 									DATABASE_URL={sandbox.connectionUrl}
@@ -795,7 +922,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 							</div>
 						</div>
 
-						<div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+						<div className="rounded-2xl border bg-muted/30 p-3 text-xs text-muted-foreground">
 							<p className="font-medium text-foreground">Quick Start</p>
 							<p className="mt-1">
 								Use the `.env` snippet for app runtime, or copy host, port,
@@ -814,7 +941,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-						<div className="rounded-xl border bg-muted/20 p-3">
+						<div className="rounded-2xl border bg-muted/20 p-4">
 							<p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
 								Access Model
 							</p>
@@ -823,7 +950,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 								local SQL client with the credentials above.
 							</p>
 						</div>
-						<div className="rounded-xl border bg-muted/20 p-3">
+						<div className="rounded-2xl border bg-muted/20 p-4">
 							<p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
 								Ephemeral Lifecycle
 							</p>
@@ -848,7 +975,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 						{metaRows.map((row) => (
 							<div
 								key={row.label}
-								className="flex items-center justify-between gap-3 rounded-xl border p-3"
+								className="flex items-center justify-between gap-3 rounded-2xl border bg-background/80 p-3 shadow-sm"
 							>
 								<span className="text-muted-foreground">{row.label}</span>
 								<span className="text-right font-medium">{row.value}</span>
@@ -876,7 +1003,7 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 							{usageLabel} used ·{" "}
 							{formatStorageMb(sandbox.maxSizeMb - sandbox.sizeMb)} remaining
 						</p>
-						<div className="mt-4 rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+						<div className="mt-4 rounded-2xl border bg-muted/30 p-3 text-xs text-muted-foreground">
 							<p className="flex items-center gap-1.5 font-medium text-foreground">
 								<ShieldCheckIcon className="size-3.5" />
 								Sandbox Safety
@@ -1276,6 +1403,7 @@ function AiTab({
 		if (!generated) return;
 
 		setIsLoading(true);
+		setError(null);
 		try {
 			await $aiExecute({
 				data: {
@@ -1286,6 +1414,7 @@ function AiTab({
 			});
 			await refreshTables();
 			setExecuted(true);
+			toast.success("SQL executed successfully.");
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Execution failed");
 		} finally {
@@ -1635,9 +1764,37 @@ function TablesTab({
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="space-y-4">
+				<div className="grid gap-3 sm:grid-cols-3">
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+							Tables
+						</p>
+						<p className="mt-2 text-lg font-semibold text-foreground">
+							{tables.length}
+						</p>
+					</div>
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+							Rows
+						</p>
+						<p className="mt-2 text-lg font-semibold text-foreground">
+							{totalRows.toLocaleString()}
+						</p>
+					</div>
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+							Storage
+						</p>
+						<p className="mt-2 text-lg font-semibold text-foreground">
+							{totalSizeKb >= 1024
+								? `${(totalSizeKb / 1024).toFixed(1)} MB`
+								: `${totalSizeKb} KB`}
+						</p>
+					</div>
+				</div>
 				{tables.length > 0 ? (
-					<div className="rounded-xl border">
+					<div className="overflow-hidden rounded-2xl border bg-background/80 shadow-sm">
 						<table className="w-full text-sm">
 							<thead className="bg-muted/50 text-left">
 								<tr>
@@ -1690,12 +1847,12 @@ function TablesTab({
 						</table>
 					</div>
 				) : (
-					<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+					<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
 						No tables yet. Use AI Seeder or SQL Console to create tables.
 					</div>
 				)}
 				{selectedTable && (
-					<div className="mt-4 rounded-xl border p-4">
+					<div className="rounded-2xl border bg-background/80 p-4 shadow-sm">
 						<div className="flex flex-wrap items-center justify-between gap-3">
 							<div>
 								<p className="text-sm font-medium text-foreground">
@@ -1729,19 +1886,19 @@ function TablesTab({
 							</div>
 						</div>
 						{previewLoading ? (
-							<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+							<div className="mt-4 flex items-center gap-2 rounded-2xl border bg-muted/20 p-4 text-sm text-muted-foreground">
 								<Loader2Icon className="size-4 animate-spin" />
 								Loading preview…
 							</div>
 						) : previewError ? (
-							<div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+							<div className="mt-4 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
 								{previewError instanceof Error
 									? previewError.message
 									: "Failed to load table preview"}
 							</div>
 						) : preview ? (
 							preview.columns.length > 0 ? (
-								<div className="mt-4 overflow-x-auto rounded-md border">
+								<div className="mt-4 overflow-x-auto rounded-2xl border">
 									<table className="w-full min-w-96 text-sm">
 										<thead className="bg-muted/50 text-left">
 											<tr>
@@ -1791,7 +1948,7 @@ function TablesTab({
 									</table>
 								</div>
 							) : (
-								<div className="mt-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+								<div className="mt-4 rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
 									No columns could be read for this table preview.
 								</div>
 							)
@@ -1827,64 +1984,99 @@ function HistoryTab({ history }: { history: QueryHistoryItem[] }) {
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Query History</CardTitle>
-				<CardDescription>
-					Last 50 queries executed in this sandbox, ordered by most recent
-					activity.
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-2">
-				{history.length > 0 ? (
-					history.map((item) => (
-						<div
-							key={item.id}
-							className="flex items-start justify-between gap-3 rounded-xl border p-3"
-						>
-							<div className="min-w-0 flex-1">
-								<div className="mb-2 flex items-center gap-2">
-									<Badge
-										variant={
-											item.status === "success" ? "secondary" : "destructive"
-										}
-										className="text-[10px]"
-									>
-										{item.status}
-									</Badge>
-									<span className="text-[11px] text-muted-foreground">
-										{new Date(item.createdAt).toLocaleString("id-ID")}
-									</span>
-								</div>
-								<div className="rounded-lg bg-muted/40 px-3 py-2">
-									<p className="whitespace-pre-wrap break-words font-mono text-xs leading-5">
-										{item.query}
-									</p>
-								</div>
-								<p className="mt-1 text-[11px] text-muted-foreground">
-									<span
-										className={
-											item.status === "success"
-												? "text-green-600 dark:text-green-400"
-												: "text-destructive"
-										}
-									>
-										{getHistoryStatus(item)}
-									</span>
-									{" · "}
-									{item.executionTimeMs} ms
-								</p>
-								{item.errorMessage ? (
-									<p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
-										{item.errorMessage}
-									</p>
-								) : null}
-							</div>
-						</div>
-					))
-				) : (
-					<div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-						No query history yet.
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<CardTitle className="text-base">Query History</CardTitle>
+						<CardDescription>
+							Last 50 queries executed in this sandbox, ordered by most recent
+							activity.
+						</CardDescription>
 					</div>
-				)}
+					<Badge variant="outline" className="rounded-full px-3 py-1">
+						{history.length} entries
+					</Badge>
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div className="grid gap-3 sm:grid-cols-3">
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+							Total
+						</p>
+						<p className="mt-2 text-lg font-semibold text-foreground">
+							{history.length}
+						</p>
+					</div>
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+							Success
+						</p>
+						<p className="mt-2 text-lg font-semibold text-foreground">
+							{history.filter((item) => item.status === "success").length}
+						</p>
+					</div>
+					<div className="rounded-2xl border bg-muted/20 p-4">
+						<p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+							Errors
+						</p>
+						<p className="mt-2 text-lg font-semibold text-foreground">
+							{history.filter((item) => item.status === "error").length}
+						</p>
+					</div>
+				</div>
+				<div className="flex flex-col gap-3">
+					{history.length > 0 ? (
+						history.map((item) => (
+							<div
+								key={item.id}
+								className="flex items-start justify-between gap-3 rounded-2xl border bg-background/80 p-4 shadow-sm"
+							>
+								<div className="min-w-0 flex-1">
+									<div className="mb-2 flex items-center gap-2">
+										<Badge
+											variant={
+												item.status === "success" ? "secondary" : "destructive"
+											}
+											className="text-[10px]"
+										>
+											{item.status}
+										</Badge>
+										<span className="text-[11px] text-muted-foreground">
+											{new Date(item.createdAt).toLocaleString("id-ID")}
+										</span>
+									</div>
+									<div className="rounded-xl bg-muted/40 px-3 py-2">
+										<p className="whitespace-pre-wrap break-words font-mono text-xs leading-5">
+											{item.query}
+										</p>
+									</div>
+									<p className="mt-1 text-[11px] text-muted-foreground">
+										<span
+											className={
+												item.status === "success"
+													? "text-green-600 dark:text-green-400"
+													: "text-destructive"
+											}
+										>
+											{getHistoryStatus(item)}
+										</span>
+										{" · "}
+										{item.executionTimeMs} ms
+									</p>
+									{item.errorMessage ? (
+										<p className="mt-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
+											{item.errorMessage}
+										</p>
+									) : null}
+								</div>
+							</div>
+						))
+					) : (
+						<div className="rounded-2xl border border-dashed p-4 text-sm text-muted-foreground">
+							No query history yet.
+						</div>
+					)}
+				</div>
 			</CardContent>
 		</Card>
 	);
