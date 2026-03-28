@@ -699,10 +699,28 @@ export const $getSandboxTablePreview = createServerFn({ method: "GET" })
 			}
 		}
 
-		const [{ getAdminPool }] = await Promise.all([
+		const [{ getSandboxConnection }, mysqlModule] = await Promise.all([
 			import("#/lib/sandbox-provisioning"),
+			import("mysql2/promise"),
 		]);
-		const pool = getAdminPool(engine, sandbox.region) as MySqlPool;
+		const { host, port } = getSandboxConnection(
+			engine,
+			sandbox.region,
+			sandbox.host,
+			sandbox.port,
+		);
+		const pool = mysqlModule.createPool({
+			host,
+			port,
+			database: sandbox.dbName,
+			user: sandbox.dbUser,
+			password: sandbox.dbPassword,
+			waitForConnections: true,
+			connectionLimit: 3,
+			...(engine === "mariadb" && {
+				authPlugin: "mysql_native_password",
+			}),
+		});
 
 		try {
 			const [rows, fields] = await pool.query(
