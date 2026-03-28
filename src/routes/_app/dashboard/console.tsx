@@ -9,7 +9,7 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { SqlEditor } from "#/components/sql-editor";
+import { LazySqlEditor } from "#/components/lazy-sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -288,7 +288,7 @@ function SqlConsolePage() {
 							</div>
 						</div>
 
-						<SqlEditor
+						<LazySqlEditor
 							key={`${selectedSandboxId}-${historyQueryId}-${resetKey}`}
 							value={query}
 							onChange={setQuery}

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ConfirmationDialog } from "#/components/confirmation-dialog";
-import { SqlEditor } from "#/components/sql-editor";
+import { LazySqlEditor } from "#/components/lazy-sql-editor";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
 import {
@@ -995,7 +995,7 @@ function ConsoleTab({
 						))}
 					</div>
 				</div>
-				<SqlEditor
+				<LazySqlEditor
 					value={query}
 					onChange={setQuery}
 					onSubmit={handleRun}

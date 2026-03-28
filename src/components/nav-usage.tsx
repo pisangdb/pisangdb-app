@@ -14,7 +14,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/ui/tooltip";
-import { $getDashboardStats } from "#/modules/sandboxes/serverFn";
+import { $getDashboardStats } from "#/modules/dashboard/serverFn";
 
 function CircularProgress({
 	percentage,
