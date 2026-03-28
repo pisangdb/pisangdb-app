@@ -82,6 +82,12 @@ export interface SandboxTable {
 	sizeKb: number;
 }
 
+export interface SandboxTablePreview {
+	tableName: string;
+	columns: string[];
+	rows: Record<string, string | number | boolean | null>[];
+}
+
 export interface QueryResult {
 	columns: string[];
 	rows: Record<string, string | number | boolean | null>[];
