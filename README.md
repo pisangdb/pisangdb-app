@@ -186,6 +186,81 @@ Current AI flow highlights:
 - retry on truncated model responses
 - recent prompt cache in dashboard AI surfaces
 
+### Prisma `migrate dev` and Shadow Databases
+If a local Prisma project points to a PisangDB PostgreSQL sandbox and runs `pnpm prisma migrate dev`, Prisma may fail with `P3014`:
+
+```text
+Prisma Migrate could not create the shadow database
+ERROR: permission denied to create database
+```
+
+This is expected. `migrate dev` uses a shadow database to detect schema drift, while PisangDB sandbox users are isolated to one database and do not get `CREATE DATABASE`.
+
+If you do not want to install PostgreSQL locally and do not want a second sandbox, use `pnpm prisma db push`.
+
+If the project only has `schema.prisma` and does not have a `prisma/migrations` folder or SQL migration files yet, `pnpm prisma db push` still works. It synchronizes the schema directly to the database and does not require migration files first.
+
+Use one of these flows:
+
+1. Fastest path for prototypes or bootcamps: skip migration files and push the schema directly. This path does not need a second sandbox and does not need any local PostgreSQL install.
+
+```bash
+pnpm prisma db push
+pnpm prisma generate
+```
+
+2. If you need real migration files managed by Prisma during development: create a second PostgreSQL sandbox and use it as `SHADOW_DATABASE_URL`.
+
+This also does not require local PostgreSQL. The shadow database can stay remote on PisangDB as long as it is separate from the main `DATABASE_URL`.
+
+Quick rule:
+- Want the simplest setup with one PisangDB sandbox: use `pnpm prisma db push`
+- Do not want a local database and do not want a second sandbox: use `pnpm prisma db push`
+- Want migration files from `pnpm prisma migrate dev`: add a second PisangDB sandbox for `SHADOW_DATABASE_URL`
+
+```env
+DATABASE_URL=postgresql://main_user:main_pass@id.pisangdb.com:5432/main_db
+SHADOW_DATABASE_URL=postgresql://shadow_user:shadow_pass@id.pisangdb.com:5432/shadow_db
+```
+
+Prisma 7+:
+
+```ts
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: env("DATABASE_URL"),
+    shadowDatabaseUrl: env("SHADOW_DATABASE_URL"),
+  },
+});
+```
+
+Prisma 6 and below:
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+```
+
+Keep `DATABASE_URL` and `SHADOW_DATABASE_URL` different. Do not point both to the same sandbox. Treat the shadow database as disposable because Prisma may reset it during `migrate dev`. For production, use `prisma migrate deploy`; the shadow database requirement applies to `migrate dev`.
+
+When to switch from `db push` to `migrate dev`:
+- Stay on `db push` while learning Prisma, prototyping fast, or working alone without needing migration history in git
+- Move to `migrate dev` when you want reviewable migration files, predictable schema changes across teammates, and a proper deploy flow with `prisma migrate deploy`
+
+Official references:
+- Prisma config reference: https://www.prisma.io/docs/orm/reference/prisma-config-reference
+- Prisma Migrate development workflow: https://www.prisma.io/docs/v6/orm/prisma-migrate/workflows/development-and-production
+
 ### Linting & Formatting
 Biome only — no ESLint, no Prettier.
 
