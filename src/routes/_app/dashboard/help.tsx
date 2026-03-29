@@ -235,6 +235,178 @@ function HelpPage() {
 				</Card>
 			</div>
 
+			<Card id="prisma-migrate" className="border-border/80">
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2 text-base">
+						<CircleAlertIcon className="size-4" />
+						Prisma `migrate dev` fails with `P3014`
+					</CardTitle>
+					<CardDescription>
+						If a local Hono + Prisma project points to a PisangDB PostgreSQL
+						sandbox, this error means Prisma tried to create a shadow database
+						and the sandbox user does not have <code>CREATE DATABASE</code>.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.95fr)]">
+					<div className="space-y-4">
+						<div className="rounded-xl border bg-primary/5 p-4">
+							<p className="text-sm font-medium text-foreground">
+								Shortest answer
+							</p>
+							<p className="mt-1 text-sm leading-6 text-muted-foreground">
+								Do not want a local database and do not want a second sandbox?
+								Use <code>pnpm prisma db push</code>.
+							</p>
+						</div>
+
+						<div className="rounded-xl border bg-muted/20 p-4">
+							<p className="text-sm font-medium text-foreground">
+								Fastest path for prototypes
+							</p>
+							<p className="mt-1 text-sm leading-6 text-muted-foreground">
+								Use <code>db push</code> when you want the schema applied
+								quickly and do not need migration files yet.
+							</p>
+							<p className="mt-2 text-sm leading-6 text-muted-foreground">
+								This path uses one PisangDB sandbox only. No extra sandbox and
+								no local PostgreSQL install are required, and it still works
+								even if the <code>prisma/migrations</code> folder does not exist
+								yet.
+							</p>
+							<pre className="mt-3 overflow-x-auto rounded-md bg-muted p-3 text-xs">
+								<code>{`pnpm prisma db push
+pnpm prisma generate`}</code>
+							</pre>
+						</div>
+
+						<div className="rounded-xl border bg-muted/20 p-4">
+							<p className="text-sm font-medium text-foreground">
+								If you need proper migration files
+							</p>
+							<p className="mt-1 text-sm leading-6 text-muted-foreground">
+								Create a second PostgreSQL sandbox and keep it separate from
+								your main <code>DATABASE_URL</code>.
+							</p>
+							<p className="mt-2 text-sm leading-6 text-muted-foreground">
+								This also does not require local PostgreSQL. The shadow database
+								can stay remote on PisangDB as a second sandbox.
+							</p>
+							<pre className="mt-3 overflow-x-auto rounded-md bg-muted p-3 text-xs">
+								<code>{`DATABASE_URL=postgresql://main_user:main_pass@id.pisangdb.com:5432/main_db
+SHADOW_DATABASE_URL=postgresql://shadow_user:shadow_pass@id.pisangdb.com:5432/shadow_db`}</code>
+							</pre>
+
+							<div className="mt-3 grid gap-3 xl:grid-cols-2">
+								<div className="rounded-lg border bg-background p-3">
+									<p className="text-xs font-medium text-foreground">
+										Prisma 7+
+									</p>
+									<pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 text-xs">
+										<code>{`import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: env("DATABASE_URL"),
+    shadowDatabaseUrl: env("SHADOW_DATABASE_URL"),
+  },
+});`}</code>
+									</pre>
+								</div>
+
+								<div className="rounded-lg border bg-background p-3">
+									<p className="text-xs font-medium text-foreground">
+										Prisma 6 and below
+									</p>
+									<pre className="mt-2 overflow-x-auto rounded-md bg-muted p-3 text-xs">
+										<code>{`datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}`}</code>
+									</pre>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div className="space-y-3">
+						<div className="rounded-xl border bg-primary/5 p-4">
+							<p className="text-sm font-medium text-foreground">
+								Choose the right path
+							</p>
+							<div className="mt-3 space-y-2 text-sm leading-6 text-muted-foreground">
+								<p>
+									Use <code>db push</code> if you want the simplest setup with
+									one sandbox only.
+								</p>
+								<p>
+									Use <code>migrate dev</code> only if you also provide a second
+									sandbox for <code>SHADOW_DATABASE_URL</code>.
+								</p>
+								<p>
+									If the project does not have a <code>prisma/migrations </code>
+									folder yet, <code>db push</code> is still safe to use.
+								</p>
+								<p>
+									No local database is required. A second PisangDB sandbox is
+									enough.
+								</p>
+								<p>
+									Keep <code>DATABASE_URL</code> and{" "}
+									<code>SHADOW_DATABASE_URL</code> different.
+								</p>
+								<p>
+									Use the same engine for both URLs. For this case, both should
+									be PostgreSQL.
+								</p>
+								<p>
+									Production uses <code>prisma migrate deploy</code>; the shadow
+									database requirement applies to <code>migrate dev</code>.
+								</p>
+								<p>
+									Treat the shadow database as disposable because Prisma may
+									reset it during development migrations.
+								</p>
+								<p>
+									Stay on <code>db push</code> while learning or prototyping
+									fast. Move to <code>migrate dev</code> when you want
+									reviewable migration files and team-friendly schema history.
+								</p>
+							</div>
+						</div>
+
+						<div className="flex flex-wrap gap-2">
+							<Button asChild size="sm">
+								<Link to="/dashboard/sandboxes/new">Create shadow sandbox</Link>
+							</Button>
+							<Button asChild size="sm" variant="outline">
+								<a
+									href="https://www.prisma.io/docs/orm/reference/prisma-config-reference"
+									target="_blank"
+									rel="noreferrer"
+								>
+									Prisma config docs
+								</a>
+							</Button>
+							<Button asChild size="sm" variant="outline">
+								<a
+									href="https://www.prisma.io/docs/v6/orm/prisma-migrate/workflows/development-and-production"
+									target="_blank"
+									rel="noreferrer"
+								>
+									Prisma migrate docs
+								</a>
+							</Button>
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
 			<Card className="border-border/80">
 				<CardHeader>
 					<CardTitle className="text-base">Popular Destinations</CardTitle>
