@@ -56,11 +56,12 @@ Fill in `.env`:
 ```env
 # Required
 BETTER_AUTH_SECRET=         # openssl rand -base64 32
-BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_URL=http://localhost:3100
 DATABASE_URL=postgresql://pisang:password@localhost:5432/pisangdb
 
 # Sandbox engines (Docker) — region: id
 POSTGRES_SANDBOX_URL_ID=postgresql://pisang:password@localhost:5432/postgres
+PUBLIC_POSTGRES_SANDBOX_PORT_ID=5433
 MYSQL_SANDBOX_URL_ID=mysql://root:password@localhost:3306
 MARIADB_SANDBOX_URL_ID=mysql://root:password@localhost:3307
 
@@ -92,7 +93,7 @@ pnpm drizzle-kit push
 pnpm dev
 ```
 
-The app runs at `http://localhost:3000`.
+The app runs at `http://localhost:3100`.
 
 ---
 

@@ -98,7 +98,7 @@ export function generateSandboxCredentials(
 	const dbUser = generateDbUser();
 	const dbPassword = generateDbPassword();
 	const host = `${region}.pisangdb.com`;
-	const port = ENGINE_PORTS[engine];
+	const port = getPublicSandboxPort(engine, region);
 	const encodedPassword = encodeURIComponent(dbPassword);
 	const connectionUrl =
 		engine === "postgresql"
@@ -411,6 +411,26 @@ export const ENGINE_PORTS: Record<DbEngine, number> = {
 	mariadb: 3307,
 };
 
+function getPublicSandboxPort(engine: DbEngine, region: string): number {
+	const regionKey = region.toUpperCase();
+	const envKey =
+		engine === "postgresql"
+			? `PUBLIC_POSTGRES_SANDBOX_PORT_${regionKey}`
+			: engine === "mysql"
+				? `PUBLIC_MYSQL_SANDBOX_PORT_${regionKey}`
+				: `PUBLIC_MARIADB_SANDBOX_PORT_${regionKey}`;
+	const fallbackEnvKey =
+		engine === "postgresql"
+			? "PUBLIC_POSTGRES_SANDBOX_PORT_ID"
+			: engine === "mysql"
+				? "PUBLIC_MYSQL_SANDBOX_PORT_ID"
+				: "PUBLIC_MARIADB_SANDBOX_PORT_ID";
+
+	const rawPort = process.env[envKey] ?? process.env[fallbackEnvKey];
+	const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : Number.NaN;
+	return Number.isFinite(parsedPort) ? parsedPort : ENGINE_PORTS[engine];
+}
+
 export function getSandboxPort(engine: DbEngine, region: string): number {
 	const regionKey = region.toUpperCase();
 	if (engine === "postgresql") {
@@ -465,7 +485,7 @@ export function buildConnectionUrl(
 	dbName: string,
 ): string {
 	const host = `${region}.pisangdb.com`;
-	const port = ENGINE_PORTS[engine];
+	const port = getPublicSandboxPort(engine, region);
 	const protocol = engine === "postgresql" ? "postgresql" : "mysql";
 	return `${protocol}://${dbUser}:${dbPassword}@${host}:${port}/${dbName}`;
 }

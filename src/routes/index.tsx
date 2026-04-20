@@ -138,7 +138,7 @@ const SCENARIOS = [
 		name: "migration-check",
 		engine: "PostgreSQL 16",
 		region: "Indonesia",
-		url: "DATABASE_URL=postgresql://sb_a1b2x8:s3cr3t@id.pisangdb.com:5432/pisang_a1b2_migration_x8k2m9",
+		url: "DATABASE_URL=postgresql://sb_a1b2x8:s3cr3t@id.pisangdb.com:5433/pisang_a1b2_migration_x8k2m9",
 		ttl: "6h",
 	},
 	{

@@ -20,7 +20,7 @@ interface ResetPasswordEmailProps {
 
 const baseUrl = process.env.BETTER_AUTH_URL
 	? `${process.env.BETTER_AUTH_URL}`
-	: "http://localhost:3000";
+	: "http://localhost:3100";
 
 export function ResetPasswordEmail({ resetLink }: ResetPasswordEmailProps) {
 	const previewText = `Reset your PisangDB password`;
