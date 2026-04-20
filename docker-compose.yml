@@ -9,7 +9,7 @@ services:
     labels:
       - "build.timestamp=${BUILD_TIMESTAMP:-unknown}"
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3100:3000"
     networks:
       - integrate
     depends_on:
@@ -28,7 +28,7 @@ services:
       # App metadata DB (users, sandboxes, ai_logs, query_history)
       DATABASE_URL: postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb
       # Sandbox engine admin URLs — region: id (Indonesia, VPS ini)
-      POSTGRES_SANDBOX_URL_ID: postgresql://pisang:${PG_SANDBOX_PASSWORD}@postgres-sandbox:5432/postgres
+      POSTGRES_SANDBOX_URL_ID: postgresql://pisang:${PG_SANDBOX_PASSWORD}@postgres-sandbox:5433/postgres
       MYSQL_SANDBOX_URL_ID: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306
       MARIADB_SANDBOX_URL_ID: mysql://root:${MARIADB_ROOT_PASSWORD}@mariadb:3306
       # Google OAuth (opsional — aktif otomatis jika diisi)
@@ -105,7 +105,7 @@ services:
     volumes:
       - ./postgres-sandbox:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pisang -d pisangdb"]
       interval: 10s
@@ -127,7 +127,7 @@ services:
   # Port 3306 exposed ke host — developer connect via id.pisangdb.com:3306
   # ─────────────────────────────────────────────────────────────
   mysql:
-    image: mysql:8.0
+    image: mysql:8.0-debian
     restart: unless-stopped
     container_name: pisang-mysql
     networks:
