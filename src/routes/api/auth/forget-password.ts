@@ -67,7 +67,7 @@ export const Route = createFileRoute("/api/auth/forget-password")({
 					});
 
 					// Send email
-					const resetLink = `${process.env.BETTER_AUTH_URL || "http://localhost:3000"}/reset-password?token=${resetToken}`;
+					const resetLink = `${process.env.BETTER_AUTH_URL || "http://localhost:3100"}/reset-password?token=${resetToken}`;
 
 					try {
 						await transporter.sendMail({
