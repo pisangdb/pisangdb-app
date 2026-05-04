@@ -292,8 +292,8 @@ pnpm prisma generate`}</code>
 								can stay remote on PisangDB as a second sandbox.
 							</p>
 							<pre className="mt-3 overflow-x-auto rounded-md bg-muted p-3 text-xs">
-								<code>{`DATABASE_URL=postgresql://main_user:main_pass@id.pisangdb.com:5432/main_db
-SHADOW_DATABASE_URL=postgresql://shadow_user:shadow_pass@id.pisangdb.com:5432/shadow_db`}</code>
+								<code>{`DATABASE_URL=postgresql://main_user:main_pass@id.pisangdb.com:5433/main_db
+SHADOW_DATABASE_URL=postgresql://shadow_user:shadow_pass@id.pisangdb.com:5433/shadow_db`}</code>
 							</pre>
 
 							<div className="mt-3 grid gap-3 xl:grid-cols-2">
