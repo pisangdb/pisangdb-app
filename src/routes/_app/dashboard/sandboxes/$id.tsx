@@ -102,8 +102,8 @@ const ENGINE_LABELS: Record<string, string> = {
 };
 
 const REGION_LABELS: Record<string, string> = {
-	id: "🇮🇩 Indonesia",
 	sg: "🇸🇬 Singapore",
+	id: "🇮🇩 Indonesia",
 	us: "🇺🇸 US",
 };
 
@@ -809,8 +809,8 @@ function InfoTab({ sandbox }: { sandbox: SandboxDetail }) {
 										Ready-to-use credentials
 									</p>
 									<p className="text-xs text-muted-foreground">
-										Copy the full connection string, use the `.env` snippet, or
-										lift individual values for local tooling.
+										Copy the full connection string, usconnection stringe the
+										`.env` snippet, or lift individual values for local tooling.
 									</p>
 								</div>
 							</div>

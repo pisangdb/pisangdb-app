@@ -6,6 +6,7 @@ import {
 	createPgAdminPool,
 	db,
 } from "#/db";
+import { getPrimarySandboxRegion } from "#/lib/regions";
 
 interface ServiceStatus {
 	status: "up" | "down";
@@ -50,7 +51,7 @@ async function measureLatency<T>(
 
 async function checkPostgresSandbox(): Promise<ServiceStatus> {
 	try {
-		const pool = createPgAdminPool("id");
+		const pool = createPgAdminPool(getPrimarySandboxRegion());
 		try {
 			return await measureLatency(pool.query("SELECT 1"));
 		} finally {
@@ -64,7 +65,7 @@ async function checkPostgresSandbox(): Promise<ServiceStatus> {
 
 async function checkMysqlSandbox(): Promise<ServiceStatus> {
 	try {
-		const pool = createMysqlAdminPool("id");
+		const pool = createMysqlAdminPool(getPrimarySandboxRegion());
 		try {
 			return await measureLatency(pool.query("SELECT 1"));
 		} finally {
@@ -78,7 +79,7 @@ async function checkMysqlSandbox(): Promise<ServiceStatus> {
 
 async function checkMariadbSandbox(): Promise<ServiceStatus> {
 	try {
-		const pool = createMariadbAdminPool("id");
+		const pool = createMariadbAdminPool(getPrimarySandboxRegion());
 		try {
 			return await measureLatency(pool.query("SELECT 1"));
 		} finally {
