@@ -1,8 +1,7 @@
 import type { Pool as MySqlPool } from "mysql2/promise";
 import { Pool } from "pg";
 import {
-	getAdminPool,
-	getSandboxPort,
+	getSandboxConnection,
 	validateDbName,
 } from "#/lib/sandbox-provisioning";
 import type { DbEngine, DbRegion } from "#/lib/types";
@@ -13,6 +12,8 @@ import type { DbEngine, DbRegion } from "#/lib/types";
 export async function executeTemplateSql(
 	engine: DbEngine,
 	region: DbRegion,
+	host: string,
+	port: number,
 	dbName: string,
 	_dbUser: string,
 	_dbPassword: string,
@@ -22,13 +23,12 @@ export async function executeTemplateSql(
 	// Validate database name for defense in depth
 	validateDbName(dbName);
 
-	const host = process.env.SANDBOX_HOST ?? `${region}.pisangdb.com`;
-	const port = getSandboxPort(engine, region);
+	const connection = getSandboxConnection(engine, region, host, port);
 
 	if (engine === "postgresql") {
 		const pool = new Pool({
-			host,
-			port,
+			host: connection.host,
+			port: connection.port,
 			database: dbName,
 			user: _dbUser,
 			password: _dbPassword,
@@ -78,13 +78,21 @@ export async function executeTemplateSql(
 		}
 	} else {
 		// MySQL/MariaDB
-		const pool = getAdminPool(engine, region) as MySqlPool;
+		const mysql = await import("mysql2/promise");
+		const pool = mysql.createPool({
+			host: connection.host,
+			port: connection.port,
+			database: dbName,
+			user: _dbUser,
+			password: _dbPassword,
+			waitForConnections: true,
+			connectionLimit: 3,
+			...(engine === "mariadb" && {
+				authPlugin: "mysql_native_password",
+			}),
+		}) as MySqlPool;
 
 		try {
-			// Switch to the sandbox database
-			// dbName is already validated, safe to use in backtick-quoted identifier
-			await pool.query(`USE \`${dbName}\``);
-
 			// Execute DDL statements
 			const ddlStatements = ddlSql
 				.split(";")

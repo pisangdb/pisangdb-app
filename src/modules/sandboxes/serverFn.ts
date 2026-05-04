@@ -322,6 +322,8 @@ export const $createSandbox = createServerFn({ method: "POST" })
 					await (await import("./template-helper")).executeTemplateSql(
 						engine,
 						data.region,
+						host,
+						port,
 						dbName,
 						dbUser,
 						dbPassword,
@@ -568,14 +570,16 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 			const engine = sandbox.engine as DbEngine;
 
 			if (sandbox.engine === "postgresql") {
-				const [{ Pool: PgPool }, { getSandboxPort }] = await Promise.all([
+				const [{ Pool: PgPool }, { getSandboxConnection }] = await Promise.all([
 					import("pg"),
 					import("#/lib/sandbox-provisioning"),
 				]);
-				const { host, port } = {
-					host: process.env.SANDBOX_HOST ?? sandbox.host,
-					port: getSandboxPort(engine, sandbox.region),
-				};
+				const { host, port } = getSandboxConnection(
+					engine,
+					sandbox.region,
+					sandbox.host,
+					sandbox.port,
+				);
 				const sandboxPool = new PgPool({
 					host,
 					port,
@@ -584,60 +588,89 @@ export const $getSandboxTables = createServerFn({ method: "GET" })
 					password: sandbox.dbPassword,
 					max: 5,
 				});
-				const result = await sandboxPool.query<{
-					tablename: string;
-				}>(
-					`SELECT tablename
-					FROM pg_catalog.pg_tables
-					WHERE schemaname = 'public'
-					ORDER BY tablename`,
-				);
-
-				for (const row of result.rows) {
-					const tableName = row.tablename;
-					const countResult = await sandboxPool.query<{
-						row_count: bigint;
-						size_kb: bigint;
+				try {
+					const result = await sandboxPool.query<{
+						tablename: string;
 					}>(
-						`SELECT
-							(SELECT count(*) FROM "${tableName}") as row_count,
-							coalesce(pg_table_size($1::regclass), 0) as size_kb
-						`,
-						[tableName],
+						`SELECT tablename
+						FROM pg_catalog.pg_tables
+						WHERE schemaname = 'public'
+						ORDER BY tablename`,
 					);
-					const rowCount = Number(countResult.rows[0]?.row_count ?? 0);
-					const sizeKb = Math.round(
-						Number(countResult.rows[0]?.size_kb ?? 0) / 1024,
-					);
-					tables.push({
-						name: tableName,
-						rows: rowCount,
-						sizeKb,
-					});
+
+					for (const row of result.rows) {
+						const tableName = row.tablename;
+						const countResult = await sandboxPool.query<{
+							row_count: bigint;
+							size_kb: bigint;
+						}>(
+							`SELECT
+								(SELECT count(*) FROM "${tableName}") as row_count,
+								coalesce(pg_table_size($1::regclass), 0) as size_kb
+							`,
+							[tableName],
+						);
+						const rowCount = Number(countResult.rows[0]?.row_count ?? 0);
+						const sizeKb = Math.round(
+							Number(countResult.rows[0]?.size_kb ?? 0) / 1024,
+						);
+						tables.push({
+							name: tableName,
+							rows: rowCount,
+							sizeKb,
+						});
+					}
+				} finally {
+					await sandboxPool.end();
 				}
-				await sandboxPool.end();
 			} else {
-				const [{ getAdminPool }] = await Promise.all([
+				const [{ getSandboxConnection }, mysqlModule] = await Promise.all([
 					import("#/lib/sandbox-provisioning"),
+					import("mysql2/promise"),
 				]);
-				const pool = getAdminPool(engine, sandbox.region) as MySqlPool;
-				const [result] = (await pool.query(
-					`SHOW TABLE STATUS FROM \`${sandbox.dbName}\``,
-				)) as [Record<string, number | string>[], unknown];
-				tables = result.map((row) => ({
-					name: String(row.Name ?? "unknown"),
-					rows: (row.Rows as number) || 0,
-					sizeKb:
-						Math.round(
-							(Number(row.Data_length ?? 0) + Number(row.Index_length ?? 0)) /
-								1024,
-						) || 0,
-				}));
-				await pool.end();
+				const { host, port } = getSandboxConnection(
+					engine,
+					sandbox.region,
+					sandbox.host,
+					sandbox.port,
+				);
+				const pool = mysqlModule.createPool({
+					host,
+					port,
+					database: sandbox.dbName,
+					user: sandbox.dbUser,
+					password: sandbox.dbPassword,
+					waitForConnections: true,
+					connectionLimit: 3,
+					...(engine === "mariadb" && {
+						authPlugin: "mysql_native_password",
+					}),
+				});
+				try {
+					const [result] = (await pool.query("SHOW TABLE STATUS")) as [
+						Record<string, number | string>[],
+						unknown,
+					];
+					tables = result.map((row) => ({
+						name: String(row.Name ?? "unknown"),
+						rows: (row.Rows as number) || 0,
+						sizeKb:
+							Math.round(
+								(Number(row.Data_length ?? 0) + Number(row.Index_length ?? 0)) /
+									1024,
+							) || 0,
+					}));
+				} finally {
+					await pool.end();
+				}
 			}
 
 			return tables;
-		} catch {
+		} catch (error) {
+			console.warn(
+				`[sandboxes] Failed to list tables for ${sandbox.id} (${sandbox.engine}/${sandbox.region})`,
+				error,
+			);
 			return [];
 		}
 	});
@@ -674,13 +707,19 @@ export const $getSandboxTablePreview = createServerFn({ method: "GET" })
 		const engine = sandbox.engine as DbEngine;
 
 		if (engine === "postgresql") {
-			const [{ Pool: PgPool }, { getSandboxPort }] = await Promise.all([
+			const [{ Pool: PgPool }, { getSandboxConnection }] = await Promise.all([
 				import("pg"),
 				import("#/lib/sandbox-provisioning"),
 			]);
+			const { host, port } = getSandboxConnection(
+				engine,
+				sandbox.region,
+				sandbox.host,
+				sandbox.port,
+			);
 			const sandboxPool = new PgPool({
-				host: process.env.SANDBOX_HOST ?? sandbox.host,
-				port: getSandboxPort(engine, sandbox.region),
+				host,
+				port,
 				database: sandbox.dbName,
 				user: sandbox.dbUser,
 				password: sandbox.dbPassword,
