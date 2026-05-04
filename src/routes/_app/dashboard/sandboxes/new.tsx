@@ -36,7 +36,7 @@ const engineOptions: {
 	emoji: string;
 	port: number;
 }[] = [
-	{ value: "postgresql", label: "PostgreSQL 16", emoji: "🐘", port: 5432 },
+	{ value: "postgresql", label: "PostgreSQL 16", emoji: "🐘", port: 5433 },
 	{ value: "mysql", label: "MySQL 8", emoji: "🐬", port: 3306 },
 	{ value: "mariadb", label: "MariaDB 11", emoji: "🦭", port: 3307 },
 ];
@@ -46,8 +46,8 @@ const regionOptions: {
 	label: string;
 	enabled: boolean;
 }[] = [
-	{ value: "id", label: "🇮🇩 Indonesia", enabled: true },
-	{ value: "sg", label: "🇸🇬 Singapore (coming soon)", enabled: false },
+	{ value: "id", label: "🇮🇩 Indonesia (coming soon)", enabled: false },
+	{ value: "sg", label: "🇸🇬 Singapore (coming soon)", enabled: true },
 	{ value: "us", label: "🇺🇸 United States (coming soon)", enabled: false },
 ];
 

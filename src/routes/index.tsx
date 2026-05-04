@@ -84,14 +84,14 @@ const features = [
 ];
 
 const engines = [
-	{ emoji: "🐘", name: "PostgreSQL 16", port: "5432" },
+	{ emoji: "🐘", name: "PostgreSQL 16", port: "5433" },
 	{ emoji: "🐬", name: "MySQL 8", port: "3306" },
 	{ emoji: "🦭", name: "MariaDB 11", port: "3307" },
 ];
 
 const regions = [
-	{ flag: "🇮🇩", name: "Indonesia", active: true },
-	{ flag: "🇸🇬", name: "Singapore", active: false },
+	{ flag: "🇮🇩", name: "Indonesia", active: false },
+	{ flag: "🇸🇬", name: "Singapore", active: true },
 	{ flag: "🇺🇸", name: "United States", active: false },
 ];
 
@@ -137,22 +137,22 @@ const SCENARIOS = [
 	{
 		name: "migration-check",
 		engine: "PostgreSQL 16",
-		region: "Indonesia",
-		url: "DATABASE_URL=postgresql://sb_a1b2x8:s3cr3t@id.pisangdb.com:5433/pisang_a1b2_migration_x8k2m9",
+		region: "Singapore",
+		url: "DATABASE_URL=postgresql://sb_a1b2x8:s3cr3t@sg.pisangdb.com:5433/pisang_a1b2_migration_x8k2m9",
 		ttl: "6h",
 	},
 	{
 		name: "bootcamp-prisma",
 		engine: "MySQL 8",
-		region: "Indonesia",
-		url: "DATABASE_URL=mysql://sb_c3d4y9:s3cr3t@id.pisangdb.com:3306/pisang_c3d4_bootcamp_prisma_z7j1",
+		region: "Singapore",
+		url: "DATABASE_URL=mysql://sb_c3d4y9:s3cr3t@sg.pisangdb.com:3306/pisang_c3d4_bootcamp_prisma_z7j1",
 		ttl: "24h",
 	},
 	{
 		name: "quick-test",
 		engine: "MariaDB 11",
-		region: "Indonesia",
-		url: "DATABASE_URL=mysql://sb_e5f6z1:s3cr3t@id.pisangdb.com:3307/pisang_e5f6_quick_test_q2w3",
+		region: "Singapore",
+		url: "DATABASE_URL=mysql://sb_e5f6z1:s3cr3t@sg.pisangdb.com:3307/pisang_e5f6_quick_test_q2w3",
 		ttl: "1h",
 	},
 ];
