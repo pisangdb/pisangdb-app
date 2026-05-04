@@ -90,8 +90,8 @@ const engines = [
 ];
 
 const regions = [
-	{ flag: "🇮🇩", name: "Indonesia", active: false },
 	{ flag: "🇸🇬", name: "Singapore", active: true },
+	{ flag: "🇮🇩", name: "Indonesia", active: false },
 	{ flag: "🇺🇸", name: "United States", active: false },
 ];
 
@@ -545,7 +545,7 @@ function LandingPage() {
 								</div>
 							))}
 							<p className="text-xs text-muted-foreground">
-								Singapore and US East regions are in development.
+								Indonesia and US East regions are in development.
 							</p>
 						</CardContent>
 					</Card>
