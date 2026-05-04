@@ -427,7 +427,9 @@ function getPublicSandboxPort(engine: DbEngine, region: string): number {
 				? "PUBLIC_MYSQL_SANDBOX_PORT_ID"
 				: "PUBLIC_MARIADB_SANDBOX_PORT_ID";
 
-	const rawPort = process.env[envKey] ?? process.env[fallbackEnvKey];
+	const rawPort =
+		process.env[envKey] ??
+		(region === "id" ? process.env[fallbackEnvKey] : undefined);
 	const parsedPort = rawPort ? Number.parseInt(rawPort, 10) : Number.NaN;
 	return Number.isFinite(parsedPort) ? parsedPort : ENGINE_PORTS[engine];
 }
