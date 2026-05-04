@@ -21,14 +21,16 @@ import { Input } from "#/components/ui/input";
 import { Label } from "#/components/ui/label";
 import { useCreateSandbox } from "#/lib/hooks/useSandboxes";
 import { useTemplates } from "#/lib/hooks/useTemplates";
+import type { DbRegion } from "#/lib/types";
+import { $getSandboxRegionsConfig } from "#/modules/regions/serverFn";
 
 export const Route = createFileRoute("/_app/dashboard/sandboxes/new")({
 	head: () => ({ meta: [{ title: "New Sandbox — PisangDB" }] }),
+	loader: async () => $getSandboxRegionsConfig(),
 	component: NewSandboxPage,
 });
 
 type Engine = "postgresql" | "mysql" | "mariadb";
-type Region = "id" | "sg" | "us";
 
 const engineOptions: {
 	value: Engine;
@@ -41,16 +43,6 @@ const engineOptions: {
 	{ value: "mariadb", label: "MariaDB 11", emoji: "🦭", port: 3307 },
 ];
 
-const regionOptions: {
-	value: Region;
-	label: string;
-	enabled: boolean;
-}[] = [
-	{ value: "sg", label: "🇸🇬 Singapore", enabled: true },
-	{ value: "id", label: "🇮🇩 Indonesia (coming soon)", enabled: false },
-	{ value: "us", label: "🇺🇸 United States (coming soon)", enabled: false },
-];
-
 const retentionOptions = [
 	"1 hour",
 	"6 hours",
@@ -61,10 +53,11 @@ const retentionOptions = [
 ];
 
 function NewSandboxPage() {
+	const { defaultRegion, regions: regionOptions } = Route.useLoaderData();
 	const navigate = useNavigate();
 	const createSandbox = useCreateSandbox();
 	const [engine, setEngine] = useState<Engine>("postgresql");
-	const [region, setRegion] = useState<Region>("sg");
+	const [region, setRegion] = useState<DbRegion>(defaultRegion);
 	const [name, setName] = useState("my-project-db");
 	const [retention, setRetention] = useState("6 hours");
 	const [templateId, setTemplateId] = useState<string | null>(null);

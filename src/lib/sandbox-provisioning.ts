@@ -5,6 +5,7 @@ import {
 	createMysqlAdminPool,
 	createPgAdminPool,
 } from "#/db";
+import { getPrimarySandboxRegion } from "#/lib/regions";
 import type { DbEngine } from "#/lib/types";
 
 export type AdminPool = Pool | MySqlPool;
@@ -84,7 +85,7 @@ export function generateSandboxCredentials(
 	userId: string,
 	displayName: string,
 	engine: DbEngine,
-	region = "id",
+	region = getPrimarySandboxRegion(),
 ): {
 	dbName: string;
 	dbUser: string;

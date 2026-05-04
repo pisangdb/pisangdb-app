@@ -268,12 +268,18 @@ export const $createSandbox = createServerFn({ method: "POST" })
 			throw new Error(`Maximum of ${maxActive} active sandboxes allowed`);
 		}
 
+		const { isSandboxRegionEnabled } = await import("#/lib/regions");
+		if (!isSandboxRegionEnabled(data.region)) {
+			throw new Error(`Region ${data.region.toUpperCase()} is not available`);
+		}
+
 		const { dbName, dbUser, dbPassword, host, port, connectionUrl } = (
 			await import("#/lib/sandbox-provisioning")
 		).generateSandboxCredentials(
 			userId,
 			data.displayName,
 			data.engine as DbEngine,
+			data.region,
 		);
 
 		const engine = data.engine as DbEngine;
