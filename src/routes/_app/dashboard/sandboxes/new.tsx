@@ -46,8 +46,8 @@ const regionOptions: {
 	label: string;
 	enabled: boolean;
 }[] = [
+	{ value: "sg", label: "🇸🇬 Singapore", enabled: true },
 	{ value: "id", label: "🇮🇩 Indonesia (coming soon)", enabled: false },
-	{ value: "sg", label: "🇸🇬 Singapore (coming soon)", enabled: true },
 	{ value: "us", label: "🇺🇸 United States (coming soon)", enabled: false },
 ];
 
