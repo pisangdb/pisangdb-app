@@ -27,11 +27,11 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
       # App metadata DB (users, sandboxes, ai_logs, query_history)
       DATABASE_URL: postgresql://pisang:${PG_APP_PASSWORD}@postgres-app:5432/pisangdb
-      # Sandbox engine admin URLs — region: id (Indonesia, VPS ini)
-      POSTGRES_SANDBOX_URL_ID: postgresql://pisang:${PG_SANDBOX_PASSWORD}@postgres-sandbox:5432/postgres
-      PUBLIC_POSTGRES_SANDBOX_PORT_ID: ${PUBLIC_POSTGRES_SANDBOX_PORT_ID:-5433}
-      MYSQL_SANDBOX_URL_ID: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306
-      MARIADB_SANDBOX_URL_ID: mysql://root:${MARIADB_ROOT_PASSWORD}@mariadb:3306
+      # Sandbox engine admin URLs — region: sg (Singapore, VPS ini)
+      POSTGRES_SANDBOX_URL_SG: postgresql://pisang:${PG_SANDBOX_PASSWORD}@postgres-sandbox:5432/postgres
+      PUBLIC_POSTGRES_SANDBOX_PORT_SG: ${PUBLIC_POSTGRES_SANDBOX_PORT_SG:-5433}
+      MYSQL_SANDBOX_URL_SG: mysql://root:${MYSQL_ROOT_PASSWORD}@mysql:3306
+      MARIADB_SANDBOX_URL_SG: mysql://root:${MARIADB_ROOT_PASSWORD}@mariadb:3306
       # Google OAuth (opsional — aktif otomatis jika diisi)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
@@ -86,8 +86,8 @@ services:
           memory: 128M
 
   # ─────────────────────────────────────────────────────────────
-  # PostgreSQL 16 — Sandbox Engine (region: id)
-  # Port 5432 exposed ke host — developer connect via id.pisangdb.com:5432
+  # PostgreSQL 16 — Sandbox Engine (region: sg)
+  # Port 5432 exposed ke host — developer connect via sg.pisangdb.com:5432
   # User 'pisang' otomatis jadi superuser (untuk CREATE DATABASE / CREATE USER)
   # ─────────────────────────────────────────────────────────────
   postgres-sandbox:
@@ -122,10 +122,10 @@ services:
           memory: 256M
 
   # ─────────────────────────────────────────────────────────────
-  # MySQL 8.0 — Sandbox Engine (region: id)
+  # MySQL 8.0 — Sandbox Engine (region: sg)
   # Catatan: pakai 8.0 bukan 8.4 karena mysql_native_password
   # masih aktif by default (kompatibel dengan mysql2 driver)
-  # Port 3306 exposed ke host — developer connect via id.pisangdb.com:3306
+  # Port 3306 exposed ke host — developer connect via sg.pisangdb.com:3306
   # ─────────────────────────────────────────────────────────────
   mysql:
     image: mysql:8.0-debian
@@ -168,9 +168,9 @@ services:
           memory: 256M
 
   # ─────────────────────────────────────────────────────────────
-  # MariaDB 11.4 LTS — Sandbox Engine (region: id)
+  # MariaDB 11.4 LTS — Sandbox Engine (region: sg)
   # Port 3307 (bukan 3306) agar tidak bentrok dengan MySQL
-  # Port 3307 exposed ke host — developer connect via id.pisangdb.com:3307
+  # Port 3307 exposed ke host — developer connect via sg.pisangdb.com:3307
   # ─────────────────────────────────────────────────────────────
   mariadb:
     image: mariadb:11.4

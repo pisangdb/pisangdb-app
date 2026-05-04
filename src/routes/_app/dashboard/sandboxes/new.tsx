@@ -64,7 +64,7 @@ function NewSandboxPage() {
 	const navigate = useNavigate();
 	const createSandbox = useCreateSandbox();
 	const [engine, setEngine] = useState<Engine>("postgresql");
-	const [region, setRegion] = useState<Region>("id");
+	const [region, setRegion] = useState<Region>("sg");
 	const [name, setName] = useState("my-project-db");
 	const [retention, setRetention] = useState("6 hours");
 	const [templateId, setTemplateId] = useState<string | null>(null);
