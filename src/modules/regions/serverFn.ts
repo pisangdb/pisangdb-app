@@ -10,7 +10,9 @@ export type SandboxRegionsConfig = {
 	regions: ReturnType<typeof getSandboxRegionOptions>;
 };
 
-export const $getSandboxRegionsConfig = createServerFn({ method: "GET" }).handler(
+export const $getSandboxRegionsConfig = createServerFn({
+	method: "GET",
+}).handler(
 	async (): Promise<SandboxRegionsConfig> => ({
 		defaultRegion: getPrimarySandboxRegion(),
 		regions: getSandboxRegionOptions(),
